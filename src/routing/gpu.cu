@@ -23,7 +23,7 @@ extern "C" {
 struct gpu_timetable {
   gpu_delta* route_stop_times_{nullptr};
 };
-//DIES IST EIN TEST
+
 struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            std::uint32_t n_route_stop_times) {
   size_t device_bytes = 0U;
