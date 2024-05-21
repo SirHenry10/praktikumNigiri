@@ -1,4 +1,4 @@
-#include "nigiri/routing/gpu.cuh"
+#include "nigiri/routing/gpu.h"
 
 #include <cstdio>
 
