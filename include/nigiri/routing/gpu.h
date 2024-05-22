@@ -15,6 +15,6 @@ extern "C" {
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            std::uint32_t n_route_stop_times);
-  bool destroy_gpu_timetable(gpu_timetable* gtt);
+  void destroy_gpu_timetable(gpu_timetable* gtt);
 
 }  // extern "C"

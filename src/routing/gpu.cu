@@ -40,21 +40,24 @@ extern "C" {
 
     CUDA_COPY_TO_DEVICE(gpu_delta, gtt->route_stop_times_, route_stop_times,
                         n_route_stop_times);
-
+    //...
     return gtt;
 
   fail:
     cudaFree(gtt->route_stop_times_);
+    //...
     free(gtt);
     return nullptr;
   }
-  bool destroy_gpu_timetable(gpu_timetable* gtt) {
+  void destroy_gpu_timetable(gpu_timetable* gtt) {
       cudaFree(gtt->route_stop_times_);
       //...
       free(gtt);
       cudaDeviceSynchronize();
       auto const last_error = cudaGetLastError();
-      return last_error == cudaSuccess;
+      if (last_error != cudaSuccess) {
+        printf("CUDA error: %s at " STR(call) " %s:%d\n",
+               cudaGetErrorString(last_error), __FILE__, __LINE__);
+      }
   }
-
 }  // extern "C"
