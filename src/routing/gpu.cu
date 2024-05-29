@@ -36,23 +36,98 @@ extern "C" {
       printf("nigiri gpu raptor: malloc for gpu_timetable failed\n");
       return nullptr;
     }
-
+    //route_stop_times_
     gtt->route_stop_times_ = nullptr;
 
     CUDA_COPY_TO_DEVICE(gpu_delta, gtt->route_stop_times_, route_stop_times,
                         n_route_stop_times);
-    //...
+    //location_routes_
+
+    //route_clasz
+
+    //location_transfer_time_count
+
+    //locations_footpaths_out
+
+    //route_location_seq
+
+    //route_transport_ranges
+
+    //bitfields_
+
+    //transport_traffic_days_
+
+    //date_range_
+
+    //trip_display_names_
+
+    //merged_trips_
+
+    //transport_to_trip_section_
+
+    //transport_route_
+
     return gtt;
 
   fail:
+    //route_stop_times
     cudaFree(gtt->route_stop_times_);
-    //...
+    //location_routes_
+
+    //route_clasz
+
+    //location_transfer_time_count
+
+    //locations_footpaths_out
+
+    //route_location_seq
+
+    //route_transport_ranges
+
+    //bitfields_
+
+    //transport_traffic_days_
+
+    //date_range_
+
+    //trip_display_names_
+
+    //merged_trips_
+
+    //transport_to_trip_section_
+
+    //transport_route_
     free(gtt);
     return nullptr;
   }
   void destroy_gpu_timetable(gpu_timetable* &gtt) {
+      //route_stop_times_
       cudaFree(gtt->route_stop_times_);
-      //...
+      //location_routes_
+
+      //route_clasz
+
+      //location_transfer_time_count
+
+      //locations_footpaths_out
+
+      //route_location_seq
+
+      //route_transport_ranges
+
+      //bitfields_
+
+      //transport_traffic_days_
+
+      //date_range_
+
+      //trip_display_names_
+
+      //merged_trips_
+
+      //transport_to_trip_section_
+
+      //transport_route_
       free(gtt);
       gtt = nullptr;
       cudaDeviceSynchronize();
