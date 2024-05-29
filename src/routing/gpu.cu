@@ -2,6 +2,8 @@
 
 #include <cstdio>
 
+#include "../../deps/doctest/doctest/doctest.h"
+
 extern "C" {
 
   #define XSTR(s) STR(s)
@@ -22,11 +24,15 @@ extern "C" {
 
   struct gpu_timetable {
     gpu_delta* route_stop_times_{nullptr};
-    gpu_route_stop_time_ranges_ {nullptr};
+    nigiri::route_idx_t* route_stop_time_ranges_keys {nullptr};
+    nigiri::interval<std::uint32_t>* route_stop_time_ranges_values {nullptr};
   };
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
-                                             std::uint32_t n_route_stop_times) {
+                                             std::uint32_t n_route_stop_times,
+                                             nigiri::route_idx_t* route_stop_time_ranges_keys_keys,
+                                             nigiri::interval<std::uint32_t>* route_stop_time_ranges_values,
+                                             std::uint32_t n_route_stop_time_ranges_) {
     size_t device_bytes = 0U;
 
     cudaError_t code;
@@ -41,6 +47,13 @@ extern "C" {
 
     CUDA_COPY_TO_DEVICE(gpu_delta, gtt->route_stop_times_, route_stop_times,
                         n_route_stop_times);
+    //route_stop_time_ranges
+    gtt->route_stop_time_ranges_keys = nullptr;
+    gtt->route_stop_time_ranges_values = nullptr;
+    CUDA_COPY_TO_DEVICE(nigiri::route_idx_t, gtt->route_stop_time_ranges_keys, route_stop_time_ranges_keys_keys,
+                        n_route_stop_time_ranges_);
+    CUDA_COPY_TO_DEVICE(nigiri::interval<std::uint32_t>, gtt->route_stop_time_ranges_values, route_stop_time_ranges_values,
+                        n_route_stop_time_ranges_);
     //location_routes_
 
     //route_clasz
@@ -72,6 +85,9 @@ extern "C" {
   fail:
     //route_stop_times
     cudaFree(gtt->route_stop_times_);
+    //route_stop_time_ranges
+    cudaFree(gtt->route_stop_time_ranges_keys);
+    cudaFree(gtt->route_stop_time_ranges_values);
     //location_routes_
 
     //route_clasz
@@ -103,6 +119,9 @@ extern "C" {
   void destroy_gpu_timetable(gpu_timetable* &gtt) {
       //route_stop_times_
       cudaFree(gtt->route_stop_times_);
+      //route_stop_time_ranges
+      cudaFree(gtt->route_stop_time_ranges_keys);
+      cudaFree(gtt->route_stop_time_ranges_values);
       //location_routes_
 
       //route_clasz
