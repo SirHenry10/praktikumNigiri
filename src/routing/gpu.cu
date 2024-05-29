@@ -22,6 +22,7 @@ extern "C" {
 
   struct gpu_timetable {
     gpu_delta* route_stop_times_{nullptr};
+    gpu_route_stop_time_ranges_ {nullptr};
   };
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
@@ -49,14 +50,15 @@ extern "C" {
     free(gtt);
     return nullptr;
   }
-  void destroy_gpu_timetable(gpu_timetable* gtt) {
+  void destroy_gpu_timetable(gpu_timetable* &gtt) {
       cudaFree(gtt->route_stop_times_);
       //...
       free(gtt);
+      gtt = nullptr;
       cudaDeviceSynchronize();
       auto const last_error = cudaGetLastError();
       if (last_error != cudaSuccess) {
-        printf("CUDA error: %s at " STR(call) " %s:%d\n",
+        printf("CUDA error: %s at " STR(last_error) " %s:%d\n",
                cudaGetErrorString(last_error), __FILE__, __LINE__);
       }
   }
