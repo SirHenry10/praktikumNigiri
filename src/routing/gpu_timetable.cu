@@ -1,4 +1,4 @@
-#include "nigiri/routing/gpu.h"
+#include "nigiri/routing/gpu_timetable.h"
 
 #include <cstdio>
 

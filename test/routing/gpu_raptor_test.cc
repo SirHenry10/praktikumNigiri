@@ -2,7 +2,7 @@
 
 #include "nigiri/loader/hrd/load_timetable.h"
 #include "nigiri/loader/init_finish.h"
-#include "nigiri/routing/gpu.h"
+#include "nigiri/routing/gpu_timetable.h"
 
 #include "../loader/hrd/hrd_timetable.h"
 
