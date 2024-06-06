@@ -26,7 +26,7 @@ void add_start(location, unixtime_t const t){
 }
 
 __device__ void reconstruct(query const& q, journey& j){
-  reconstruct_journey<SearchDir>(//TODO);
+  reconstruct_journey<SearchDir>(...);
 }
 
 __device__ bool loop_routes(unsigned const k){
