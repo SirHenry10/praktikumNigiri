@@ -3,17 +3,17 @@
 namespace nigiri::routing{
 
 
-void reset_arrivals(){
+__device__ void reset_arrivals(){
 
 }
 algo_stats_t get_stats() const { return stats_; }
 
-void next_start_time(){
+__device__ void next_start_time(){
 
 }
 
-// hier wird Startpunkt hinzugefügt
-void add_start(location, unixtime_t const t){
+// hier wird Startpunkt hinzugefügt?
+__device__ void add_start(location_idx_t const l, unixtime_t const t){
 
 }
 
@@ -45,11 +45,11 @@ __device__ transport get_earliest_transport(unsigned const k, gpu_timetable cons
 
 }
 
-bool is_transport_active(transport_idx_t const t, std::size_t const day) const {
+__device__ bool is_transport_active(transport_idx_t const t, std::size_t const day) const {
 
 }
 
-delta_t time_at_stop(route_idx_t const r, transport const t, stop_idx_t const stop_idx, event_type const ev_type){
+__device__ delta_t time_at_stop(route_idx_t const r, transport const t, stop_idx_t const stop_idx, event_type const ev_type){
 
 }
 
