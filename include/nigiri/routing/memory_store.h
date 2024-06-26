@@ -1,4 +1,4 @@
-/*#pragma once
+#pragma once
 #include <atomic>
 #include <boost/url/grammar/error.hpp>
 #include <memory>
@@ -75,6 +75,9 @@ struct device_memory {
   size_t get_route_mark_bytes() const;
   size_t get_scratchpad_bytes() const;
   size_t get_additional_starts_bytes() const;
+  
+  void resize(unsigned n_locations,
+              unsigned n_routes); 
 
   void reset_async(cudaStream_t s);
 
@@ -145,4 +148,3 @@ struct loaned_mem {
 
 
 }  // namespace nigiri::routing
- */
