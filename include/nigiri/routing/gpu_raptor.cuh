@@ -107,7 +107,7 @@ void execute(unixtime_t const start_time,
              profile_idx_t const prf_idx,
              pareto_set<journey>& results){
   void* kernel_arg[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
-  launchKernel(gpu_raptor_kernel, kernel_args, this.mem_->, this.mem_->);
+  launchKernel(gpu_raptor_kernel, kernel_args, this.state_->context_, this.state_->context_.proc_stream_);
 }
 
 
