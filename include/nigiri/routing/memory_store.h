@@ -63,37 +63,25 @@ struct device_memory {
   device_memory(device_memory const&&) = delete;
   device_memory operator=(device_memory const&) = delete;
   device_memory operator=(device_memory const&&) = delete;
-  device_memory(stop_id stop_count, route_id route_count,
-                size_t max_add_starts);
+  device_memory(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark, uint32_t size_route_mark);
 
   ~device_memory() = default;
 
   void destroy();
 
-  size_t get_result_bytes() const;
-  size_t get_station_mark_bytes() const;
-  size_t get_route_mark_bytes() const;
-  size_t get_scratchpad_bytes() const;
-  size_t get_additional_starts_bytes() const;
+  // vielleicht getter Methoden
   
   void resize(unsigned n_locations,
-              unsigned n_routes); 
+              unsigned n_routes);
+  void print(timetable const& tt, date::sys_days, delta_t invalid);
 
   void reset_async(cudaStream_t s);
 
-  stop_id stop_count_{boost::urls::grammar::error::invalid<stop_id>};
-  route_id route_count_{invalid<route_id>};
-  size_t max_add_starts_{invalid<size_t>};
-
-  device_result result_{};
-
   // TODO(julian) move from uint32_t to char or something
-  uint32_t* route_marks_{};
-  uint32_t* station_marks_{};
-  bool* any_station_marked_{};
-  time* footpaths_scratchpad_{};
-  additional_start* additional_starts_{};
-  size_t additional_start_count_{};
+  delta_t* tmp_, best_, round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  bool* station_mark_, prev_station_mark_, route_mark_;
+  uint32_t size_tmp_, size_best_, row_count_round_times_, column_count_round_times_, size_station_mark_, size_prev_station_mark, size_route_mark;
+
 };
 
 struct mem {
@@ -103,7 +91,7 @@ struct mem {
   mem operator=(mem const&) = delete;
   mem operator=(mem const&&) = delete;
 
-  mem(stop_id stop_count, route_id route_count, size_t max_add_starts,
+  mem(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark, uint32_t size_route_mark,
       device_id device_id, int32_t concurrency_per_device);
 
   ~mem();
@@ -117,7 +105,7 @@ struct memory_store {
   using mem_idx = uint32_t;
   static_assert(std::is_unsigned_v<mem_idx>);
 
-  void init(raptor_meta_info const& meta_info, raptor_timetable const& tt,
+  void init(raptor_meta_info const& meta_info, gpu_timetable const& gtt,
             int32_t concurrency_per_device);
 
   mem_idx get_mem_idx();
