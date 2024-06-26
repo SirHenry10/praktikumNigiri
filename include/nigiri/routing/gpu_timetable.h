@@ -4,36 +4,92 @@
 
 #include "cista/containers/vecvec.h"
 
-#include <nigiri/types.h>
 
+#include <compare>
+#include <filesystem>
+#include <span>
+#include <type_traits>
+
+#include "cista/memory_holder.h"
+#include "cista/reflection/printable.h"
+
+#include "utl/verify.h"
+#include "utl/zip.h"
+
+#include "geo/latlng.h"
+
+#include "nigiri/common/interval.h"
+#include "nigiri/footpath.h"
+#include "nigiri/location.h"
+#include "nigiri/logging.h"
+#include "nigiri/stop.h"
+#include "nigiri/types.h"
+
+namespace nigiri{
 extern "C" {
-
-  struct gpu_timetable;
 
   struct gpu_delta {
     std::uint16_t days_ : 5;
     std::uint16_t mam_ : 11;
   };
+  struct gpu_timetable {
+    gpu_delta* route_stop_times_{nullptr};
+    route_idx_t* route_stop_time_ranges_keys {nullptr};
+    interval<std::uint32_t>* route_stop_time_ranges_values {nullptr};
+    route_idx_t* location_routes_{nullptr};
+    route_idx_t* route_clasz_keys_{nullptr};
+    clasz* route_clasz_values_{nullptr};
+    location_idx_t* transfer_time_keys_{nullptr};
+    u8_minutes* transfer_time_values_{nullptr};
+    footpath* footpaths_out_{nullptr};
+    stop::value_type* route_location_seq_{nullptr};
+    route_idx_t* route_transport_ranges_keys_{nullptr};
+    interval<transport_idx_t>* route_transport_ranges_values_{nullptr};
+    bitfield_idx_t* bitfields_keys_{nullptr};
+    bitfield* bitfields_values_{nullptr};
+    transport_idx_t* transport_traffic_days_keys_{nullptr};
+    bitfield_idx_t* transport_traffic_days_values_{nullptr};
+    char* trip_display_names_{nullptr};
+    trip_idx_t* merged_trips_{nullptr};
+    merged_trips_idx_t* transport_to_trip_section_{nullptr};
+    transport_idx_t* transport_route_keys_{nullptr};
+    route_idx_t* transport_route_values_{nullptr};
+    route_idx_t* route_stop_time_ranges_keys_keys_{nullptr};
+    interval<std::uint32_t>* route_stop_time_ranges_values_{nullptr};
+    std::uint32_t n_route_stop_times_{}, n_locations_{},
+        n_route_clasz_{}, n_transfer_time_{},
+        n_footpaths_out_{}, n_routes_{},
+        n_route_transport_ranges_{},n_bitfields_{},
+        n_transport_traffic_days_{}, n_trip_display_names_{},
+        n_merged_trips_{},n_transport_to_trip_section_{},
+        n_transport_routes_{}, n_route_stop_time_ranges_{};
+    interval<date::sys_days> internal_interval_days() const {
+      return {date_range_.from_ - kTimetableOffset,
+              date_range_.to_ + date::days{1}};
+    }
+    // Schedule range.
+    interval<date::sys_days> date_range_{};
+  };
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                              std::uint32_t n_route_stop_times,
-                                             nigiri::route_idx_t* location_routes,
+                                             route_idx_t* location_routes,
                                              std::uint32_t n_locations,
-                                             nigiri::route_idx_t* route_clasz_keys,
-                                             nigiri::clasz* route_clasz_values,
+                                             route_idx_t* route_clasz_keys,
+                                             clasz* route_clasz_values,
                                              std::uint32_t n_route_clasz,
-                                             nigiri::location_idx_t* transfer_time_keys,
-                                             nigiri::u8_minutes* transfer_time_values,
+                                             location_idx_t* transfer_time_keys,
+                                             u8_minutes* transfer_time_values,
                                              std::uint32_t n_transfer_time,
-                                             nigiri::footpath* footpaths_out,
+                                             footpath* footpaths_out,
                                              std::uint32_t n_footpaths_out,
                                              stop::value_type* route_location_seq,
-                                             std::uint32_t n_route_location_seq,
-                                             nigiri::route_idx_t* route_transport_ranges_keys,
-                                             nigiri::interval<transport_idx_t>* route_transport_ranges_values,
+                                             std::uint32_t n_routes,
+                                             route_idx_t* route_transport_ranges_keys,
+                                             interval<transport_idx_t>* route_transport_ranges_values,
                                              std::uint32_t n_route_transport_ranges,
-                                             nigiri::bitfield_idx_t* bitfields_keys,
-                                             nigiri::bitfield* bitfields_values,
+                                             bitfield_idx_t* bitfields_keys,
+                                             bitfield* bitfields_values,
                                              std::uint32_t n_bitfields,
                                              nigiri::transport_idx_t* transport_traffic_days_keys,
                                              nigiri::bitfield_idx_t* transport_traffic_days_values,
@@ -48,9 +104,10 @@ extern "C" {
                                              nigiri::transport_idx_t* transport_route_keys,
                                              nigiri::route_idx_t* transport_route_values,
                                              std::uint32_t n_transport_routes,
-                                             nigiri::route_idx_t* route_stop_time_ranges_keys_keys,
-                                             nigiri::interval<std::uint32_t>* route_stop_time_ranges_values,
-                                             std::uint32_t n_route_stop_time_ranges_);
+                                             route_idx_t* route_stop_time_ranges_keys_keys,
+                                             interval<std::uint32_t>* route_stop_time_ranges_values,
+                                             std::uint32_t n_route_stop_time_ranges);
   void destroy_gpu_timetable(gpu_timetable* &gtt);
 
 }  // extern "C"
+}  //namespace nigiri

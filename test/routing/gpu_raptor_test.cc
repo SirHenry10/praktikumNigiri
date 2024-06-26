@@ -21,8 +21,11 @@ TEST(routing, gpu_raptor) {
   auto gtt = create_gpu_timetable(
       reinterpret_cast<gpu_delta*>(tt.route_stop_times_.data()),
       tt.route_stop_times_.size(),
-      reinterpret_cast<cista::strong<unsigned int, route_idx_t>*>(tt.location_routes_.data_.el_),
-      tt.location_routes_.size());
+      reinterpret_cast<std::uint32_t*>(tt.location_routes_.data_.el_),
+      tt.location_routes_.size(),
+      reinterpret_cast<std::uint32_t*>(tt.route_clasz_.),
+      );
+
   EXPECT_NE(nullptr, gtt);
   destroy_gpu_timetable(gtt);
   EXPECT_EQ(nullptr, gtt);

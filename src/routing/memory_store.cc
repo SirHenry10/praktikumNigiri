@@ -2,7 +2,7 @@
 
 #include "nigiri/routing/memory_store.h"
 
-extern "C" {
+namespace nigiri::routing {
 
 
-}  // extern "C"
+}  // namespace nigiri::routing

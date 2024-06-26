@@ -10,7 +10,7 @@
 #include "nigiri/routing/raptor/reconstruct.h"
 #include "nigiri/rt/rt_timetable.h"
 #include "nigiri/special_stations.h"
-#include "nigiri/timetable.h"
+#include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/types.h"
 
 namespace nigiri::routing {
@@ -49,46 +49,80 @@ struct gpu_raptor {
   }
   static auto dir(auto a) { return (kFwd ? 1 : -1) * a; }
 
+  gpu_raptor(gpu_timetable const* gtt,
+         //rt_timetable const* rtt,
+         raptor_state& state,
+         std::vector<bool>& is_dest,
+         std::vector<std::uint16_t>& dist_to_dest,
+         std::vector<std::uint16_t>& lb,
+         day_idx_t const base,
+         clasz_mask_t const allowed_claszes)
+      : gtt_{gtt},
+        //rtt_{rtt},
+        state_{state},
+        is_dest_{is_dest},
+        dist_to_end_{dist_to_dest},
+        lb_{lb},
+        base_{base},
+        n_days_{gtt_.internal_interval_days().size().count()},
+        n_locations_{gtt_.n_locations_},
+        n_routes_{gtt_.n_routes_},
+        //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
+        allowed_claszes_{allowed_claszes} {
+    state_.resize(n_locations_, n_routes_, n_rt_transports_);
+    utl::fill(time_at_dest_, kInvalid);
+    state_.round_times_.reset(kInvalid);
+  }
 
+  algo_stats_t get_stats() const {
+    return stats_;
+  }
+
+  void reset_arrivals() {
+    // utl::fill(time_at_dest_, kInvalid);
+    // state_.round_times_.reset(kInvalid);
+  }
+
+  void next_start_time() {
+    /*utl::fill(state_.best_, kInvalid);
+    utl::fill(state_.tmp_, kInvalid);
+    utl::fill(state_.prev_station_mark_, false);
+    utl::fill(state_.station_mark_, false);
+    utl::fill(state_.route_mark_, false);
+    if constexpr (Rt) {
+      utl::fill(state_.rt_transport_mark_, false);
+    }*/
+  }
+
+  void add_start(location_idx_t const l, unixtime_t const t) {
+    /*state_.best_[to_idx(l)] = unix_to_delta(base(), t);
+    state_.round_times_[0U][to_idx(l)] = unix_to_delta(base(), t);
+    state_.station_mark_[to_idx(l)] = true;*/
+  }
+
+  void execute(unixtime_t const start_time,
+               std::uint8_t const max_transfers,
+               unixtime_t const worst_time_at_dest,
+               profile_idx_t const prf_idx,
+               pareto_set<journey>& results) {
+    // TODO
+  }
+
+  void reconstruct(query const& q, journey& j) {
+    // reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
+  }
+
+  gpu_timetable const* gtt_{nullptr};
+  //rt_timetable const* rtt_{nullptr};
+  raptor_state& state_;
+  std::vector<bool>& is_dest_;
+  std::vector<std::uint16_t>& dist_to_end_;
+  std::vector<std::uint16_t>& lb_;
+  std::array<delta_t, kMaxTransfers + 1> time_at_dest_;
+  day_idx_t base_;
+  int n_days_;
+  raptor_stats stats_;
+  std::uint32_t n_locations_, n_routes_, n_rt_transports_;
+  clasz_mask_t allowed_claszes_;
 };
-
-algo_stats_t get_stats() const {
-  //return stats_;
-  return null;
-}
-
-void reset_arrivals() {
-  //utl::fill(time_at_dest_, kInvalid);
-  //state_.round_times_.reset(kInvalid);
-}
-
-void next_start_time() {
-  /*utl::fill(state_.best_, kInvalid);
-  utl::fill(state_.tmp_, kInvalid);
-  utl::fill(state_.prev_station_mark_, false);
-  utl::fill(state_.station_mark_, false);
-  utl::fill(state_.route_mark_, false);
-  if constexpr (Rt) {
-    utl::fill(state_.rt_transport_mark_, false);
-  }*/
-}
-
-void add_start(location_idx_t const l, unixtime_t const t) {
-  /*state_.best_[to_idx(l)] = unix_to_delta(base(), t);
-  state_.round_times_[0U][to_idx(l)] = unix_to_delta(base(), t);
-  state_.station_mark_[to_idx(l)] = true;*/
-}
-
-void execute(unixtime_t const start_time,
-             std::uint8_t const max_transfers,
-             unixtime_t const worst_time_at_dest,
-             profile_idx_t const prf_idx,
-             pareto_set<journey>& results){
-  //TODO
-}
-
-void reconstruct(query const& q, journey& j) {
-  //reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
-}
-
 }  // namespace nigiri::routing
