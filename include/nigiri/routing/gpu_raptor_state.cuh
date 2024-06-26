@@ -1,12 +1,12 @@
 #pragma once
+#include "nigiri/routing/cuda_util.cuh"
+#include "nigiri/routing/gpu_timetable.h"
 #include <atomic>
 #include <boost/url/grammar/error.hpp>
 #include <memory>
 #include <mutex>
 #include <type_traits>
 #include <vector>
-#include "nigiri/routing/gpu_timetable.h"
-#include "nigiri/routing/cuda_util.h"
 
 struct cudaDeviceProp;
 namespace std {

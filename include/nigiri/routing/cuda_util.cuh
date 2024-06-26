@@ -1,9 +1,4 @@
-#pragma once
-
-#include <cstdio>
-
-#include "../../../../../../../Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.4/include/cuda_runtime_api.h"
-
+namespace nigiri {
 extern "C" {
 
 #define cucheck_dev(call)                                    \
@@ -28,6 +23,5 @@ inline void cuda_sync_stream(cudaStream_t const& stream) {
   cuda_check();
 }
 
-
-
-}  // namespace nigir::routing
+}  // extern "C"
+}
