@@ -110,22 +110,22 @@ void device_memory::destroy() {
 }
 
 void device_memory::reset_async(cudaStream_t s) {
-  cudaMemsetAsync(result_.front(), 0xFF, get_result_bytes(), s);
-  cudaMemsetAsync(footpaths_scratchpad_, 0xFF, get_scratchpad_bytes(), s);
-  cudaMemsetAsync(station_marks_, 0, get_station_mark_bytes(), s);
-  cudaMemsetAsync(route_marks_, 0, get_route_mark_bytes(), s);
-  cudaMemsetAsync(any_station_marked_, 0, sizeof(bool), s);
-  cudaMemsetAsync(additional_starts_, 0xFF, get_additional_starts_bytes(), s);
-  additional_start_count_ = invalid<decltype(additional_start_count_)>;
+  cudaMemsetAsync(tmp_, 0, size_tmp_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(best_, 0, size_best_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(round_times_, 0, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(station_mark_, 0, size_station_mark_*sizeof(bool), s);
+  cudaMemsetAsync(prev_station_mark_, 0, size_prev_station_mark_*sizeof(bool), s);
+  cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(bool), s);
+  //additional_start_count_ = invalid<decltype(additional_start_count_)>;
 }
 
-mem::mem(stop_id const stop_count,
-         route_id const route_count,
-         size_t const max_add_starts,
+mem::mem(uint32_t size_tmp_, uint32_t size_best_,
+         uint32_t row_count_round_times_, uint32_t column_count_round_times_,
+         uint32_t size_station_mark_, uint32_t size_prev_station_mark_, uint32_t size_route_mark_,
          device_id const device_id,
          int32_t const concurrency_per_device)
-    : host_{stop_count},
-      device_{stop_count, route_count, max_add_starts},
+    : host_{row_count_round_times_, column_count_round_times_},
+      device_{size_tmp_, size_best_, row_count_round_times_, column_count_round_times_, size_station_mark_, size_prev_station_mark_, size_route_mark_},
       context_{device_id, concurrency_per_device} {}
 
 mem::~mem() {
@@ -145,7 +145,7 @@ void memory_store::init(raptor_meta_info const& meta_info,
   for (auto device_id = 0; device_id < device_count; ++device_id) {
     for (auto i = 0; i < concurrency_per_device; ++i) {
       memory_.emplace_back(std::make_unique<struct mem>(
-          tt.stop_count(), tt.route_count(), max_add_starts, device_id,
+          gtt.n_locations_, gtt.n_routes_, max_add_starts, device_id,
           concurrency_per_device));
     }
   }

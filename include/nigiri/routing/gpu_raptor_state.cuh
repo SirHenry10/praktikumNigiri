@@ -81,8 +81,12 @@ struct device_memory {
 
   void reset_async(cudaStream_t s);
 
-  gpu_delta_t* tmp_{}, best_{}, round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
-  bool* station_mark_{}, prev_station_mark_{}, route_mark_{};
+  gpu_delta_t* tmp_{};
+  gpu_delta_t* best_{};
+  gpu_delta_t* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  bool* station_mark_{};
+  bool* prev_station_mark_{};
+  bool* route_mark_{};
   uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_prev_station_mark_{}, size_route_mark_{};
 
 };
