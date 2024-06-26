@@ -119,7 +119,7 @@ void execute(unixtime_t const start_time,
   gpu_timetable const* gtt_{nullptr};
   //rt_timetable const* rtt_{nullptr};
   // all diese müssen mit malloc (evtl. in anderer Datei)
-  raptor_state& state_;
+  gpu_raptor_state& state_;
   std::vector<bool>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
   std::vector<std::uint16_t>& lb_;
