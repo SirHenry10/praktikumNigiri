@@ -5,7 +5,8 @@
 #include <mutex>
 #include <type_traits>
 #include <vector>
-#include "cuda_util.h"
+#include "nigiri/routing/gpu_timetable.h"
+#include "nigiri/routing/cuda_util.h"
 
 struct cudaDeviceProp;
 namespace std {
@@ -46,15 +47,15 @@ struct host_memory {
   host_memory(host_memory const&&) = delete;
   host_memory operator=(host_memory const&) = delete;
   host_memory operator=(host_memory const&&) = delete;
-  explicit host_memory(stop_id stop_count);
+  explicit host_memory(uint32_t row_count_round_times_, uint32_t column_count_round_times_);
 
   ~host_memory() = default;
 
   void destroy();
   void reset() const;
 
-  std::unique_ptr<raptor_result_pinned> result_{nullptr};
-  bool* any_station_marked_{nullptr};
+  gpu_delta_t* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
 
 struct device_memory {
@@ -63,7 +64,7 @@ struct device_memory {
   device_memory(device_memory const&&) = delete;
   device_memory operator=(device_memory const&) = delete;
   device_memory operator=(device_memory const&&) = delete;
-  device_memory(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark, uint32_t size_route_mark);
+  device_memory(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark_, uint32_t size_route_mark_);
 
   ~device_memory() = default;
 
@@ -73,12 +74,12 @@ struct device_memory {
   
   void resize(unsigned n_locations,
               unsigned n_routes);
-  void print(timetable const& tt, date::sys_days, delta_t invalid);
+  void print(gpu_timetable const& gtt, date::sys_days, gpu_delta_t invalid);
 
   void reset_async(cudaStream_t s);
 
   // TODO(julian) move from uint32_t to char or something
-  delta_t* tmp_{}, best_{}, round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  gpu_delta_t* tmp_{}, best_{}, round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
   bool* station_mark_{}, prev_station_mark_{}, route_mark_{};
   uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_prev_station_mark_{}, size_route_mark_{};
 
@@ -91,7 +92,7 @@ struct mem {
   mem operator=(mem const&) = delete;
   mem operator=(mem const&&) = delete;
 
-  mem(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark, uint32_t size_route_mark,
+  mem(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark_, uint32_t size_route_mark_,
       device_id device_id, int32_t concurrency_per_device);
 
   ~mem();

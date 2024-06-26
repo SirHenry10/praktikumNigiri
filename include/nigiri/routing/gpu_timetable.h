@@ -28,12 +28,12 @@
 namespace nigiri{
 extern "C" {
 
-  struct gpu_delta {
+  struct gpu_delta_t {
     std::uint16_t days_ : 5;
     std::uint16_t mam_ : 11;
   };
   struct gpu_timetable {
-    gpu_delta* route_stop_times_{nullptr};
+    gpu_delta_t* route_stop_times_{nullptr};
     route_idx_t* route_stop_time_ranges_keys {nullptr};
     interval<std::uint32_t>* route_stop_time_ranges_values {nullptr};
     route_idx_t* location_routes_{nullptr};
@@ -71,7 +71,7 @@ extern "C" {
     interval<date::sys_days> date_range_{};
   };
 
-  struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
+  struct gpu_timetable* create_gpu_timetable(gpu_delta_t const* route_stop_times,
                                              std::uint32_t n_route_stop_times,
                                              route_idx_t* location_routes,
                                              std::uint32_t n_locations,

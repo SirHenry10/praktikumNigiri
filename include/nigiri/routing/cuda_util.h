@@ -14,7 +14,6 @@ const char* err_str = cudaGetErrorString(cucheck_err); \
 printf("%s (%d): %s\n", __FILE__, __LINE__, err_str);  \
 }                                                        \
 }
-
 #define cuda_check() \
 { cucheck_dev(cudaGetLastError()); }
 
@@ -28,6 +27,7 @@ inline void cuda_sync_stream(cudaStream_t const& stream) {
 
   cuda_check();
 }
+
 
 
 }  // namespace nigir::routing

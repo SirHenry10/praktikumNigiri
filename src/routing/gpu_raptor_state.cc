@@ -4,6 +4,7 @@
 
 namespace nigiri::routing {
 
+
 std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
   int32_t block_dim_x = 32;  // must always be 32!
@@ -49,72 +50,61 @@ void device_context::destroy() {
 }
 
 // Attribute, die von Host benötigt werden
-host_memory::host_memory(stop_id const stop_count)
-    : result_{std::make_unique<raptor_result_pinned>(stop_count)} {
-  cudaMallocHost(&any_station_marked_, sizeof(bool));
-  *any_station_marked_ = false;
+host_memory::host_memory(uint32_t row_count_round_times_,
+                         uint32_t column_count_round_times_) {
+  cudaMallocHost(&round_times_,row_count_round_times_ * column_count_round_times_ * sizeof(gpu_delta_t));
 }
 
 void host_memory::destroy() {
-  cudaFreeHost(any_station_marked_);
-  any_station_marked_ = nullptr;
-  result_ = nullptr;
+  cudaFreeHost(round_times_);
+  round_times_ = nullptr;
 }
-
+/* Brauchen wir glaube nicht
 void host_memory::reset() const {
   *any_station_marked_ = false;
   result_->reset();
 }
+ */
 
-//Zuweisung von Speicherplatz an Attribute, die in devices verwendet werden
-device_memory::device_memory(stop_id const stop_count,
-                             route_id const route_count,
-                             size_t const max_add_starts)
-    : stop_count_{stop_count},
-      route_count_{route_count},
-      max_add_starts_{max_add_starts} {
-  cudaMalloc(&(result_.front()), get_result_bytes());
+// Zuweisung von Speicherplatz an Attribute, die in devices verwendet werden
+device_memory::device_memory(uint32_t size_tmp,
+                             uint32_t size_best,
+                             uint32_t row_count_round_times,
+                             uint32_t column_count_round_times,
+                             uint32_t size_station_mark,
+                             uint32_t size_prev_station_mark,
+                             uint32_t size_route_mark)
+    : size_tmp_{size_tmp},
+      size_best_{size_best},
+      row_count_round_times_{row_count_round_times},
+      column_count_round_times_{column_count_round_times},
+      size_station_mark_{size_station_mark},
+      size_prev_station_mark_{size_prev_station_mark},
+      size_route_mark_{size_route_mark} {
+
+  cudaMalloc(&tmp_, size_tmp_* sizeof(gpu_delta_t));
+  cudaMalloc(&best_,size_best_ * sizeof(gpu_delta_t));
+  cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ * sizeof(gpu_delta_t));
+  cudaMalloc(&station_mark_,size_station_mark_ * sizeof(bool));
+  cudaMalloc(&prev_station_mark_,size_prev_station_mark_ * sizeof(bool));
+  cudaMalloc(&route_mark_,size_route_mark_ * sizeof(bool));
+  cuda_check();
+  // result inizialisieren??
+  /*
   for (auto k = 1U; k < result_.size(); ++k) {
     result_[k] = result_[k - 1] + stop_count;
   }
-
-  cudaMalloc(&footpaths_scratchpad_, get_scratchpad_bytes());
-  cudaMalloc(&station_marks_, get_station_mark_bytes());
-  cudaMalloc(&route_marks_, get_route_mark_bytes());
-  cudaMalloc(&any_station_marked_, sizeof(bool));
-  cudaMalloc(&additional_starts_, get_additional_starts_bytes());
-  cuda_check();
-
+  */
   this->reset_async(nullptr);
 }
 
 void device_memory::destroy() {
-  cudaFree(result_.front());
-  cudaFree(footpaths_scratchpad_);
-  cudaFree(station_marks_);
-  cudaFree(route_marks_);
-  cudaFree(any_station_marked_);
-  cudaFree(additional_starts_);
-}
-
-size_t device_memory::get_result_bytes() const {
-  return stop_count_ * sizeof(time) * max_raptor_round;
-}
-
-size_t device_memory::get_station_mark_bytes() const {
-  return ((stop_count_ / 32) + 1) * 4;
-}
-
-size_t device_memory::get_route_mark_bytes() const {
-  return ((route_count_ / 32) + 1) * 4;
-}
-
-size_t device_memory::get_scratchpad_bytes() const {
-  return stop_count_ * sizeof(time);
-}
-
-size_t device_memory::get_additional_starts_bytes() const {
-  return max_add_starts_ * sizeof(additional_start);
+  cudaFree(tmp_);
+  cudaFree(best_);
+  cudaFree(round_times_);
+  cudaFree(station_mark_);
+  cudaFree(prev_station_mark_);
+  cudaFree(route_mark_);
 }
 
 void device_memory::reset_async(cudaStream_t s) {
@@ -127,8 +117,10 @@ void device_memory::reset_async(cudaStream_t s) {
   additional_start_count_ = invalid<decltype(additional_start_count_)>;
 }
 
-mem::mem(stop_id const stop_count, route_id const route_count,
-         size_t const max_add_starts, device_id const device_id,
+mem::mem(stop_id const stop_count,
+         route_id const route_count,
+         size_t const max_add_starts,
+         device_id const device_id,
          int32_t const concurrency_per_device)
     : host_{stop_count},
       device_{stop_count, route_count, max_add_starts},
@@ -141,7 +133,7 @@ mem::~mem() {
 }
 
 void memory_store::init(raptor_meta_info const& meta_info,
-                        raptor_timetable const& tt,
+                        gpu_timetable const& gtt,
                         int32_t const concurrency_per_device) {
   int32_t device_count = 0;
   cudaGetDeviceCount(&device_count);
@@ -174,5 +166,4 @@ loaned_mem::~loaned_mem() {
   mem_->host_.reset();
   cuda_sync_stream(mem_->context_.proc_stream_);
 }
-
 }  // namespace nigiri::routing

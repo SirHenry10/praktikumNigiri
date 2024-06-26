@@ -23,7 +23,7 @@ extern "C" {
 
 
 //TODO: const machen alles?
-  struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
+  struct gpu_timetable* create_gpu_timetable(gpu_delta_t const* route_stop_times,
                                              std::uint32_t n_route_stop_times,
                                              route_idx_t* location_routes,
                                              std::uint32_t n_locations,
@@ -70,7 +70,7 @@ extern "C" {
     }
     //route_stop_times_
     gtt->route_stop_times_ = nullptr;
-    CUDA_COPY_TO_DEVICE(gpu_delta, gtt->route_stop_times_, route_stop_times,
+    CUDA_COPY_TO_DEVICE(gpu_delta_t, gtt->route_stop_times_, route_stop_times,
                         n_route_stop_times);
     //route_stop_time_ranges
 
