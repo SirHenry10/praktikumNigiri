@@ -15,7 +15,7 @@ namespace nigiri::routing {
 
 using device_id = int32_t;
 
-std::pair<dim3, dim3> get_launch_paramters(cudaDeviceProp const& prop,
+std::pair<dim3, dim3> get_launch_parameters(cudaDeviceProp const& prop,
                                            int32_t concurrency_per_device);
 
 struct device_context {

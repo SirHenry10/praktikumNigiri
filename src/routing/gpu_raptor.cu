@@ -3,21 +3,21 @@
 namespace nigiri::routing{
 
 
-__device__ void reset_arrivals(){
+void reset_arrivals(){
 
 }
 algo_stats_t get_stats() const { return stats_; }
 
-__device__ void next_start_time(){
+void next_start_time(){
 
 }
 
 // hier wird Startpunkt hinzugefügt?
-__device__ void add_start(location_idx_t const l, unixtime_t const t){
+void add_start(location_idx_t const l, unixtime_t const t){
 
 }
 
-__device__ void reconstruct(query const& q, journey& j){
+void reconstruct(query const& q, journey& j){
   reconstruct_journey<SearchDir>(...);
 }
 
@@ -59,6 +59,7 @@ __device__ void update_time_at_dest(unsigned const k, delta_t const t){
 
 
 // größten Teil von raptor.execute() wird hierdrin ausgeführt
+// kernel muss sich außerhalb der gpu_raptor Klasse befinden
 __global__ void gpu_raptor_kernel(gpu_timetable const tt){
 
 }

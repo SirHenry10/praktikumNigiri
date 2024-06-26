@@ -100,13 +100,16 @@ struct gpu_raptor {
     state_.station_mark_[to_idx(l)] = true;*/
   }
 
-  void execute(unixtime_t const start_time,
-               std::uint8_t const max_transfers,
-               unixtime_t const worst_time_at_dest,
-               profile_idx_t const prf_idx,
-               pareto_set<journey>& results) {
-    // TODO
-  }
+  // hier wird Kernel aufgerufen
+void execute(unixtime_t const start_time,
+             std::uint8_t const max_transfers,
+             unixtime_t const worst_time_at_dest,
+             profile_idx_t const prf_idx,
+             pareto_set<journey>& results){
+  void* kernel_arg[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
+  launchKernel(gpu_raptor_kernel, kernel_args, this.mem_->, this.mem_->);
+}
+
 
   void reconstruct(query const& q, journey& j) {
     // reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
@@ -114,6 +117,7 @@ struct gpu_raptor {
 
   gpu_timetable const* gtt_{nullptr};
   //rt_timetable const* rtt_{nullptr};
+  // all diese müssen mit malloc (evtl. in anderer Datei)
   raptor_state& state_;
   std::vector<bool>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
@@ -125,4 +129,9 @@ struct gpu_raptor {
   std::uint32_t n_locations_, n_routes_, n_rt_transports_;
   clasz_mask_t allowed_claszes_;
 };
+
+__global__ void gpu_raptor_kernel(gpu_timetable const tt){
+
+}
+
 }  // namespace nigiri::routing
