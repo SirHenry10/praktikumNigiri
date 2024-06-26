@@ -106,6 +106,7 @@ struct raptor {
                pareto_set<journey>& results) {
     auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
 
+    // 1.Phase: Initialisierung
     auto const d_worst_at_dest = unix_to_delta(base(), worst_time_at_dest);
     for (auto& time_at_dest : time_at_dest_) {
       time_at_dest = get_best(d_worst_at_dest, time_at_dest);
@@ -113,7 +114,11 @@ struct raptor {
 
     trace_print_init_state();
 
+    // 2.Phase: Update Routes
     for (auto k = 1U; k != end_k; ++k) {
+      // diese for-Schleife kann mit der darauf folgenden zusammengefügt werden,
+      // da sie beide über n_locations iterieren -> dann parallelisieren
+
       for (auto i = 0U; i != n_locations_; ++i) {
         state_.best_[i] = get_best(state_.round_times_[k][i], state_.best_[i]);
         if (is_dest_[i]) {
@@ -121,6 +126,7 @@ struct raptor {
         }
       }
 
+      // markieren der stationen -> mit letzter zusammenfügen?
       auto any_marked = false;
       for (auto i = 0U; i != n_locations_; ++i) {
         if (state_.station_mark_[i]) {
@@ -146,6 +152,7 @@ struct raptor {
       std::swap(state_.prev_station_mark_, state_.station_mark_);
       utl::fill(state_.station_mark_, false);
 
+      //weiteres Markieren
       any_marked = (allowed_claszes_ == all_clasz_allowed())
                        ? loop_routes<false>(k)
                        : loop_routes<true>(k);
@@ -165,13 +172,17 @@ struct raptor {
       std::swap(state_.prev_station_mark_, state_.station_mark_);
       utl::fill(state_.station_mark_, false);
 
-      update_transfers(k);
+      //SYNC
+      update_transfers(k); // loop in update_transfers parallelisieren
+
+      //SYNC
       update_footpaths(k, prf_idx);
       update_intermodal_footpaths(k);
 
       trace_print_state_after_round();
     }
 
+    // Konstruktion der Ergebnis-Journey
     for (auto i = 0U; i != n_locations_; ++i) {
       auto const is_dest = is_dest_[i];
       if (!is_dest) {
@@ -253,7 +264,7 @@ private:
   }
 
   void update_transfers(unsigned const k) {
-    for (auto i = 0U; i != n_locations_; ++i) {
+    for (auto i = 0U; i != n_locations_; ++i) { // diese Schleife parallelisieren
       if (!state_.prev_station_mark_[i]) {
         continue;
       }
