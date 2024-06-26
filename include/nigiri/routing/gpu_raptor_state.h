@@ -78,9 +78,9 @@ struct device_memory {
   void reset_async(cudaStream_t s);
 
   // TODO(julian) move from uint32_t to char or something
-  delta_t* tmp_, best_, round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
-  bool* station_mark_, prev_station_mark_, route_mark_;
-  uint32_t size_tmp_, size_best_, row_count_round_times_, column_count_round_times_, size_station_mark_, size_prev_station_mark, size_route_mark;
+  delta_t* tmp_{}, best_{}, round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  bool* station_mark_{}, prev_station_mark_{}, route_mark_{};
+  uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_prev_station_mark_{}, size_route_mark_{};
 
 };
 

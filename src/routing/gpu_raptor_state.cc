@@ -1,6 +1,6 @@
 #pragma once
 
-#include "nigiri/routing/memory_store.h"
+#include "nigiri/routing/gpu_raptor_state.h"
 
 namespace nigiri::routing {
 

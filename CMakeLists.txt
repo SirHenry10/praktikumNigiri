@@ -100,7 +100,7 @@ target_compile_options(nigiri PRIVATE ${nigiri-compile-options})
 if (NIGIRI_CUDA)
   add_library(gpuraptor SHARED src/routing/gpu_timetable.cu
           src/routing/gpu_raptor.cu
-          src/routing/memory_store.cc)
+          src/routing/gpu_raptor_state.cc)
   set_target_properties(gpuraptor PROPERTIES
       WINDOWS_EXPORT_ALL_SYMBOLS ON
       CUDA_SEPARABLE_COMPILATION ON
