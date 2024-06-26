@@ -6,7 +6,8 @@
 #include "nigiri/routing/limits.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
-#include "nigiri/routing/raptor/raptor_state.h"
+#include "nigiri/routing/raptor/gpu_raptor_state.h"
+#include "nigiri/routing/raptor/raptor_state.h" //maybe weg
 #include "nigiri/routing/raptor/reconstruct.h"
 #include "nigiri/rt/rt_timetable.h"
 #include "nigiri/special_stations.h"
@@ -51,7 +52,7 @@ struct gpu_raptor {
 
   gpu_raptor(gpu_timetable const* gtt,
          //rt_timetable const* rtt,
-         raptor_state& state,
+         gpu_raptor_state& state,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
          std::vector<std::uint16_t>& lb,
