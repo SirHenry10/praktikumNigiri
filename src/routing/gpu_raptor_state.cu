@@ -1,9 +1,8 @@
 #pragma once
 
-#include "nigiri/routing/gpu_raptor_state.h"
+#include "nigiri/routing/gpu_raptor_state.cuh"
 
 namespace nigiri::routing {
-
 
 std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
@@ -52,7 +51,9 @@ void device_context::destroy() {
 // Attribute, die von Host benötigt werden
 host_memory::host_memory(uint32_t row_count_round_times_,
                          uint32_t column_count_round_times_) {
-  cudaMallocHost(&round_times_,row_count_round_times_ * column_count_round_times_ * sizeof(gpu_delta_t));
+  cudaMallocHost(
+      &round_times_,
+      row_count_round_times_ * column_count_round_times_ * sizeof(gpu_delta_t));
 }
 
 void host_memory::destroy() {
@@ -82,12 +83,13 @@ device_memory::device_memory(uint32_t size_tmp,
       size_prev_station_mark_{size_prev_station_mark},
       size_route_mark_{size_route_mark} {
 
-  cudaMalloc(&tmp_, size_tmp_* sizeof(gpu_delta_t));
-  cudaMalloc(&best_,size_best_ * sizeof(gpu_delta_t));
-  cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ * sizeof(gpu_delta_t));
-  cudaMalloc(&station_mark_,size_station_mark_ * sizeof(bool));
-  cudaMalloc(&prev_station_mark_,size_prev_station_mark_ * sizeof(bool));
-  cudaMalloc(&route_mark_,size_route_mark_ * sizeof(bool));
+  cudaMalloc(&tmp_, size_tmp_ * sizeof(gpu_delta_t));
+  cudaMalloc(&best_, size_best_ * sizeof(gpu_delta_t));
+  cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ *
+                                sizeof(gpu_delta_t));
+  cudaMalloc(&station_mark_, size_station_mark_ * sizeof(bool));
+  cudaMalloc(&prev_station_mark_, size_prev_station_mark_ * sizeof(bool));
+  cudaMalloc(&route_mark_, size_route_mark_ * sizeof(bool));
   cuda_check();
   // result inizialisieren??
   /*
