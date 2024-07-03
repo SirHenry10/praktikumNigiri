@@ -27,6 +27,7 @@ struct raptor_stats {
   std::uint64_t route_update_prevented_by_lower_bound_{0ULL};
 };
 
+template <typename Kernel>
 void inline launch_kernel(Kernel kernel, void** args,
                           device_context const& device, cudaStream_t s) {
   cudaSetDevice(device.id_);
