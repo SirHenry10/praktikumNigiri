@@ -7,6 +7,7 @@
 #include <mutex>
 #include <type_traits>
 #include <vector>
+#include "nigiri/routing/limits.h"
 
 struct cudaDeviceProp;
 namespace std {
@@ -99,7 +100,7 @@ struct mem {
   mem operator=(mem const&&) = delete;
 
   mem(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark_, uint32_t size_route_mark_,
-      device_id device_id, int32_t concurrency_per_device);
+      device_id device_id);
 
   ~mem();
 
@@ -112,8 +113,7 @@ struct memory_store {
   using mem_idx = uint32_t;
   static_assert(std::is_unsigned_v<mem_idx>);
 
-  void init(raptor_meta_info const& meta_info, gpu_timetable const& gtt,
-            int32_t concurrency_per_device);
+  void init(gpu_timetable const& gtt);
 
   mem_idx get_mem_idx();
 
