@@ -113,5 +113,9 @@ extern "C" {
     return d.days_ +
            d.mam_ * unixtime_t::duration{1};
   }
+
+  bool operator== (const gpu_delta_t& a, const gpu_delta_t& b){
+    return (a.days_==b.days_ && a.mam_==b.mam_);
+  }
 }  // extern "C"
 }  //namespace nigiri
