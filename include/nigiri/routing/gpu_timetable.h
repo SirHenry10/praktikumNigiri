@@ -117,5 +117,9 @@ extern "C" {
   bool operator== (const gpu_delta_t& a, const gpu_delta_t& b){
     return (a.days_==b.days_ && a.mam_==b.mam_);
   }
+  bool operator!= (const gpu_delta_t& a, const gpu_delta_t& b){
+    return !(a.days_==b.days_ && a.mam_==b.mam_);
+  }
+
 }  // extern "C"
 }  //namespace nigiri
