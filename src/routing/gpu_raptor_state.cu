@@ -109,9 +109,9 @@ void device_memory::destroy() {
 }
 
 void device_memory::reset_async(cudaStream_t s) {
-  cudaMemsetAsync(tmp_, 0, size_tmp_*sizeof(gpu_delta_t), s);
-  cudaMemsetAsync(best_, 0, size_best_*sizeof(gpu_delta_t), s);
-  cudaMemsetAsync(round_times_, 0, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(tmp_, 0xFF, size_tmp_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(best_, 0xFF, size_best_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(round_times_, 0xFF, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(station_mark_, 0, size_station_mark_*sizeof(bool), s);
   cudaMemsetAsync(prev_station_mark_, 0, size_prev_station_mark_*sizeof(bool), s);
   cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(bool), s);
