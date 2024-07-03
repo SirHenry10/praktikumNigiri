@@ -31,10 +31,10 @@ extern "C" {
   struct gpu_delta_t {
     std::uint16_t days_ : 5;
     std::uint16_t mam_ : 11;
-    bool operator== (gpu_delta_t a){
+    bool operator== (gpu_delta_t const a) const{
       return (a.days_== this->days_ && a.mam_==this->mam_);
     }
-    bool operator!= (gpu_delta_t a){
+    bool operator!= (gpu_delta_t const a) const{
       return !(operator==(a));
     }
   };
