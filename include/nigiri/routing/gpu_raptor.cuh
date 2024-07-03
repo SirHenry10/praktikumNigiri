@@ -36,15 +36,15 @@ void inline launch_kernel(Kernel kernel, void** args,
                               device.threads_per_block_, args, 0, s);
   cuda_check();
 }
-
-inline void fetch_arrivals_async(d_query const& dq, cudaStream_t s) {
+/*
+inline void fetch_arrivals_async(mem* const& mem, cudaStream_t s) {
   cudaMemcpyAsync(
-      dq.mem_->host_.result_->data(), dq.mem_->device_.result_.front(),
-      dq.mem_->host_.result_->byte_size(), cudaMemcpyDeviceToHost, s);
+      mem->host_.round_times_, mem->device_.round_times_,
+      mem->host_.row_count_round_times_ * mem->host_.column_count_round_times_ * sizeof(gpu_delta_t), cudaMemcpyDeviceToHost, s);
   cuda_check();
 }
 
-inline void fetch_arrivals_async(d_query const& dq, raptor_round const round_k,
+inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
                                  cudaStream_t s) {
   cudaMemcpyAsync((*dq.mem_->host_.result_)[round_k],
                   dq.mem_->device_.result_[round_k],
@@ -52,8 +52,9 @@ inline void fetch_arrivals_async(d_query const& dq, raptor_round const round_k,
                   cudaMemcpyDeviceToHost, s);
   cuda_check();
 }
+ */
 
-__global__ void gpu_raptor_kernel(gpu_timetable const tt);
+__global__ void gpu_raptor_kernel(gpu_timetable const gtt);
 
 template <direction SearchDir, bool Rt>
 struct gpu_raptor {
@@ -92,9 +93,9 @@ struct gpu_raptor {
         dist_to_end_{dist_to_dest},
         lb_{lb},
         base_{base},
-        n_days_{gtt_.internal_interval_days().size().count()},
-        n_locations_{gtt_.n_locations_},
-        n_routes_{gtt_.n_routes_},
+        n_days_{gtt_->internal_interval_days().size().count()},
+        n_locations_{gtt->n_locations_},
+        n_routes_{gtt_->n_routes_},
         //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
         allowed_claszes_{allowed_claszes} {
     state_.init(*gtt_);
@@ -139,7 +140,9 @@ void execute(unixtime_t const start_time,
              pareto_set<journey>& results){
 
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
-  launchKernel(gpu_raptor_kernel, kernel_args,mem_->context_,mem_->context_.proc_stream_);
+  launch_kernel(gpu_raptor_kernel, kernel_args,mem_->context_,mem_->context_.proc_stream_);
+  cuda_check();
+  //TODO: copy result back
 }
 
 

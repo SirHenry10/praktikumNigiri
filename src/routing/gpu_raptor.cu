@@ -59,9 +59,10 @@ __device__ void update_time_at_dest(unsigned const k, delta_t const t){
 
 // größten Teil von raptor.execute() wird hierdrin ausgeführt
 // kernel muss sich außerhalb der gpu_raptor Klasse befinden
-__global__ void gpu_raptor_kernel(gpu_timetable const tt){
+__global__ void gpu_raptor_kernel(gpu_timetable const gtt){
+
 
 }
-gpu_raptor
+
 
 }  // extern "C"
