@@ -125,11 +125,15 @@ extern "C" {
       array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_in_;
       vector_map<timezone_idx_t, timezone> timezones_;
     } locations_;
-    unixtime_t to_unixtime(std::uint16_t const d,
+
+    unixtime_t to_unixtime(day_idx_t const d,
                            std::uint16_t const mam) const {
       return internal_interval_days().from_ + d * 1_days +
              static_cast<std::chrono::duration<int16_t, std::ratio<60>>>(mam);
       //kucken ob cast stimmt
+    }
+    gpu_delta_t to_gpu_delta(day_idx_t const d, std::uint16_t const mam) const {
+      return null; //TODO was ist base?
     }
 
     gpu_delta_t* route_stop_times_{nullptr};

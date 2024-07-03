@@ -57,10 +57,34 @@ __device__ void update_time_at_dest(unsigned const k, delta_t const t){
 
 }
 
+__device__ void init_arrivals(gpu_delta_t const d_worst_at_dest, gpu_raptor& gr){
+  auto const t_id = get_global_thread_id();
+
+  if(t_id < gr.time_at_dest_.size){
+    gr.time_at_dest[t_id] = get_best(d_worst_at_dest, gr.time_at_dest[t_id]);
+  }
+
+}
+
 // größten Teil von raptor.execute() wird hierdrin ausgeführt
 // kernel muss sich außerhalb der gpu_raptor Klasse befinden
-__global__ void gpu_raptor_kernel(gpu_timetable const gtt){
+__global__ void gpu_raptor_kernel(unixtime_t const start_time,
+                                  std::uint8_t const max_transfers,
+                                  unixtime_t const worst_time_at_dest,
+                                  profile_idx_t const prf_idx,
+                                  pareto_set<journey>& results,
+                                  gpu_raptor& gr){
+  // 1. Initialisierung
+  gpu_delta_t const d_worst_at_dest = to_gpu_delta(gr.base, worst_time_at_dest);
+  init_arrivals(d_worst_at_dest, gr);
+  this_grid().sync();
 
+  // 2. Update Routes
+  for (auto k = 1U; k != end_k; ++k) { // diese Schleife bleibt, da alle Threads in jede Runde gehen
+
+  }
+  this_grid().sync();
+  // 3.
 
 }
 

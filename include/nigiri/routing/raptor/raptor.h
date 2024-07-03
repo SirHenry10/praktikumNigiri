@@ -116,9 +116,9 @@ struct raptor {
 
     // 2.Phase: Update Routes
     for (auto k = 1U; k != end_k; ++k) {
-      // diese for-Schleife kann mit der darauf folgenden zusammengefügt werden,
-      // da sie beide über n_locations iterieren -> dann parallelisieren
 
+      // diese for-Schleife kann mit der darauf folgenden zusammengefügt werden,
+      // da sie beide über n_locations iterieren → dann parallelisieren
       for (auto i = 0U; i != n_locations_; ++i) {
         state_.best_[i] = get_best(state_.round_times_[k][i], state_.best_[i]);
         if (is_dest_[i]) {

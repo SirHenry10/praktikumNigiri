@@ -54,7 +54,12 @@ inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
 }
  */
 
-__global__ void gpu_raptor_kernel(gpu_timetable const gtt);
+__global__ void gpu_raptor_kernel(unixtime_t const start_time,
+                                  std::uint8_t const max_transfers,
+                                  unixtime_t const worst_time_at_dest,
+                                  profile_idx_t const prf_idx,
+                                  pareto_set<journey>& results,
+                                  gpu_raptor& gr);
 
 template <direction SearchDir, bool Rt>
 struct gpu_raptor {
