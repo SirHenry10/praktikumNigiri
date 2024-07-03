@@ -84,7 +84,7 @@ __global__ void gpu_raptor_kernel(unixtime_t const start_time,
 
   }
   this_grid().sync();
-  // 3.
+
 
 }
 
