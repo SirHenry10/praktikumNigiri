@@ -136,7 +136,6 @@ void memory_store::init(gpu_timetable const& gtt) {
   int32_t device_count = 0;
   cudaGetDeviceCount(&device_count);
 
-  auto const max_add_starts = get_max_add_starts(meta_info);
 
   for (auto device_id = 0; device_id < device_count; ++device_id) {
       memory_.emplace_back(std::make_unique<struct mem>(
