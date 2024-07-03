@@ -27,9 +27,10 @@ struct raptor_stats {
   std::uint64_t route_update_prevented_by_lower_bound_{0ULL};
 };
 
+__global__ void gpu_raptor_kernel(gpu_timetable const tt);
+
 template <direction SearchDir, bool Rt>
 struct gpu_raptor {
-  using algo_state_t = raptor_state;
   using algo_stats_t = raptor_stats;
 
   static constexpr bool kUseLowerBounds = true;
@@ -70,9 +71,11 @@ struct gpu_raptor {
         n_routes_{gtt_.n_routes_},
         //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
         allowed_claszes_{allowed_claszes} {
-    state_.resize(n_locations_, n_routes_, n_rt_transports_);
+    state_.init(*gtt_);
     utl::fill(time_at_dest_, kInvalid);
-    state_.round_times_.reset(kInvalid);
+    loaned_mem loan(state_);
+    mem_ = loan.mem_;
+    //state_.round_times_.reset(kInvalid);
   }
 
   algo_stats_t get_stats() const {
@@ -101,6 +104,7 @@ struct gpu_raptor {
     state_.station_mark_[to_idx(l)] = true;*/
   }
 
+
   // hier wird Kernel aufgerufen
 void execute(unixtime_t const start_time,
              std::uint8_t const max_transfers,
@@ -108,8 +112,8 @@ void execute(unixtime_t const start_time,
              profile_idx_t const prf_idx,
              pareto_set<journey>& results){
 
-  void* kernel_arg[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
-  launchKernel(gpu_raptor_kernel, kernel_args, this.state_->context_, this.state_->context_.proc_stream_);
+  void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
+  cudaLaunchKernel(gpu_raptor_kernel, kernel_args,mem_->context_,mem_->context_.proc_stream_);
 }
 
 
@@ -121,6 +125,7 @@ void execute(unixtime_t const start_time,
   rt_timetable const* rtt_{nullptr};
   // all diese müssen mit malloc (evtl. in anderer Datei)
   gpu_raptor_state& state_;
+  mem* mem_;
   std::vector<bool>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
   std::vector<std::uint16_t>& lb_;
@@ -131,9 +136,5 @@ void execute(unixtime_t const start_time,
   std::uint32_t n_locations_, n_routes_, n_rt_transports_;
   clasz_mask_t allowed_claszes_;
 };
-
-__global__ void gpu_raptor_kernel(gpu_timetable const tt){
-
-}
 
 }  // namespace nigiri::routing
