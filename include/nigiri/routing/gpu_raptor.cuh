@@ -36,7 +36,7 @@ void inline launch_kernel(Kernel kernel, void** args,
                               device.threads_per_block_, args, 0, s);
   cuda_check();
 }
-/*
+
 inline void fetch_arrivals_async(mem* const& mem, cudaStream_t s) {
   cudaMemcpyAsync(
       mem->host_.round_times_, mem->device_.round_times_,
@@ -53,7 +53,6 @@ inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
   cuda_check();
 }
  */
-
 __global__ void gpu_raptor_kernel(unixtime_t const start_time,
                                   std::uint8_t const max_transfers,
                                   unixtime_t const worst_time_at_dest,
@@ -68,7 +67,7 @@ struct gpu_raptor {
   static constexpr bool kUseLowerBounds = true;
   static constexpr auto const kFwd = (SearchDir == direction::kForward);
   static constexpr auto const kBwd = (SearchDir == direction::kBackward);
-  static constexpr auto const kInvalid = kInvalidDelta<SearchDir>;
+  static constexpr auto const kInvalid = kInvalidGpuDelta<SearchDir>;
   static constexpr auto const kUnreachable =
       std::numeric_limits<std::uint16_t>::max();
   static constexpr auto const kIntermodalTarget =
@@ -105,7 +104,7 @@ struct gpu_raptor {
         allowed_claszes_{allowed_claszes} {
     state_.init(*gtt_);
     utl::fill(time_at_dest_, kInvalid);
-    loaned_mem loan(state_);
+    loaned_mem loan(state_,kInvalid);
     mem_ = loan.mem_;
     //state_.round_times_.reset(kInvalid);
   }
@@ -115,25 +114,32 @@ struct gpu_raptor {
   }
 
   void reset_arrivals() {
-    // utl::fill(time_at_dest_, kInvalid);
-    // state_.round_times_.reset(kInvalid);
+    utl::fill(time_at_dest_, kInvalid);
+    mem_->host_.reset(kInvalid);
   }
 
   void next_start_time() {
-    /*utl::fill(state_.best_, kInvalid);
-    utl::fill(state_.tmp_, kInvalid);
-    utl::fill(state_.prev_station_mark_, false);
-    utl::fill(state_.station_mark_, false);
-    utl::fill(state_.route_mark_, false);
+    utl::fill(mem_->device_.best_, kInvalid);
+    utl::fill(mem_->device_.tmp_, kInvalid);
+    for (int s = 0; s< mem_->device_.size_prev_station_mark_;++s){
+      mem_->device_.prev_station_mark_[s] = false;
+    }
+    for (int s = 0; s< mem_->device_.size_station_mark_;++s){
+      mem_->device_.station_mark_[s] = false;
+    }
+    for (int s = 0; s< mem_->device_.size_route_mark_;++s){
+      mem_->device_.route_mark_[s] = false;
+    }
     if constexpr (Rt) {
-      utl::fill(state_.rt_transport_mark_, false);
-    }*/
+      //utl::fill(state_.rt_transport_mark_, false);
+    }//TODO if we want rt
   }
 
   void add_start(location_idx_t const l, unixtime_t const t) {
-    /*state_.best_[to_idx(l)] = unix_to_delta(base(), t);
-    state_.round_times_[0U][to_idx(l)] = unix_to_delta(base(), t);
-    state_.station_mark_[to_idx(l)] = true;*/
+    mem_->device_.best_[to_idx(l)] = unix_to_gpu_delta(base(), t);
+    //nur device oder beide??? also round_times
+    mem_->device_.round_times_[0U*mem_->device_.row_count_round_times_+to_idx(l)] = unix_to_gpu_delta(base(), t);
+    mem_->device_.station_mark_[to_idx(l)] = true;
   }
 
 
@@ -154,6 +160,11 @@ void execute(unixtime_t const start_time,
   void reconstruct(query const& q, journey& j) {
     // reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
   }
+  date::sys_days base() const {
+    return gtt_->internal_interval_days().from_ + as_int(base_) * date::days{1};
+  }
+
+  int as_int(day_idx_t const d) const { return static_cast<int>(d.v_); }
 
   gpu_timetable const* gtt_{nullptr};
   rt_timetable const* rtt_{nullptr};

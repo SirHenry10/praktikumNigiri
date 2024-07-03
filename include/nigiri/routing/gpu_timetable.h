@@ -26,18 +26,44 @@
 #include "nigiri/types.h"
 
 namespace nigiri{
-extern "C" {
+struct gpu_delta_t {
+  std::uint16_t days_ : 5;
+  std::uint16_t mam_ : 11;
+  bool operator== (gpu_delta_t const a) const{
+    return (a.days_== this->days_ && a.mam_==this->mam_);
+  }
+  bool operator!= (gpu_delta_t const a) const{
+    return !(operator==(a));
+  }
+};
+template <nigiri::direction SearchDir>
+inline constexpr auto const kInvalidGpuDelta =
+    SearchDir == direction::kForward ? gpu_delta_t{31, 2047}
+                                     : gpu_delta_t{0, 0};
 
-  struct gpu_delta_t {
-    std::uint16_t days_ : 5;
-    std::uint16_t mam_ : 11;
-    bool operator== (gpu_delta_t const a) const{
-      return (a.days_== this->days_ && a.mam_==this->mam_);
-    }
-    bool operator!= (gpu_delta_t const a) const{
-      return !(operator==(a));
-    }
-  };
+unixtime_t to_unixtime(date::sys_days const base,
+                       gpu_delta_t const gd) {
+  return std::chrono::time_point_cast<unixtime_t::duration>(base) +
+         (gd.days_ * 1440 + gd.mam_) * unixtime_t::duration{1};
+}
+gpu_delta_t unix_to_gpu_delta(date::sys_days const base, unixtime_t const t) {
+  auto mam = (t - std::chrono::time_point_cast<unixtime_t::duration>(base)).count();
+  gpu_delta_t gd;
+  assert(x != std::numeric_limits<delta_t>::min());
+  assert(x != std::numeric_limits<delta_t>::max());
+  if (mam < 0) {
+    auto const d= -mam / 1440 + 1;
+    auto const min = mam + (d * 1440);
+    gd.days_ = d;
+    gd.mam_ = min;
+    return gd;
+  } else {
+    gd.days_ =  mam / 1440;
+    gd.mam_ = mam % 1440;
+    return gd;
+  }
+}
+extern "C" {
   struct gpu_timetable {
     struct locations {
       timezone_idx_t register_timezone(timezone tz) {
@@ -126,15 +152,7 @@ extern "C" {
       vector_map<timezone_idx_t, timezone> timezones_;
     } locations_;
 
-    unixtime_t to_unixtime(day_idx_t const d,
-                           std::uint16_t const mam) const {
-      return internal_interval_days().from_ + d * 1_days +
-             static_cast<std::chrono::duration<int16_t, std::ratio<60>>>(mam);
-      //kucken ob cast stimmt
-    }
-    gpu_delta_t to_gpu_delta(day_idx_t const d, std::uint16_t const mam) const {
-      return null; //TODO was ist base?
-    }
+
 
     gpu_delta_t* route_stop_times_{nullptr};
     route_idx_t* route_stop_time_ranges_keys {nullptr};
@@ -169,6 +187,9 @@ extern "C" {
     interval<date::sys_days> internal_interval_days() const {
       return {date_range_.from_ - kTimetableOffset,
               date_range_.to_ + date::days{1}};
+    }
+    date::sys_days base() const {
+      return gtt_.internal_interval_days().from_ + as_int(base_) * date::days{1};
     }
     // Schedule range.
     interval<date::sys_days> date_range_{};
@@ -211,6 +232,5 @@ extern "C" {
                                              interval<std::uint32_t>* route_stop_time_ranges_values,
                                              std::uint32_t n_route_stop_time_ranges);
   void destroy_gpu_timetable(gpu_timetable* &gtt);
-
 }  // extern "C"
 }  //namespace nigiri

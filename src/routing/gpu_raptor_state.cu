@@ -59,12 +59,13 @@ void host_memory::destroy() {
   cudaFreeHost(round_times_);
   round_times_ = nullptr;
 }
-/* Brauchen wir glaube nicht
-void host_memory::reset() const {
-  *any_station_marked_ = false;
-  result_->reset();
+void host_memory::reset(nigiri::gpu_delta_t Invalid) const {
+  for (auto k = 0U; k != row_count_round_times_; ++k) {
+    for (auto l = 0U; l != column_count_round_times_; ++l) {
+      round_times_[k*row_count_round_times_+l] = Invalid;
+    }
+  }
 }
- */
 
 // Zuweisung von Speicherplatz an Attribute, die in devices verwendet werden
 device_memory::device_memory(uint32_t size_tmp,
@@ -80,7 +81,7 @@ device_memory::device_memory(uint32_t size_tmp,
       column_count_round_times_{column_count_round_times},
       size_station_mark_{size_station_mark},
       size_prev_station_mark_{size_prev_station_mark},
-      size_route_mark_{size_route_mark} {
+      size_route_mark_{size_route_mark}{
 
   cudaMalloc(&tmp_, size_tmp_ * sizeof(gpu_delta_t));
   cudaMalloc(&best_, size_best_ * sizeof(gpu_delta_t));
@@ -90,12 +91,6 @@ device_memory::device_memory(uint32_t size_tmp,
   cudaMalloc(&prev_station_mark_, size_prev_station_mark_ * sizeof(bool));
   cudaMalloc(&route_mark_, size_route_mark_ * sizeof(bool));
   cuda_check();
-  // result inizialisieren??
-  /*
-  for (auto k = 1U; k < result_.size(); ++k) {
-    result_[k] = result_[k - 1] + stop_count;
-  }
-  */
   this->reset_async(nullptr);
 }
 
@@ -109,13 +104,14 @@ void device_memory::destroy() {
 }
 
 void device_memory::reset_async(cudaStream_t s) {
-  cudaMemsetAsync(tmp_, 0xFF, size_tmp_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(tmp_,0xFF, size_tmp_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(best_, 0xFF, size_best_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(round_times_, 0xFF, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(station_mark_, 0, size_station_mark_*sizeof(bool), s);
   cudaMemsetAsync(prev_station_mark_, 0, size_prev_station_mark_*sizeof(bool), s);
   cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(bool), s);
   //additional_start_count_ = invalid<decltype(additional_start_count_)>;
+  //maybe mit invalid austauschen?? 0xFF
 }
 
 mem::mem(uint32_t size_tmp_, uint32_t size_best_,
@@ -141,7 +137,6 @@ void gpu_raptor_state::init(gpu_timetable const& gtt) {
       memory_.emplace_back(std::make_unique<struct mem>(
         gtt.n_locations_,gtt.n_locations_,kMaxTransfers + 1U,gtt.n_locations_,gtt.n_locations_,gtt.n_locations_,gtt.n_routes_, device_id));
   }
-
   memory_mutexes_ = std::vector<std::mutex>(memory_.size());
 }
 
@@ -149,18 +144,19 @@ gpu_raptor_state::mem_idx gpu_raptor_state::get_mem_idx() {
   return current_idx_.fetch_add(1) % memory_.size();
 }
 
-loaned_mem::loaned_mem(gpu_raptor_state& store) {
+loaned_mem::loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid) {
   auto const idx = store.get_mem_idx();
   lock_ = std::unique_lock(store.memory_mutexes_[idx]);
   mem_ = store.memory_[idx].get();
+  invalid_ = invalid;
 }
 
 loaned_mem::~loaned_mem() {
   mem_->device_.reset_async(mem_->context_.proc_stream_);
-  //mem_->host_.reset();
+  mem_->host_.reset(invalid_);
   cuda_sync_stream(mem_->context_.proc_stream_);
 }
-void device_memory::print(const gpu_timetable& gtt, date::sys_days, gpu_delta_t invalid) {
+void device_memory::print(const gpu_timetable& gtt, date::sys_days sys_days, gpu_delta_t invalid) {
   auto const has_empty_rounds = [&](std::uint32_t const l) {
     for (auto k = 0U; k != row_count_round_times_; ++k) {
       if (round_times_[k*row_count_round_times_+l] != invalid) {
@@ -174,7 +170,7 @@ void device_memory::print(const gpu_timetable& gtt, date::sys_days, gpu_delta_t 
     if (gd == invalid) {
       fmt::print("________________");
     } else {
-      fmt::print("{:16}", gtt.to_unixtime(gd.days_,gd.mam_));
+      fmt::print("{:16}", to_unixtime(sys_days,gd));
     }
   };
 

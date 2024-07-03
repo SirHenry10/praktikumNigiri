@@ -53,9 +53,9 @@ struct host_memory {
   ~host_memory() = default;
 
   void destroy();
-  /*
-  void reset() const;
-  */
+
+  void reset(gpu_delta_t Invalid) const;
+
   gpu_delta_t* round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
   uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
@@ -123,6 +123,7 @@ struct gpu_raptor_state {
   std::atomic<mem_idx> current_idx_{0};
   static_assert(std::is_unsigned_v<decltype(current_idx_)::value_type>);
 
+  gpu_delta_t invalid_;
   std::vector<std::unique_ptr<mem>> memory_;
   std::vector<std::mutex> memory_mutexes_;
 };
@@ -136,11 +137,12 @@ struct loaned_mem {
   loaned_mem(loaned_mem const&&) = delete;
   loaned_mem operator=(loaned_mem const&) = delete;
   loaned_mem operator=(loaned_mem const&&) = delete;
-  explicit loaned_mem(gpu_raptor_state& store);
+  explicit loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid);
 
   ~loaned_mem();
 
   mem* mem_{nullptr};
+  gpu_delta_t invalid_{};
   std::unique_lock<std::mutex> lock_{};
 };
 

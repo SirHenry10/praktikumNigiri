@@ -75,7 +75,7 @@ __global__ void gpu_raptor_kernel(unixtime_t const start_time,
                                   pareto_set<journey>& results,
                                   gpu_raptor& gr){
   // 1. Initialisierung
-  gpu_delta_t const d_worst_at_dest = to_gpu_delta(gr.base, worst_time_at_dest);
+  gpu_delta_t const d_worst_at_dest = unix_to_gpu_delta(gr.base, worst_time_at_dest);
   init_arrivals(d_worst_at_dest, gr);
   this_grid().sync();
 
