@@ -174,7 +174,7 @@ void device_memory::print(const gpu_timetable& gtt, date::sys_days, gpu_delta_t 
     if (gd == invalid) {
       fmt::print("________________");
     } else {
-      fmt::print("{:16}", gpu_delta_to_unix(gd));
+      fmt::print("{:16}", gtt.to_unixtime(gd.days_,gd.mam_));
     }
   };
 

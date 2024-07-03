@@ -125,6 +125,12 @@ extern "C" {
       array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_in_;
       vector_map<timezone_idx_t, timezone> timezones_;
     } locations_;
+    unixtime_t to_unixtime(std::uint16_t const d,
+                           std::uint16_t const mam) const {
+      return internal_interval_days().from_ + d * 1_days +
+             static_cast<std::chrono::duration<int16_t, std::ratio<60>>>(mam);
+      //kucken ob cast stimmt
+    }
 
     gpu_delta_t* route_stop_times_{nullptr};
     route_idx_t* route_stop_time_ranges_keys {nullptr};
@@ -201,11 +207,6 @@ extern "C" {
                                              interval<std::uint32_t>* route_stop_time_ranges_values,
                                              std::uint32_t n_route_stop_time_ranges);
   void destroy_gpu_timetable(gpu_timetable* &gtt);
-
-  inline unixtime_t gpu_delta_to_unix(gpu_delta_t d) {
-    return (d.days_ + d.mam_ * unixtime_t::duration{1});
-  }
-
 
 }  // extern "C"
 }  //namespace nigiri
