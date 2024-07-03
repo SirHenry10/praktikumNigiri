@@ -132,7 +132,7 @@ mem::~mem() {
   context_.destroy();
 }
 
-void memory_store::init(gpu_timetable const& gtt) {
+void gpu_raptor_state::init(gpu_timetable const& gtt) {
   int32_t device_count = 0;
   cudaGetDeviceCount(&device_count);
 
@@ -145,11 +145,11 @@ void memory_store::init(gpu_timetable const& gtt) {
   memory_mutexes_ = std::vector<std::mutex>(memory_.size());
 }
 
-memory_store::mem_idx memory_store::get_mem_idx() {
+gpu_raptor_state::mem_idx gpu_raptor_state::get_mem_idx() {
   return current_idx_.fetch_add(1) % memory_.size();
 }
 
-loaned_mem::loaned_mem(memory_store& store) {
+loaned_mem::loaned_mem(gpu_raptor_state& store) {
   auto const idx = store.get_mem_idx();
   lock_ = std::unique_lock(store.memory_mutexes_[idx]);
   mem_ = store.memory_[idx].get();

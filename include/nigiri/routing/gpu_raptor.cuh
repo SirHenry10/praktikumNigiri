@@ -6,7 +6,7 @@
 #include "nigiri/routing/limits.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
-#include "nigiri/routing/raptor/gpu_raptor_state.h"
+#include "nigiri/routing/gpu_raptor_state.cuh"
 #include "nigiri/routing/raptor/raptor_state.h" //maybe weg
 #include "nigiri/routing/raptor/reconstruct.h"
 #include "nigiri/rt/rt_timetable.h"
@@ -51,7 +51,7 @@ struct gpu_raptor {
   static auto dir(auto a) { return (kFwd ? 1 : -1) * a; }
 
   gpu_raptor(gpu_timetable const* gtt,
-         //rt_timetable const* rtt,
+         rt_timetable const* rtt,
          gpu_raptor_state& state,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
@@ -59,7 +59,7 @@ struct gpu_raptor {
          day_idx_t const base,
          clasz_mask_t const allowed_claszes)
       : gtt_{gtt},
-        //rtt_{rtt},
+        rtt_{rtt},
         state_{state},
         is_dest_{is_dest},
         dist_to_end_{dist_to_dest},
@@ -107,6 +107,7 @@ void execute(unixtime_t const start_time,
              unixtime_t const worst_time_at_dest,
              profile_idx_t const prf_idx,
              pareto_set<journey>& results){
+
   void* kernel_arg[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
   launchKernel(gpu_raptor_kernel, kernel_args, this.state_->context_, this.state_->context_.proc_stream_);
 }
@@ -117,7 +118,7 @@ void execute(unixtime_t const start_time,
   }
 
   gpu_timetable const* gtt_{nullptr};
-  //rt_timetable const* rtt_{nullptr};
+  rt_timetable const* rtt_{nullptr};
   // all diese müssen mit malloc (evtl. in anderer Datei)
   gpu_raptor_state& state_;
   std::vector<bool>& is_dest_;

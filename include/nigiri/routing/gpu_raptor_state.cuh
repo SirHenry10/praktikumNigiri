@@ -112,7 +112,7 @@ struct mem {
   device_context context_;
 };
 
-struct memory_store {
+struct gpu_raptor_state {
   using mem_idx = uint32_t;
   static_assert(std::is_unsigned_v<mem_idx>);
 
@@ -128,7 +128,7 @@ struct memory_store {
 };
 
 static_assert(
-    std::is_unsigned_v<decltype(std::declval<memory_store>().get_mem_idx())>);
+    std::is_unsigned_v<decltype(std::declval<gpu_raptor_state>().get_mem_idx())>);
 
 struct loaned_mem {
   loaned_mem() = delete;
@@ -136,7 +136,7 @@ struct loaned_mem {
   loaned_mem(loaned_mem const&&) = delete;
   loaned_mem operator=(loaned_mem const&) = delete;
   loaned_mem operator=(loaned_mem const&&) = delete;
-  explicit loaned_mem(memory_store& store);
+  explicit loaned_mem(gpu_raptor_state& store);
 
   ~loaned_mem();
 
