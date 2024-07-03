@@ -31,8 +31,101 @@ extern "C" {
   struct gpu_delta_t {
     std::uint16_t days_ : 5;
     std::uint16_t mam_ : 11;
+    bool operator== (gpu_delta_t a){
+      return (a.days_== this->days_ && a.mam_==this->mam_);
+    }
+    bool operator!= (gpu_delta_t a){
+      return !(operator==(a));
+    }
   };
   struct gpu_timetable {
+    struct locations {
+      timezone_idx_t register_timezone(timezone tz) {
+        auto const idx = timezone_idx_t{
+            static_cast<timezone_idx_t::value_t>(timezones_.size())};
+        timezones_.emplace_back(std::move(tz));
+        return idx;
+      }
+
+      location_idx_t register_location(location const& l) {
+        auto const next_idx = static_cast<location_idx_t::value_t>(names_.size());
+        auto const l_idx = location_idx_t{next_idx};
+        auto const [it, is_new] = location_id_to_idx_.emplace(
+            location_id{.id_ = l.id_, .src_ = l.src_}, l_idx);
+
+        if (is_new) {
+          names_.emplace_back(l.name_);
+          coordinates_.emplace_back(l.pos_);
+          ids_.emplace_back(l.id_);
+          src_.emplace_back(l.src_);
+          types_.emplace_back(l.type_);
+          location_timezones_.emplace_back(l.timezone_idx_);
+          equivalences_.emplace_back();
+          children_.emplace_back();
+          preprocessing_footpaths_out_.emplace_back();
+          preprocessing_footpaths_in_.emplace_back();
+          transfer_time_.emplace_back(l.transfer_time_);
+          parents_.emplace_back(l.parent_);
+        } else {
+          log(log_lvl::error, "timetable.register_location",
+              "duplicate station {}", l.id_);
+        }
+
+        assert(names_.size() == next_idx + 1);
+        assert(coordinates_.size() == next_idx + 1);
+        assert(ids_.size() == next_idx + 1);
+        assert(src_.size() == next_idx + 1);
+        assert(types_.size() == next_idx + 1);
+        assert(location_timezones_.size() == next_idx + 1);
+        assert(equivalences_.size() == next_idx + 1);
+        assert(children_.size() == next_idx + 1);
+        assert(preprocessing_footpaths_out_.size() == next_idx + 1);
+        assert(preprocessing_footpaths_in_.size() == next_idx + 1);
+        assert(transfer_time_.size() == next_idx + 1);
+        assert(parents_.size() == next_idx + 1);
+
+        return it->second;
+      }
+
+      location get(location_idx_t const idx) const {
+        auto l = location{ids_[idx].view(),
+                          names_[idx].view(),
+                          coordinates_[idx],
+                          src_[idx],
+                          types_[idx],
+                          parents_[idx],
+                          location_timezones_[idx],
+                          transfer_time_[idx],
+                          it_range{equivalences_[idx]}};
+        l.l_ = idx;
+        return l;
+      }
+
+      location get(location_id const& id) const {
+        return get(location_id_to_idx_.at(id));
+      }
+
+      void resolve_timezones();
+
+      // Station access: external station id -> internal station idx
+      hash_map<location_id, location_idx_t> location_id_to_idx_;
+      vecvec<location_idx_t, char> names_;
+      vecvec<location_idx_t, char> ids_;
+      vector_map<location_idx_t, geo::latlng> coordinates_;
+      vector_map<location_idx_t, source_idx_t> src_;
+      vector_map<location_idx_t, u8_minutes> transfer_time_;
+      vector_map<location_idx_t, location_type> types_;
+      vector_map<location_idx_t, location_idx_t> parents_;
+      vector_map<location_idx_t, timezone_idx_t> location_timezones_;
+      mutable_fws_multimap<location_idx_t, location_idx_t> equivalences_;
+      mutable_fws_multimap<location_idx_t, location_idx_t> children_;
+      mutable_fws_multimap<location_idx_t, footpath> preprocessing_footpaths_out_;
+      mutable_fws_multimap<location_idx_t, footpath> preprocessing_footpaths_in_;
+      array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_out_;
+      array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_in_;
+      vector_map<timezone_idx_t, timezone> timezones_;
+    } locations_;
+
     gpu_delta_t* route_stop_times_{nullptr};
     route_idx_t* route_stop_time_ranges_keys {nullptr};
     interval<std::uint32_t>* route_stop_time_ranges_values {nullptr};
@@ -110,16 +203,9 @@ extern "C" {
   void destroy_gpu_timetable(gpu_timetable* &gtt);
 
   inline unixtime_t gpu_delta_to_unix(gpu_delta_t d) {
-    return d.days_ +
-           d.mam_ * unixtime_t::duration{1};
+    return (d.days_ + d.mam_ * unixtime_t::duration{1});
   }
 
-  bool operator== (const gpu_delta_t& a, const gpu_delta_t& b){
-    return (a.days_==b.days_ && a.mam_==b.mam_);
-  }
-  bool operator!= (const gpu_delta_t& a, const gpu_delta_t& b){
-    return !(a.days_==b.days_ && a.mam_==b.mam_);
-  }
 
 }  // extern "C"
 }  //namespace nigiri
