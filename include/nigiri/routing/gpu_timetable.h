@@ -109,5 +109,9 @@ extern "C" {
                                              std::uint32_t n_route_stop_time_ranges);
   void destroy_gpu_timetable(gpu_timetable* &gtt);
 
+  inline unixtime_t gpu_delta_to_unix(gpu_delta_t d) {
+    return d.days_ +
+           d.mam_ * unixtime_t::duration{1};
+  }
 }  // extern "C"
 }  //namespace nigiri
