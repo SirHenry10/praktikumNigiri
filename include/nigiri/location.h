@@ -11,12 +11,13 @@
 #include "nigiri/types.h"
 
 namespace nigiri {
-
+struct gpu_timetable;
 struct timetable;
 
 struct location {
   friend std::ostream& operator<<(std::ostream&, location const&);
   location(timetable const&, location_idx_t);
+  location(gpu_timetable, location_idx_t);
   location(std::string_view id,
            std::string_view name,
            geo::latlng pos,
