@@ -21,8 +21,7 @@ std::pair<dim3, dim3> get_launch_paramters(
   return {threads_per_block, grid};
 }
 
-device_context::device_context(device_id const device_id,
-                               int32_t const concurrency_per_device)
+device_context::device_context(device_id const device_id)
     : id_(device_id) {
   cudaSetDevice(id_);
   cuda_check();
@@ -31,7 +30,7 @@ device_context::device_context(device_id const device_id,
   cuda_check();
 
   std::tie(threads_per_block_, grid_) =
-      get_launch_paramters(props_, concurrency_per_device);
+      get_launch_paramters(props_, 1);
 
   cudaStreamCreate(&proc_stream_);
   cuda_check();
@@ -122,11 +121,10 @@ void device_memory::reset_async(cudaStream_t s) {
 mem::mem(uint32_t size_tmp_, uint32_t size_best_,
          uint32_t row_count_round_times_, uint32_t column_count_round_times_,
          uint32_t size_station_mark_, uint32_t size_prev_station_mark_, uint32_t size_route_mark_,
-         device_id const device_id,
-         int32_t const concurrency_per_device)
+         device_id const device_id)
     : host_{row_count_round_times_, column_count_round_times_},
       device_{size_tmp_, size_best_, row_count_round_times_, column_count_round_times_, size_station_mark_, size_prev_station_mark_, size_route_mark_},
-      context_{device_id, concurrency_per_device} {}
+      context_{device_id} {}
 
 mem::~mem() {
   host_.destroy();
@@ -134,20 +132,15 @@ mem::~mem() {
   context_.destroy();
 }
 
-void memory_store::init(raptor_meta_info const& meta_info,
-                        gpu_timetable const& gtt,
-                        int32_t const concurrency_per_device) {
+void memory_store::init(gpu_timetable const& gtt) {
   int32_t device_count = 0;
   cudaGetDeviceCount(&device_count);
 
   auto const max_add_starts = get_max_add_starts(meta_info);
 
   for (auto device_id = 0; device_id < device_count; ++device_id) {
-    for (auto i = 0; i < concurrency_per_device; ++i) {
       memory_.emplace_back(std::make_unique<struct mem>(
-          gtt.n_locations_, gtt.n_routes_, max_add_starts, device_id,
-          concurrency_per_device));
-    }
+        , device_id));
   }
 
   memory_mutexes_ = std::vector<std::mutex>(memory_.size());
@@ -165,7 +158,7 @@ loaned_mem::loaned_mem(memory_store& store) {
 
 loaned_mem::~loaned_mem() {
   mem_->device_.reset_async(mem_->context_.proc_stream_);
-  mem_->host_.reset();
+  //mem_->host_.reset();
   cuda_sync_stream(mem_->context_.proc_stream_);
 }
 }  // namespace nigiri::routing

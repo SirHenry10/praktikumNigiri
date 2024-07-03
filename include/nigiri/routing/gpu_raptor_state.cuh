@@ -25,7 +25,7 @@ struct device_context {
   device_context(device_context const&&) = delete;
   device_context operator=(device_context const&) = delete;
   device_context operator=(device_context const&&) = delete;
-  device_context(device_id device_id, int32_t concurrency_per_device);
+  device_context(device_id device_id);
 
   ~device_context() = default;
 
