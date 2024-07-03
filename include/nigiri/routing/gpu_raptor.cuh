@@ -27,6 +27,31 @@ struct raptor_stats {
   std::uint64_t route_update_prevented_by_lower_bound_{0ULL};
 };
 
+void inline launch_kernel(Kernel kernel, void** args,
+                          device_context const& device, cudaStream_t s) {
+  cudaSetDevice(device.id_);
+
+  cudaLaunchCooperativeKernel((void*)kernel, device.grid_,  //  NOLINT
+                              device.threads_per_block_, args, 0, s);
+  cuda_check();
+}
+
+inline void fetch_arrivals_async(d_query const& dq, cudaStream_t s) {
+  cudaMemcpyAsync(
+      dq.mem_->host_.result_->data(), dq.mem_->device_.result_.front(),
+      dq.mem_->host_.result_->byte_size(), cudaMemcpyDeviceToHost, s);
+  cuda_check();
+}
+
+inline void fetch_arrivals_async(d_query const& dq, raptor_round const round_k,
+                                 cudaStream_t s) {
+  cudaMemcpyAsync((*dq.mem_->host_.result_)[round_k],
+                  dq.mem_->device_.result_[round_k],
+                  dq.mem_->host_.result_->stop_count_ * sizeof(time),
+                  cudaMemcpyDeviceToHost, s);
+  cuda_check();
+}
+
 __global__ void gpu_raptor_kernel(gpu_timetable const tt);
 
 template <direction SearchDir, bool Rt>
@@ -78,31 +103,6 @@ struct gpu_raptor {
     //state_.round_times_.reset(kInvalid);
   }
 
-  void inline launch_kernel(Kernel kernel, void** args,
-                            device_context const& device, cudaStream_t s) {
-    cudaSetDevice(device.id_);
-
-    cudaLaunchCooperativeKernel((void*)kernel, device.grid_,  //  NOLINT
-                                device.threads_per_block_, args, 0, s);
-    cuda_check();
-  }
-
-  inline void fetch_arrivals_async(d_query const& dq, cudaStream_t s) {
-    cudaMemcpyAsync(
-        dq.mem_->host_.result_->data(), dq.mem_->device_.result_.front(),
-        dq.mem_->host_.result_->byte_size(), cudaMemcpyDeviceToHost, s);
-    cuda_check();
-  }
-
-  inline void fetch_arrivals_async(d_query const& dq, raptor_round const round_k,
-                                   cudaStream_t s) {
-    cudaMemcpyAsync((*dq.mem_->host_.result_)[round_k],
-                    dq.mem_->device_.result_[round_k],
-                    dq.mem_->host_.result_->stop_count_ * sizeof(time),
-                    cudaMemcpyDeviceToHost, s);
-    cuda_check();
-  }
-
   algo_stats_t get_stats() const {
     return stats_;
   }
@@ -138,7 +138,7 @@ void execute(unixtime_t const start_time,
              pareto_set<journey>& results){
 
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
-  cudaLaunchKernel(gpu_raptor_kernel, kernel_args,mem_->context_,mem_->context_.proc_stream_);
+  launchKernel(gpu_raptor_kernel, kernel_args,mem_->context_,mem_->context_.proc_stream_);
 }
 
 
