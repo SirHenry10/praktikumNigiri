@@ -78,6 +78,31 @@ struct gpu_raptor {
     //state_.round_times_.reset(kInvalid);
   }
 
+  void inline launch_kernel(Kernel kernel, void** args,
+                            device_context const& device, cudaStream_t s) {
+    cudaSetDevice(device.id_);
+
+    cudaLaunchCooperativeKernel((void*)kernel, device.grid_,  //  NOLINT
+                                device.threads_per_block_, args, 0, s);
+    cuda_check();
+  }
+
+  inline void fetch_arrivals_async(d_query const& dq, cudaStream_t s) {
+    cudaMemcpyAsync(
+        dq.mem_->host_.result_->data(), dq.mem_->device_.result_.front(),
+        dq.mem_->host_.result_->byte_size(), cudaMemcpyDeviceToHost, s);
+    cuda_check();
+  }
+
+  inline void fetch_arrivals_async(d_query const& dq, raptor_round const round_k,
+                                   cudaStream_t s) {
+    cudaMemcpyAsync((*dq.mem_->host_.result_)[round_k],
+                    dq.mem_->device_.result_[round_k],
+                    dq.mem_->host_.result_->stop_count_ * sizeof(time),
+                    cudaMemcpyDeviceToHost, s);
+    cuda_check();
+  }
+
   algo_stats_t get_stats() const {
     return stats_;
   }
