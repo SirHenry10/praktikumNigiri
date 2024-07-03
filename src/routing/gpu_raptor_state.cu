@@ -139,7 +139,7 @@ void memory_store::init(gpu_timetable const& gtt) {
 
   for (auto device_id = 0; device_id < device_count; ++device_id) {
       memory_.emplace_back(std::make_unique<struct mem>(
-        , device_id));
+        gtt.n_locations_,gtt.n_locations_,kMaxTransfers + 1U,gtt.n_locations_,gtt.n_locations_,gtt.n_locations_,gtt.n_routes_, device_id));
   }
 
   memory_mutexes_ = std::vector<std::mutex>(memory_.size());
