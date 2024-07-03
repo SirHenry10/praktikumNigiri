@@ -60,6 +60,8 @@ struct host_memory {
   uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
 
+
+
 struct device_memory {
   device_memory() = delete;
   device_memory(device_memory const&) = delete;
@@ -70,6 +72,8 @@ struct device_memory {
 
   ~device_memory() = default;
 
+  void print(gpu_timetable const& gtt, date::sys_days, gpu_delta_t invalid);
+
   void destroy();
 
   // vielleicht getter Methoden
@@ -78,7 +82,6 @@ struct device_memory {
               unsigned n_routes);
   */
 
-  void print(gpu_timetable const& gtt, date::sys_days, gpu_delta_t invalid);
 
   void reset_async(cudaStream_t s);
 
