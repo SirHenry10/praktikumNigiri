@@ -68,12 +68,13 @@ __device__ void init_arrivals(gpu_delta_t const d_worst_at_dest, gpu_raptor& gr)
 
 // größten Teil von raptor.execute() wird hierdrin ausgeführt
 // kernel muss sich außerhalb der gpu_raptor Klasse befinden
+template <direction SearchDir, bool Rt>
 __global__ void gpu_raptor_kernel(unixtime_t const start_time,
                                   std::uint8_t const max_transfers,
                                   unixtime_t const worst_time_at_dest,
                                   profile_idx_t const prf_idx,
                                   pareto_set<journey>& results,
-                                  gpu_raptor& gr){
+                                  gpu_raptor<SearchDir,Rt>& gr){
   // 1. Initialisierung
   gpu_delta_t const d_worst_at_dest = unix_to_gpu_delta(gr.base, worst_time_at_dest);
   init_arrivals(d_worst_at_dest, gr);

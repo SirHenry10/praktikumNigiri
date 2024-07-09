@@ -43,7 +43,7 @@ inline void fetch_arrivals_async(mem* const& mem, cudaStream_t s) {
       mem->host_.row_count_round_times_ * mem->host_.column_count_round_times_ * sizeof(gpu_delta_t), cudaMemcpyDeviceToHost, s);
   cuda_check();
 }
-
+/*
 inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
                                  cudaStream_t s) {
   cudaMemcpyAsync((*dq.mem_->host_.result_)[round_k],
@@ -53,12 +53,16 @@ inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
   cuda_check();
 }
  */
+template <direction SearchDir, bool Rt>
+struct gpu_raptor;
+
+template <direction SearchDir, bool Rt>
 __global__ void gpu_raptor_kernel(unixtime_t const start_time,
                                   std::uint8_t const max_transfers,
                                   unixtime_t const worst_time_at_dest,
                                   profile_idx_t const prf_idx,
                                   pareto_set<journey>& results,
-                                  gpu_raptor& gr);
+                                  gpu_raptor<SearchDir,Rt>& gr);
 
 template <direction SearchDir, bool Rt>
 struct gpu_raptor {
@@ -151,7 +155,7 @@ void execute(unixtime_t const start_time,
              pareto_set<journey>& results){
 
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
-  launch_kernel(gpu_raptor_kernel, kernel_args,mem_->context_,mem_->context_.proc_stream_);
+  launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
   cuda_check();
   //TODO: copy result back
 }
