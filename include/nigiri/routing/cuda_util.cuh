@@ -1,6 +1,8 @@
+
+#include <cstdio>
+
 namespace nigiri {
 extern "C" {
-
 #define cucheck_dev(call)                                    \
 {                                                          \
 cudaError_t cucheck_err = (call);                        \

@@ -49,8 +49,8 @@ unixtime_t to_unixtime(date::sys_days const base,
 gpu_delta_t unix_to_gpu_delta(date::sys_days const base, unixtime_t const t) {
   auto mam = (t - std::chrono::time_point_cast<unixtime_t::duration>(base)).count();
   gpu_delta_t gd;
-  assert(x != std::numeric_limits<delta_t>::min());
-  assert(x != std::numeric_limits<delta_t>::max());
+  assert(mam != std::numeric_limits<delta_t>::min());
+  assert(mam != std::numeric_limits<delta_t>::max());
   if (mam < 0) {
     auto const d= -mam / 1440 + 1;
     auto const min = mam + (d * 1440);
@@ -187,9 +187,6 @@ extern "C" {
     interval<date::sys_days> internal_interval_days() const {
       return {date_range_.from_ - kTimetableOffset,
               date_range_.to_ + date::days{1}};
-    }
-    date::sys_days base() const {
-      return gtt_.internal_interval_days().from_ + as_int(base_) * date::days{1};
     }
     // Schedule range.
     interval<date::sys_days> date_range_{};

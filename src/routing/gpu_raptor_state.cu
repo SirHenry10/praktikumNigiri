@@ -83,6 +83,7 @@ device_memory::device_memory(uint32_t size_tmp,
       size_prev_station_mark_{size_prev_station_mark},
       size_route_mark_{size_route_mark}{
 
+
   cudaMalloc(&tmp_, size_tmp_ * sizeof(gpu_delta_t));
   cudaMalloc(&best_, size_best_ * sizeof(gpu_delta_t));
   cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ *
@@ -103,15 +104,16 @@ void device_memory::destroy() {
   cudaFree(route_mark_);
 }
 
+
 void device_memory::reset_async(cudaStream_t s) {
-  cudaMemsetAsync(tmp_,0xFF, size_tmp_*sizeof(gpu_delta_t), s);
-  cudaMemsetAsync(best_, 0xFF, size_best_*sizeof(gpu_delta_t), s);
-  cudaMemsetAsync(round_times_, 0xFF, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
+  uint16_t invalid = (this->invalid_.mam_<<5) | this->invalid_.days_;
+  cudaMemsetAsync(tmp_,invalid, size_tmp_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(best_, invalid, size_best_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(round_times_, invalid, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(station_mark_, 0, size_station_mark_*sizeof(bool), s);
   cudaMemsetAsync(prev_station_mark_, 0, size_prev_station_mark_*sizeof(bool), s);
   cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(bool), s);
   //additional_start_count_ = invalid<decltype(additional_start_count_)>;
-  //maybe mit invalid austauschen?? 0xFF
 }
 
 mem::mem(uint32_t size_tmp_, uint32_t size_best_,
@@ -144,16 +146,17 @@ gpu_raptor_state::mem_idx gpu_raptor_state::get_mem_idx() {
   return current_idx_.fetch_add(1) % memory_.size();
 }
 
+
 loaned_mem::loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid) {
   auto const idx = store.get_mem_idx();
   lock_ = std::unique_lock(store.memory_mutexes_[idx]);
   mem_ = store.memory_[idx].get();
-  invalid_ = invalid;
+  mem_->device_.invalid_ = invalid;
 }
 
 loaned_mem::~loaned_mem() {
   mem_->device_.reset_async(mem_->context_.proc_stream_);
-  mem_->host_.reset(invalid_);
+  mem_->host_.reset(mem_->device_.invalid_);
   cuda_sync_stream(mem_->context_.proc_stream_);
 }
 void device_memory::print(const gpu_timetable& gtt, date::sys_days sys_days, gpu_delta_t invalid) {

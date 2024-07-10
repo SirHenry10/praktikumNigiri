@@ -82,17 +82,17 @@ struct device_memory {
               unsigned n_routes);
   */
 
-
   void reset_async(cudaStream_t s);
 
   gpu_delta_t* tmp_{};
   gpu_delta_t* best_{};
   gpu_delta_t* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  gpu_delta_t invalid_;
   bool* station_mark_{};
   bool* prev_station_mark_{};
   bool* route_mark_{};
   uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_prev_station_mark_{}, size_route_mark_{};
-
+  direction search_dir_{};
 };
 
 struct mem {
@@ -112,6 +112,7 @@ struct mem {
   device_context context_;
 };
 
+
 struct gpu_raptor_state {
   using mem_idx = uint32_t;
   static_assert(std::is_unsigned_v<mem_idx>);
@@ -123,7 +124,6 @@ struct gpu_raptor_state {
   std::atomic<mem_idx> current_idx_{0};
   static_assert(std::is_unsigned_v<decltype(current_idx_)::value_type>);
 
-  gpu_delta_t invalid_;
   std::vector<std::unique_ptr<mem>> memory_;
   std::vector<std::mutex> memory_mutexes_;
 };
@@ -137,12 +137,12 @@ struct loaned_mem {
   loaned_mem(loaned_mem const&&) = delete;
   loaned_mem operator=(loaned_mem const&) = delete;
   loaned_mem operator=(loaned_mem const&&) = delete;
+
   explicit loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid);
 
   ~loaned_mem();
 
   mem* mem_{nullptr};
-  gpu_delta_t invalid_{};
   std::unique_lock<std::mutex> lock_{};
 };
 

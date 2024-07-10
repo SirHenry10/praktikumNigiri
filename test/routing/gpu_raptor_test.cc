@@ -25,7 +25,6 @@ TEST(routing, gpu_raptor) {
       tt.location_routes_.size(),
       reinterpret_cast<std::uint32_t*>(tt.route_clasz_.),
       );
-
   EXPECT_NE(nullptr, gtt);
   destroy_gpu_timetable(gtt);
   EXPECT_EQ(nullptr, gtt);

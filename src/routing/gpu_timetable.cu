@@ -1,6 +1,7 @@
 #include "nigiri/routing/gpu_timetable.h"
 
 #include "../../deps/doctest/doctest/doctest.h"
+#include <cstdio>
 
 namespace nigiri{
 extern "C" {
