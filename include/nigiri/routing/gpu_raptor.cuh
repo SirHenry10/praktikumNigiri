@@ -141,7 +141,7 @@ struct gpu_raptor {
 
   void add_start(location_idx_t const l, unixtime_t const t) {
     mem_->device_.best_[to_idx(l)] = unix_to_gpu_delta(base(), t);
-    //nur device oder beide??? also round_times
+    //nur device oder auch host ??? also round_times
     mem_->device_.round_times_[0U*mem_->device_.row_count_round_times_+to_idx(l)] = unix_to_gpu_delta(base(), t);
     mem_->device_.station_mark_[to_idx(l)] = true;
   }

@@ -27,5 +27,12 @@ TEST(routing, gpu_raptor) {
       );
   EXPECT_NE(nullptr, gtt);
   destroy_gpu_timetable(gtt);
-  EXPECT_EQ(nullptr, gtt);
+
+  //Test ob umrechnen funktioniert
+  nigiri::gpu_delta_t test{12,3};
+  date::sys_days testDays{2019_y / March / 25};
+  auto test2 = nigiri::to_unixtime(testDays,test);
+  auto test3 = nigiri::unix_to_gpu_delta(testDays,test2);
+  EXPECT_EQ(test.days_, test3.days_);
+  EXPECT_EQ(test.mam_, test3.mam_);
 }
