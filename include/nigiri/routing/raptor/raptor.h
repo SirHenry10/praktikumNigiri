@@ -129,6 +129,7 @@ struct raptor {
       // markieren der stationen -> mit letzter zusammenfügen?
       auto any_marked = false;
       for (auto i = 0U; i != n_locations_; ++i) {
+        // wie convert_station_to_route_marks bei Julian
         if (state_.station_mark_[i]) {
           for (auto const& r : tt_.location_routes_[location_idx_t{i}]) {
             any_marked = true;
@@ -177,6 +178,7 @@ struct raptor {
 
       //SYNC
       update_footpaths(k, prf_idx);
+      //SYNC
       update_intermodal_footpaths(k);
 
       trace_print_state_after_round();
