@@ -16,7 +16,6 @@ struct gpu_delta{
 };
 //TODO: später raus kicken was nicht brauchen
 
-using vecvec<> = cista::raw::vecvec<>;
 using gpu_location_idx_t = cista::strong<std::uint32_t, struct _location_idx>;
 using gpu_value_type = gpu_location_idx_t::value_t;
 using gpu_bitfield_idx_t = cista::strong<std::uint32_t, struct _bitfield_idx>;
@@ -70,6 +69,7 @@ extern "C" {
     gpu_delta* route_stop_times_{nullptr};
     cista::raw::vecvec<gpu_route_idx_t,gpu_value_type>* route_location_seq_ {};
     cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t>* location_routes_ {};
+    std::uint32_t* n_locations_{};
     /*
     route_idx_t* route_stop_time_ranges_keys {nullptr};
     interval<std::uint32_t>* route_stop_time_ranges_values {nullptr};
@@ -111,8 +111,9 @@ extern "C" {
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                              std::uint32_t n_route_stop_times,
-                                             cista::raw::vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq_, // Route -> list_of_stops
-                                             cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes_ // location -> Route
+                                             cista::raw::vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq, // Route -> list_of_stops
+                                             cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes, // location -> Route
+                                             std::uint32_t const* n_locations
                                              /*,
                                              route_idx_t* location_routes,
                                              std::uint32_t n_locations,

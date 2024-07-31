@@ -98,7 +98,7 @@ struct gpu_raptor {
         lb_{lb},
         base_{base},
         n_days_{gtt_->internal_interval_days().size().count()},
-        n_locations_{gtt->n_locations_},
+        n_locations_{gtt->n_locations_}, //benötigt um journy zu konstruieren
         n_routes_{gtt_->n_routes_},
         //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
         allowed_claszes_{allowed_claszes} {

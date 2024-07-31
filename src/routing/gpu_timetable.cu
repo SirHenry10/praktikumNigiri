@@ -26,7 +26,8 @@ extern "C" {
 struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                              std::uint32_t  n_route_stop_times,
                                              cista::raw::vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq,
-                                             cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes/*,
+                                             cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes,
+                                             std::uint32_t const* n_locations/*,
                                              route_idx_t* location_routes,
                                              std::uint32_t n_locations,
                                              route_idx_t* route_clasz_keys,
@@ -83,6 +84,10 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   gtt->location_routes_ = nullptr;
   using vecvec_location_route = cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t>;
   CUDA_COPY_TO_DEVICE(vecvec_location_route, gtt->location_routes_, location_routes,
+                      1);
+  //n_locations_
+  gtt->n_locations_ = nullptr;
+  CUDA_COPY_TO_DEVICE(uint32_t , gtt->n_locations_, n_locations,
                       1);
   // route_stop_time_ranges
   /*
