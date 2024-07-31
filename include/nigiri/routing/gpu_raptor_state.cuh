@@ -13,7 +13,7 @@ struct cudaDeviceProp;
 namespace std {
 class mutex;
 }
-namespace nigiri::routing {
+
 
 using device_id = int32_t;
 
@@ -54,9 +54,9 @@ struct host_memory {
 
   void destroy();
 
-  void reset(gpu_delta_t Invalid) const;
+  void reset(gpu_delta Invalid) const;
 
-  gpu_delta_t* round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  gpu_delta* round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
   uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
 
@@ -72,7 +72,7 @@ struct device_memory {
 
   ~device_memory() = default;
 
-  void print(gpu_timetable const& gtt, date::sys_days, gpu_delta_t invalid);
+  void print(gpu_timetable const& gtt, date::sys_days, gpu_delta invalid);
 
   void destroy();
 
@@ -84,14 +84,16 @@ struct device_memory {
 
   void reset_async(cudaStream_t s);
 
-  gpu_delta_t* tmp_{};
-  gpu_delta_t* best_{};
-  gpu_delta_t* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
-  gpu_delta_t invalid_;
-  bool* station_mark_{};
-  bool* prev_station_mark_{};
-  bool* route_mark_{};
-  uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_prev_station_mark_{}, size_route_mark_{};
+  gpu_delta* tmp_{};
+  gpu_delta* best_{};
+  gpu_delta* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  gpu_delta invalid_;
+  //uint32_t da wir 32 Threads haben die jeweils ihre route die marks setzen
+  uint32_t* station_mark_{};
+  //uint32_t* prev_station_mark_{};
+  uint32_t* route_mark_{};
+  bool* any_station_marked_{};
+  uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_route_mark_{};//,size_prev_station_mark_{};
   direction search_dir_{};
 };
 
@@ -138,7 +140,7 @@ struct loaned_mem {
   loaned_mem operator=(loaned_mem const&) = delete;
   loaned_mem operator=(loaned_mem const&&) = delete;
 
-  explicit loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid);
+  explicit loaned_mem(gpu_raptor_state& store,gpu_delta invalid);
 
   ~loaned_mem();
 
@@ -147,4 +149,3 @@ struct loaned_mem {
 };
 
 
-}  // namespace nigiri::routing

@@ -1,6 +1,5 @@
 #pragma once
 
-#include "nigiri/common/delta_t.h"
 #include "nigiri/common/linear_lower_bound.h"
 #include "nigiri/routing/journey.h"
 #include "nigiri/routing/limits.h"
@@ -12,9 +11,6 @@
 #include "nigiri/rt/rt_timetable.h"
 #include "nigiri/special_stations.h"
 #include "nigiri/routing/gpu_timetable.h"
-#include "nigiri/types.h"
-
-namespace nigiri::routing {
 
 struct raptor_stats {
   std::uint64_t n_routing_time_{0ULL};
@@ -40,7 +36,7 @@ void inline launch_kernel(Kernel kernel, void** args,
 inline void fetch_arrivals_async(mem* const& mem, cudaStream_t s) {
   cudaMemcpyAsync(
       mem->host_.round_times_, mem->device_.round_times_,
-      mem->host_.row_count_round_times_ * mem->host_.column_count_round_times_ * sizeof(gpu_delta_t), cudaMemcpyDeviceToHost, s);
+      mem->host_.row_count_round_times_ * mem->host_.column_count_round_times_ * sizeof(gpu_delta), cudaMemcpyDeviceToHost, s);
   cuda_check();
 }
 /*
@@ -148,9 +144,9 @@ struct gpu_raptor {
 
 
   // hier wird Kernel aufgerufen
-void execute(unixtime_t const start_time,
+void execute(gpu_unixtime_t const start_time,
              std::uint8_t const max_transfers,
-             unixtime_t const worst_time_at_dest,
+             gpu_unixtime_t const worst_time_at_dest,
              profile_idx_t const prf_idx,
              pareto_set<journey>& results){
 
@@ -171,19 +167,18 @@ void execute(unixtime_t const start_time,
   int as_int(day_idx_t const d) const { return static_cast<int>(d.v_); }
 
   gpu_timetable const* gtt_{nullptr};
-  rt_timetable const* rtt_{nullptr};
+  nigiri::rt_timetable const* rtt_{nullptr};
   // all diese müssen mit malloc (evtl. in anderer Datei)
   gpu_raptor_state& state_;
   mem* mem_;
   std::vector<bool>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
   std::vector<std::uint16_t>& lb_;
-  std::array<delta_t, kMaxTransfers + 1> time_at_dest_;
-  day_idx_t base_;
+  std::array<gpu_delta, kMaxTransfers + 1> time_at_dest_;
+  nigiri::day_idx_t base_;
   int n_days_;
   raptor_stats stats_;
   std::uint32_t n_locations_, n_routes_, n_rt_transports_;
   clasz_mask_t allowed_claszes_;
 };
 
-}  // namespace nigiri::routing

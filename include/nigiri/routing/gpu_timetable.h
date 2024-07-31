@@ -1,160 +1,76 @@
 #pragma once
-
 #include <cinttypes>
 
 #include "cista/containers/vecvec.h"
+#include "date/date.h"
 
-
-#include <compare>
-#include <filesystem>
-#include <span>
-#include <type_traits>
-
-#include "cista/memory_holder.h"
-#include "cista/reflection/printable.h"
-
-#include "utl/verify.h"
-#include "utl/zip.h"
-
-#include "geo/latlng.h"
-
-#include "nigiri/common/interval.h"
-#include "nigiri/footpath.h"
-#include "nigiri/location.h"
-#include "nigiri/logging.h"
-#include "nigiri/stop.h"
-#include "nigiri/types.h"
-
-namespace nigiri{
-struct gpu_delta_t {
+struct gpu_delta{
   std::uint16_t days_ : 5;
   std::uint16_t mam_ : 11;
-  bool operator== (gpu_delta_t const a) const{
+  bool operator== (gpu_delta const& a) const{
     return (a.days_== this->days_ && a.mam_==this->mam_);
   }
-  bool operator!= (gpu_delta_t const a) const{
+  bool operator!= (gpu_delta const& a) const{
     return !(operator==(a));
   }
 };
-template <nigiri::direction SearchDir>
-inline constexpr auto const kInvalidGpuDelta =
-    SearchDir == direction::kForward ? gpu_delta_t{31, 2047}
-                                     : gpu_delta_t{0, 0};
+//TODO: später raus kicken was nicht brauchen
 
-unixtime_t to_unixtime(date::sys_days const base,
-                       gpu_delta_t const gd) {
-  return std::chrono::time_point_cast<unixtime_t::duration>(base) +
-         (gd.days_ * 1440 + gd.mam_) * unixtime_t::duration{1};
+using vecvec<> = cista::raw::vecvec<>;
+using gpu_location_idx_t = cista::strong<std::uint32_t, struct _location_idx>;
+using gpu_value_type = gpu_location_idx_t::value_t;
+using gpu_bitfield_idx_t = cista::strong<std::uint32_t, struct _bitfield_idx>;
+using gpu_location_idx_t = cista::strong<std::uint32_t, struct _location_idx>;
+using gpu_route_idx_t = cista::strong<std::uint32_t, struct _route_idx>;
+using gpu_section_idx_t = cista::strong<std::uint32_t, struct _section_idx>;
+using gpu_section_db_idx_t = cista::strong<std::uint32_t, struct _section_db_idx>;
+using gpu_trip_idx_t = cista::strong<std::uint32_t, struct _trip_idx>;
+using gpu_trip_id_idx_t = cista::strong<std::uint32_t, struct _trip_id_str_idx>;
+using gpu_transport_idx_t = cista::strong<std::uint32_t, struct _transport_idx>;
+using gpu_source_idx_t = cista::strong<std::uint16_t, struct _source_idx>;
+using gpu_day_idx_t = cista::strong<std::uint16_t, struct _day_idx>;
+using gpu_timezone_idx_t = cista::strong<std::uint16_t, struct _timezone_idx>;
+
+enum class gpu_direction { kForward, kBackward };
+using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
+using gpu_unixtime_t = std::chrono::sys_time<gpu_i32_minutes>;
+
+template <gpu_direction SearchDir>
+inline constexpr auto const kInvalidGpuDelta =
+    SearchDir == gpu_direction::kForward ? gpu_delta{31, 2047}
+                                             : gpu_delta{0, 0};
+
+gpu_unixtime_t gpu_delta_to_unixtime(date::sys_days const base,
+                               gpu_delta const gd) {
+  return std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
+         (gd.days_ * 1440 + gd.mam_) * gpu_unixtime_t::duration{1};
 }
-gpu_delta_t unix_to_gpu_delta(date::sys_days const base, unixtime_t const t) {
-  auto mam = (t - std::chrono::time_point_cast<unixtime_t::duration>(base)).count();
-  gpu_delta_t gd;
-  assert(mam != std::numeric_limits<delta_t>::min());
-  assert(mam != std::numeric_limits<delta_t>::max());
+gpu_delta unix_to_gpu_delta(date::sys_days const base,
+                              gpu_unixtime_t const t) {
+  auto mam =
+      (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count();
+  gpu_delta gd;
+  assert(x != std::numeric_limits<mam>::min());
+  assert(x != std::numeric_limits<mam>::max());
   if (mam < 0) {
-    auto const d= -mam / 1440 + 1;
+    auto const d = -mam / 1440 + 1;
     auto const min = mam + (d * 1440);
     gd.days_ = d;
     gd.mam_ = min;
     return gd;
   } else {
-    gd.days_ =  mam / 1440;
+    gd.days_ = mam / 1440;
     gd.mam_ = mam % 1440;
     return gd;
   }
 }
+
 extern "C" {
   struct gpu_timetable {
-    struct locations {
-      timezone_idx_t register_timezone(timezone tz) {
-        auto const idx = timezone_idx_t{
-            static_cast<timezone_idx_t::value_t>(timezones_.size())};
-        timezones_.emplace_back(std::move(tz));
-        return idx;
-      }
-
-      location_idx_t register_location(location const& l) {
-        auto const next_idx = static_cast<location_idx_t::value_t>(names_.size());
-        auto const l_idx = location_idx_t{next_idx};
-        auto const [it, is_new] = location_id_to_idx_.emplace(
-            location_id{.id_ = l.id_, .src_ = l.src_}, l_idx);
-
-        if (is_new) {
-          names_.emplace_back(l.name_);
-          coordinates_.emplace_back(l.pos_);
-          ids_.emplace_back(l.id_);
-          src_.emplace_back(l.src_);
-          types_.emplace_back(l.type_);
-          location_timezones_.emplace_back(l.timezone_idx_);
-          equivalences_.emplace_back();
-          children_.emplace_back();
-          preprocessing_footpaths_out_.emplace_back();
-          preprocessing_footpaths_in_.emplace_back();
-          transfer_time_.emplace_back(l.transfer_time_);
-          parents_.emplace_back(l.parent_);
-        } else {
-          log(log_lvl::error, "timetable.register_location",
-              "duplicate station {}", l.id_);
-        }
-
-        assert(names_.size() == next_idx + 1);
-        assert(coordinates_.size() == next_idx + 1);
-        assert(ids_.size() == next_idx + 1);
-        assert(src_.size() == next_idx + 1);
-        assert(types_.size() == next_idx + 1);
-        assert(location_timezones_.size() == next_idx + 1);
-        assert(equivalences_.size() == next_idx + 1);
-        assert(children_.size() == next_idx + 1);
-        assert(preprocessing_footpaths_out_.size() == next_idx + 1);
-        assert(preprocessing_footpaths_in_.size() == next_idx + 1);
-        assert(transfer_time_.size() == next_idx + 1);
-        assert(parents_.size() == next_idx + 1);
-
-        return it->second;
-      }
-
-      location get(location_idx_t const idx) const {
-        auto l = location{ids_[idx].view(),
-                          names_[idx].view(),
-                          coordinates_[idx],
-                          src_[idx],
-                          types_[idx],
-                          parents_[idx],
-                          location_timezones_[idx],
-                          transfer_time_[idx],
-                          it_range{equivalences_[idx]}};
-        l.l_ = idx;
-        return l;
-      }
-
-      location get(location_id const& id) const {
-        return get(location_id_to_idx_.at(id));
-      }
-
-      void resolve_timezones();
-
-      // Station access: external station id -> internal station idx
-      hash_map<location_id, location_idx_t> location_id_to_idx_;
-      vecvec<location_idx_t, char> names_;
-      vecvec<location_idx_t, char> ids_;
-      vector_map<location_idx_t, geo::latlng> coordinates_;
-      vector_map<location_idx_t, source_idx_t> src_;
-      vector_map<location_idx_t, u8_minutes> transfer_time_;
-      vector_map<location_idx_t, location_type> types_;
-      vector_map<location_idx_t, location_idx_t> parents_;
-      vector_map<location_idx_t, timezone_idx_t> location_timezones_;
-      mutable_fws_multimap<location_idx_t, location_idx_t> equivalences_;
-      mutable_fws_multimap<location_idx_t, location_idx_t> children_;
-      mutable_fws_multimap<location_idx_t, footpath> preprocessing_footpaths_out_;
-      mutable_fws_multimap<location_idx_t, footpath> preprocessing_footpaths_in_;
-      array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_out_;
-      array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_in_;
-      vector_map<timezone_idx_t, timezone> timezones_;
-    } locations_;
-
-
-
-    gpu_delta_t* route_stop_times_{nullptr};
+    gpu_delta* route_stop_times_{nullptr};
+    cista::raw::vecvec<gpu_route_idx_t,gpu_value_type>* route_location_seq_ {};
+    cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t>* location_routes_ {};
+    /*
     route_idx_t* route_stop_time_ranges_keys {nullptr};
     interval<std::uint32_t>* route_stop_time_ranges_values {nullptr};
     route_idx_t* location_routes_{nullptr};
@@ -190,10 +106,14 @@ extern "C" {
     }
     // Schedule range.
     interval<date::sys_days> date_range_{};
+     */
   };
 
-  struct gpu_timetable* create_gpu_timetable(gpu_delta_t const* route_stop_times,
+  struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                              std::uint32_t n_route_stop_times,
+                                             cista::raw::vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq_, // Route -> list_of_stops
+                                             cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes_ // location -> Route
+                                             /*,
                                              route_idx_t* location_routes,
                                              std::uint32_t n_locations,
                                              route_idx_t* route_clasz_keys,
@@ -204,8 +124,6 @@ extern "C" {
                                              std::uint32_t n_transfer_time,
                                              footpath* footpaths_out,
                                              std::uint32_t n_footpaths_out,
-                                             stop::value_type* route_location_seq,
-                                             std::uint32_t n_routes,
                                              route_idx_t* route_transport_ranges_keys,
                                              interval<transport_idx_t>* route_transport_ranges_values,
                                              std::uint32_t n_route_transport_ranges,
@@ -227,7 +145,6 @@ extern "C" {
                                              std::uint32_t n_transport_routes,
                                              route_idx_t* route_stop_time_ranges_keys_keys,
                                              interval<std::uint32_t>* route_stop_time_ranges_values,
-                                             std::uint32_t n_route_stop_time_ranges);
+                                             std::uint32_t n_route_stop_time_ranges*/);
   void destroy_gpu_timetable(gpu_timetable* &gtt);
 }  // extern "C"
-}  //namespace nigiri
