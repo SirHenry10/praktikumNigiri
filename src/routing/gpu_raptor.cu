@@ -58,6 +58,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks,
       for (auto const& r : gtt_.location_routes_[gpu_location_idx_t{i}]) {
         mark(route_marks, to_idx(r));
       }
+
       /*if constexpr (Rt) {
         for (auto const& rt_t :
              rtt_->location_rt_transports_[location_idx_t{i}]) {
