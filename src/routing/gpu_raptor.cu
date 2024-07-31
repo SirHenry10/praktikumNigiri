@@ -49,17 +49,22 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks,
                                                gpu_timetable const& gtt) {
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
-  // anstatt stop_count_ brauchen wir location_routes
-  for (auto idx = global_t_id; idx < gtt.location_routes_; idx += global_stride) {
+  // anstatt stop_count_ brauchen wir location_routes ?location_idx_{gtt.n_locations}?
+  for (auto idx = global_t_id; idx < gtt.n_locations_; idx += global_stride) {
     if (marked(station_marks, idx)) {
       if (!*any_station_marked) {
         *any_station_marked = true;
       }
-      auto const stop = tt.stops_[idx];
-      for (auto sri = stop.index_to_stop_routes_;
-           sri < stop.index_to_stop_routes_ + stop.route_count_; ++sri) {
-        mark(route_marks, tt.stop_routes_[sri]);
+      for (auto const& r : gtt_.location_routes_[gpu_location_idx_t{i}]) {
+        mark(route_marks, to_idx(r));
       }
+      /*if constexpr (Rt) {
+        for (auto const& rt_t :
+             rtt_->location_rt_transports_[location_idx_t{i}]) {
+          any_marked = true;
+          state_.rt_transport_mark_[to_idx(rt_t)] = true;
+        }
+      }*/
     }
   }
 }
