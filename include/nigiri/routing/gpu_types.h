@@ -67,26 +67,22 @@ __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
       std::clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
                  static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
 }
+#endif
+#ifdef NIGIRI_CUDA
+__host__ __device__ template <gpu_direction SearchDir>
+inline constexpr auto const kInvalidGpuDelta =
+    SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::min()
+                                         : std::numeric_limits<gpu_delta_t>::max();
 #else
-template <typename T>
-inline gpu_delta_t gpu_clamp(T t) {
-#if defined(NIGIRI_TRACING)
-  if (t < std::numeric_limits<gpu_delta_t>::min()) {
-    trace_upd("CLAMP {} TO {}\n", t, std::numeric_limits<gpu_delta_t>::min());
-  }
-  if (t > std::numeric_limits<delta_t>::max()) {
-    trace_upd("CLAMP {} TO {}\n", t, std::numeric_limits<gpu_delta_t>::max());
-  }
-#endif
-  return static_cast<gpu_delta_t>(
-      std::clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
-                 static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
-}
-#endif
 template <gpu_direction SearchDir>
 inline constexpr auto const kInvalidGpuDelta =
     SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::min()
                                          : std::numeric_limits<gpu_delta_t>::max();
+#endif
+inline gpu_unixtime_t gpu_delta_to_unix(date::sys_days const base, gpu_delta_t const d) {
+  return std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
+         d * gpu_unixtime_t::duration{1};
+}
 
 namespace cista{
 template <typename Key, typename DataVec, typename IndexVec>

@@ -54,9 +54,9 @@ struct host_memory {
 
   void destroy();
 
-  void reset(gpu_delta Invalid) const;
+  void reset(gpu_delta_t invalid) const;
 
-  gpu_delta* round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  gpu_delta_t* round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
   uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
 
@@ -68,11 +68,11 @@ struct device_memory {
   device_memory(device_memory const&&) = delete;
   device_memory operator=(device_memory const&) = delete;
   device_memory operator=(device_memory const&&) = delete;
-  device_memory(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark_, uint32_t size_route_mark_);
+  device_memory(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_route_mark_,gpu_delta_t invalid);
 
   ~device_memory() = default;
 
-  void print(gpu_timetable const& gtt, date::sys_days, gpu_delta invalid);
+  void print(gpu_timetable const& gtt, date::sys_days, gpu_delta_t invalid);
 
   void destroy();
 
@@ -84,17 +84,17 @@ struct device_memory {
 
   void reset_async(cudaStream_t s);
 
-  gpu_delta* tmp_{};
-  gpu_delta* best_{};
-  gpu_delta* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
-  gpu_delta invalid_;
+  gpu_delta_t* tmp_{};
+  gpu_delta_t* best_{};
+  gpu_delta_t* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  gpu_delta_t invalid_{};
   //uint32_t da wir 32 Threads haben die jeweils ihre route die marks setzen
   uint32_t* station_mark_{};
   //uint32_t* prev_station_mark_{};
   uint32_t* route_mark_{};
   bool* any_station_marked_{};
   uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_route_mark_{};//,size_prev_station_mark_{};
-  direction search_dir_{};
+  gpu_direction search_dir_{};
 };
 
 struct mem {
@@ -104,7 +104,7 @@ struct mem {
   mem operator=(mem const&) = delete;
   mem operator=(mem const&&) = delete;
 
-  mem(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_prev_station_mark_, uint32_t size_route_mark_,
+  mem(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_route_mark_,gpu_delta_t invalid,
       device_id device_id);
 
   ~mem();
@@ -119,7 +119,7 @@ struct gpu_raptor_state {
   using mem_idx = uint32_t;
   static_assert(std::is_unsigned_v<mem_idx>);
 
-  void init(gpu_timetable const& gtt);
+  void init(gpu_timetable const& gtt,gpu_delta_t invalid);
 
   mem_idx get_mem_idx();
 
@@ -140,7 +140,7 @@ struct loaned_mem {
   loaned_mem operator=(loaned_mem const&) = delete;
   loaned_mem operator=(loaned_mem const&&) = delete;
 
-  explicit loaned_mem(gpu_raptor_state& store,gpu_delta invalid);
+  explicit loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid);
 
   ~loaned_mem();
 

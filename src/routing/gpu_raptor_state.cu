@@ -51,17 +51,17 @@ host_memory::host_memory(uint32_t row_count_round_times_,
                          uint32_t column_count_round_times_) {
   cudaMallocHost(
       &round_times_,
-      row_count_round_times_ * column_count_round_times_ * sizeof(gpu_delta));
+      row_count_round_times_ * column_count_round_times_ * sizeof(gpu_delta_t));
 }
 
 void host_memory::destroy() {
   cudaFreeHost(round_times_);
   round_times_ = nullptr;
 }
-void host_memory::reset(gpu_delta Invalid) const {
+void host_memory::reset(gpu_delta_t invalid) const {
   for (auto k = 0U; k != row_count_round_times_; ++k) {
     for (auto l = 0U; l != column_count_round_times_; ++l) {
-      round_times_[k*row_count_round_times_+l] = Invalid;
+      round_times_[k*row_count_round_times_+l] = invalid;
     }
   }
 }
@@ -73,7 +73,8 @@ device_memory::device_memory(uint32_t size_tmp,
                              uint32_t column_count_round_times,
                              uint32_t size_station_mark,
                              //uint32_t size_prev_station_mark,
-                             uint32_t size_route_mark)
+                             uint32_t size_route_mark,
+                             gpu_delta_t invalid)
     : size_tmp_{size_tmp},
       size_best_{size_best},
       row_count_round_times_{row_count_round_times},
@@ -83,14 +84,15 @@ device_memory::device_memory(uint32_t size_tmp,
       size_route_mark_{size_route_mark}{
 
 
-  cudaMalloc(&tmp_, size_tmp_ * sizeof(gpu_delta));
-  cudaMalloc(&best_, size_best_ * sizeof(gpu_delta));
+  cudaMalloc(&tmp_, size_tmp_ * sizeof(gpu_delta_t));
+  cudaMalloc(&best_, size_best_ * sizeof(gpu_delta_t));
   cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ *
-                                sizeof(gpu_delta));
+                                sizeof(gpu_delta_t));
   cudaMalloc(&station_mark_, size_station_mark_ * sizeof(uint32_t));
   //cudaMalloc(&prev_station_mark_, size_prev_station_mark_ * sizeof(bool));
   cudaMalloc(&route_mark_, size_route_mark_ * sizeof(uint32_t));
   cudaMalloc(&any_station_marked_, sizeof(bool));
+  invalid_ = invalid;
   cuda_check();
   this->reset_async(nullptr);
 }
@@ -106,10 +108,9 @@ void device_memory::destroy() {
 
 
 void device_memory::reset_async(cudaStream_t s) {
-  uint16_t invalid = (this->invalid_.mam_<<5) | this->invalid_.days_;
-  cudaMemsetAsync(tmp_,invalid, size_tmp_*sizeof(gpu_delta), s);
-  cudaMemsetAsync(best_, invalid, size_best_*sizeof(gpu_delta), s);
-  cudaMemsetAsync(round_times_, invalid, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta), s);
+  cudaMemsetAsync(tmp_,invalid_, size_tmp_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(best_, invalid_, size_best_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(round_times_, invalid_, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(station_mark_, 0, size_station_mark_*sizeof(uint32_t), s);
   //cudaMemsetAsync(prev_station_mark_, 0, size_prev_station_mark_*sizeof(bool), s);
   cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(uint32_t), s);
@@ -119,10 +120,10 @@ void device_memory::reset_async(cudaStream_t s) {
 
 mem::mem(uint32_t size_tmp_, uint32_t size_best_,
          uint32_t row_count_round_times_, uint32_t column_count_round_times_,
-         uint32_t size_station_mark_, uint32_t size_prev_station_mark_, uint32_t size_route_mark_,
+         uint32_t size_station_mark_, uint32_t size_route_mark_,gpu_delta_t invalid,
          device_id const device_id)
     : host_{row_count_round_times_, column_count_round_times_},
-      device_{size_tmp_, size_best_, row_count_round_times_, column_count_round_times_, size_station_mark_, size_prev_station_mark_, size_route_mark_},
+      device_{size_tmp_, size_best_, row_count_round_times_, column_count_round_times_, size_station_mark_,  size_route_mark_, invalid},
       context_{device_id} {}
 
 mem::~mem() {
@@ -131,14 +132,14 @@ mem::~mem() {
   context_.destroy();
 }
 
-void gpu_raptor_state::init(gpu_timetable const& gtt) {
+void gpu_raptor_state::init(gpu_timetable const& gtt,gpu_delta_t invalid) {
   int32_t device_count = 0;
   cudaGetDeviceCount(&device_count);
 
 
   for (auto device_id = 0; device_id < device_count; ++device_id) {
       memory_.emplace_back(std::make_unique<struct mem>(
-        gtt.n_locations_,gtt.n_locations_,nigiri::routing::kMaxTransfers + 1U,gtt.n_locations_,gtt.n_locations_,gtt.n_locations_,gtt.n_routes_, device_id));
+        *gtt.n_locations_,*gtt.n_locations_,nigiri::routing::kMaxTransfers + 1U,*gtt.n_locations_,*gtt.n_locations_,*gtt.n_routes_,invalid, device_id));
   }
   memory_mutexes_ = std::vector<std::mutex>(memory_.size());
 }
@@ -148,7 +149,7 @@ gpu_raptor_state::mem_idx gpu_raptor_state::get_mem_idx() {
 }
 
 
-loaned_mem::loaned_mem(gpu_raptor_state& store,gpu_delta invalid) {
+loaned_mem::loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid) {
   auto const idx = store.get_mem_idx();
   lock_ = std::unique_lock(store.memory_mutexes_[idx]);
   mem_ = store.memory_[idx].get();
@@ -160,7 +161,7 @@ loaned_mem::~loaned_mem() {
   mem_->host_.reset(mem_->device_.invalid_);
   cuda_sync_stream(mem_->context_.proc_stream_);
 }
-void device_memory::print(const gpu_timetable& gtt, date::sys_days sys_days, gpu_delta invalid) {
+void device_memory::print(const gpu_timetable& gtt, date::sys_days sys_days, gpu_delta_t invalid) {
   auto const has_empty_rounds = [&](std::uint32_t const l) {
     for (auto k = 0U; k != row_count_round_times_; ++k) {
       if (round_times_[k*row_count_round_times_+l] != invalid) {
@@ -170,15 +171,15 @@ void device_memory::print(const gpu_timetable& gtt, date::sys_days sys_days, gpu
     return true;
   };
 
-  auto const print_delta = [&](gpu_delta const gd) {
+  auto const print_delta = [&](gpu_delta_t const gd) {
     if (gd == invalid) {
       fmt::print("________________");
     } else {
-      fmt::print("{:16}", gpu_delta_to_unixtime(sys_days,gd));
+      fmt::print("{:16}", gpu_delta_to_unix(sys_days,gd));
     }
   };
 
-  for (auto l = 0U; l != gtt.n_locations_; ++l) {
+  for (auto l = 0U; l != *gtt.n_locations_; ++l) {
     if (best_[l] == invalid && has_empty_rounds(l)) {
       continue;
     }
