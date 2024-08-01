@@ -440,13 +440,13 @@ using gpu_vecvec = basic_gpu_vecvec<K, vector<V>, vector<SizeType>>;
 
 
 struct gpu_transport {
-  CISTA_FRIEND_COMPARABLE(transport)
-  CISTA_PRINTABLE(transport, "idx", "day")
+  CISTA_FRIEND_COMPARABLE(gpu_transport)
+  CISTA_PRINTABLE(gpu_transport, "idx", "day")
 #ifdef NIGIRI_CUDA
-  __host__ __device__ static transport invalid() noexcept { return transport{}; }
-  __host__ __device__ constexpr bool is_valid() const { return day_ != day_idx_t::invalid(); }
+  __host__ __device__ static gpu_transport invalid() noexcept { return gpu_transport{}; }
+  __host__ __device__ constexpr bool is_valid() const { return day_ != gpu_day_idx_t::invalid(); }
 #endif
-  transport_idx_t t_idx_{transport_idx_t::invalid()};
-  day_idx_t day_{day_idx_t::invalid()};
+  gpu_transport_idx_t t_idx_{gpu_transport_idx_t::invalid()};
+  gpu_day_idx_t day_{gpu_day_idx_t::invalid()};
 };
 

@@ -76,24 +76,23 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks,
   }
 }
 
-template <direction SearchDir, bool Rt>
+template <gpu_direction SearchDir, bool Rt>
 void reconstruct(query const& q, journey& j){
   //reconstruct_journey<SearchDir, Rt>(...);
 }
 
-template <bool WithClaszFilter>
-template <gpu_direction SearchDir, bool Rt>
+template <gpu_direction SearchDir, bool Rt, bool WithClaszFilter>
 __device__ bool loop_routes(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   if(get_global_thread_id()==0){
     gr.mem_->device_.any_station_marked_ = false;
   }
-  for(auto r_idx = global_t_id; r_idx <= n_routes_; r_idx += global_stride){
-    auto const r = route_idx_t{r_idx};
+  for(auto r_idx = global_t_id; r_idx <= gr.gtt_->n_routes_; r_idx += global_stride){
+    auto const r = gpu_route_idx_t{r_idx};
     if(gr.mem_->device_.route_mark_[r_idx]){
       if constexpr (WithClaszFilter){
-        if(!is_allowed(allowed_claszes_, gtt.route_clasz_[r])){
+        if(!is_allowed(gr.allowed_claszes_, gr.gtt_.route_clasz_[r])){
           continue;
         }
       }
