@@ -79,7 +79,6 @@ device_memory::device_memory(uint32_t size_tmp,
       row_count_round_times_{row_count_round_times},
       column_count_round_times_{column_count_round_times},
       size_station_mark_{size_station_mark},
-      any_station_marked_{sizeof(bool)},
       //size_prev_station_mark_{size_prev_station_mark},
       size_route_mark_{size_route_mark}{
 
@@ -139,7 +138,7 @@ void gpu_raptor_state::init(gpu_timetable const& gtt) {
 
   for (auto device_id = 0; device_id < device_count; ++device_id) {
       memory_.emplace_back(std::make_unique<struct mem>(
-        gtt.n_locations_,gtt.n_locations_,kMaxTransfers + 1U,gtt.n_locations_,gtt.n_locations_,gtt.n_locations_,gtt.n_routes_, device_id));
+        gtt.n_locations_,gtt.n_locations_,nigiri::routing::kMaxTransfers + 1U,gtt.n_locations_,gtt.n_locations_,gtt.n_locations_,gtt.n_routes_, device_id));
   }
   memory_mutexes_ = std::vector<std::mutex>(memory_.size());
 }

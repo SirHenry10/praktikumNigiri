@@ -49,24 +49,24 @@ inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
   cuda_check();
 }
  */
-template <direction SearchDir, bool Rt>
+template <gpu_direction SearchDir, bool Rt>
 struct gpu_raptor;
 
-template <direction SearchDir, bool Rt>
-__global__ void gpu_raptor_kernel(unixtime_t const start_time,
+template <gpu_direction SearchDir, bool Rt>
+__global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   std::uint8_t const max_transfers,
-                                  unixtime_t const worst_time_at_dest,
-                                  profile_idx_t const prf_idx,
+                                  gpu_unixtime_t const worst_time_at_dest,
+                                  gpu_profile_idx_t const prf_idx,
                                   pareto_set<journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr);
 
-template <direction SearchDir, bool Rt>
+template <gpu_direction SearchDir, bool Rt>
 struct gpu_raptor {
   using algo_stats_t = raptor_stats;
 
   static constexpr bool kUseLowerBounds = true;
-  static constexpr auto const kFwd = (SearchDir == direction::kForward);
-  static constexpr auto const kBwd = (SearchDir == direction::kBackward);
+  static constexpr auto const kFwd = (SearchDir == gpu_direction::kForward);
+  static constexpr auto const kBwd = (SearchDir == gpu_direction::kBackward);
   static constexpr auto const kInvalid = kInvalidGpuDelta<SearchDir>;
   static constexpr auto const kUnreachable =
       std::numeric_limits<std::uint16_t>::max();
@@ -81,15 +81,14 @@ struct gpu_raptor {
     return x;
   }
   static auto dir(auto a) { return (kFwd ? 1 : -1) * a; }
-
   gpu_raptor(gpu_timetable const* gtt,
-         rt_timetable const* rtt,
+         nigiri::rt_timetable const* rtt,
          gpu_raptor_state& state,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
          std::vector<std::uint16_t>& lb,
-         day_idx_t const base,
-         clasz_mask_t const allowed_claszes)
+         nigiri::day_idx_t const base,
+         nigiri::routing::clasz_mask_t const allowed_claszes)
       : gtt_{gtt},
         rtt_{rtt},
         state_{state},
@@ -98,7 +97,7 @@ struct gpu_raptor {
         lb_{lb},
         base_{base},
         n_days_{gtt_->internal_interval_days().size().count()},
-        n_locations_{gtt->n_locations_}, //benötigt um journy zu konstruieren
+        n_locations_{gtt_->}, //benötigt um journy zu konstruieren
         n_routes_{gtt_->n_routes_},
         //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
         allowed_claszes_{allowed_claszes} {
@@ -135,7 +134,7 @@ struct gpu_raptor {
     }//TODO if we want rt
   }
 
-  void add_start(location_idx_t const l, unixtime_t const t) {
+  void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
     mem_->device_.best_[to_idx(l)] = unix_to_gpu_delta(base(), t);
     //nur device oder auch host ??? also round_times
     mem_->device_.round_times_[0U*mem_->device_.row_count_round_times_+to_idx(l)] = unix_to_gpu_delta(base(), t);
@@ -147,8 +146,8 @@ struct gpu_raptor {
 void execute(gpu_unixtime_t const start_time,
              std::uint8_t const max_transfers,
              gpu_unixtime_t const worst_time_at_dest,
-             profile_idx_t const prf_idx,
-             pareto_set<journey>& results){
+             gpu_profile_idx_t const prf_idx,
+             nigiri::pareto_set<nigiri::routing::journey>& results){
 
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
   launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
@@ -157,14 +156,14 @@ void execute(gpu_unixtime_t const start_time,
 }
 
 
-  void reconstruct(query const& q, journey& j) {
+  void reconstruct(nigiri::routing::query const& q, nigiri::routing::journey& j) {
     // reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
   }
   date::sys_days base() const {
     return gtt_->internal_interval_days().from_ + as_int(base_) * date::days{1};
   }
 
-  int as_int(day_idx_t const d) const { return static_cast<int>(d.v_); }
+  int as_int(gpu_day_idx_t const d) const { return static_cast<int>(d.v_); }
 
   gpu_timetable const* gtt_{nullptr};
   nigiri::rt_timetable const* rtt_{nullptr};
@@ -174,11 +173,11 @@ void execute(gpu_unixtime_t const start_time,
   std::vector<bool>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
   std::vector<std::uint16_t>& lb_;
-  std::array<gpu_delta, kMaxTransfers + 1> time_at_dest_;
-  nigiri::day_idx_t base_;
+  std::array<gpu_delta, nigiri::routing::kMaxTransfers + 1> time_at_dest_;
+  gpu_day_idx_t base_;
   int n_days_;
   raptor_stats stats_;
   std::uint32_t n_locations_, n_routes_, n_rt_transports_;
-  clasz_mask_t allowed_claszes_;
+  gpu_clasz_mask_t allowed_claszes_;
 };
 

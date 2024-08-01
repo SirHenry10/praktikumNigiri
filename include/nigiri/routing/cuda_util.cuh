@@ -1,7 +1,6 @@
 
 #include <cstdio>
 
-namespace nigiri {
 extern "C" {
 #define cucheck_dev(call)                                    \
 {                                                          \
@@ -26,4 +25,3 @@ inline void cuda_sync_stream(cudaStream_t const& stream) {
 }
 
 }  // extern "C"
-}

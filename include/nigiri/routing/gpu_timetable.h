@@ -19,7 +19,6 @@ struct gpu_delta{
 using gpu_location_idx_t = cista::strong<std::uint32_t, struct _location_idx>;
 using gpu_value_type = gpu_location_idx_t::value_t;
 using gpu_bitfield_idx_t = cista::strong<std::uint32_t, struct _bitfield_idx>;
-using gpu_location_idx_t = cista::strong<std::uint32_t, struct _location_idx>;
 using gpu_route_idx_t = cista::strong<std::uint32_t, struct _route_idx>;
 using gpu_section_idx_t = cista::strong<std::uint32_t, struct _section_idx>;
 using gpu_section_db_idx_t = cista::strong<std::uint32_t, struct _section_db_idx>;
@@ -29,6 +28,8 @@ using gpu_transport_idx_t = cista::strong<std::uint32_t, struct _transport_idx>;
 using gpu_source_idx_t = cista::strong<std::uint16_t, struct _source_idx>;
 using gpu_day_idx_t = cista::strong<std::uint16_t, struct _day_idx>;
 using gpu_timezone_idx_t = cista::strong<std::uint16_t, struct _timezone_idx>;
+using gpu_clasz_mask_t = std::uint16_t;
+using gpu_profile_idx_t = std::uint8_t;
 
 enum class gpu_direction { kForward, kBackward };
 using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
@@ -67,9 +68,10 @@ gpu_delta unix_to_gpu_delta(date::sys_days const base,
 extern "C" {
   struct gpu_timetable {
     gpu_delta* route_stop_times_{nullptr};
-    cista::raw::vecvec<gpu_route_idx_t,gpu_value_type>* route_location_seq_ {};
-    cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t>* location_routes_ {};
-    std::uint32_t* n_locations_{};
+    cista::raw::vecvec<gpu_route_idx_t,gpu_value_type>* route_location_seq_ {nullptr};
+    cista::raw::vecvec<gpu_location_idx_t,gpu_route_idx_t>* location_routes_ {nullptr};
+    std::uint32_t* n_locations_{nullptr};
+    std::uint32_t* n_routes_{nullptr};
     /*
     route_idx_t* route_stop_time_ranges_keys {nullptr};
     interval<std::uint32_t>* route_stop_time_ranges_values {nullptr};

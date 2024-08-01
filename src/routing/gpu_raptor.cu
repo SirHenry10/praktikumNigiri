@@ -50,15 +50,15 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks,
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   // anstatt stop_count_ brauchen wir location_routes ?location_idx_{gtt.n_locations}?
-  for (auto idx = global_t_id; idx < gtt.n_locations_; idx += global_stride) {
+  for (uint32_t idx = global_t_id; idx < *gtt.n_locations_; idx += global_stride) {
     if (marked(station_marks, idx)) {
       if (!*any_station_marked) {
         *any_station_marked = true;
       }
-      for (auto const& r : gtt_.location_routes_[gpu_location_idx_t{i}]) {
+      auto const location_routes = *gtt.location_routes_;
+      for (auto const& r :  location_routes[gpu_location_idx_t{idx}]) {
         mark(route_marks, to_idx(r));
       }
-
       /*if constexpr (Rt) {
         for (auto const& rt_t :
              rtt_->location_rt_transports_[location_idx_t{i}]) {
@@ -113,7 +113,7 @@ __device__ void update_time_at_dest(unsigned const k, delta_t const t){
 
 }
 
-template <direction SearchDir, bool Rt>
+template <gpu_direction SearchDir, bool Rt>
 __device__ void raptor_round(profile_idx_t const prf_idx, gpu_raptor<SearchDir,Rt>& gr){
 
   // update_time_at_dest für alle locations
@@ -133,8 +133,8 @@ __device__ void raptor_round(profile_idx_t const prf_idx, gpu_raptor<SearchDir,R
 
 }
 
-template <direction SearchDir, bool Rt>
-__device__ void init_arrivals(gpu_delta_t const d_worst_at_dest, unixtime_t const worst_time_at_dest, gpu_raptor<SearchDir, Rt>& gr){
+template <gpu_direction SearchDir, bool Rt>
+__device__ void init_arrivals(gpu_delta const d_worst_at_dest, unixtime_t const worst_time_at_dest, gpu_raptor<SearchDir, Rt>& gr){
   auto const t_id = get_global_thread_id();
 
   if(t_id==0){
@@ -149,7 +149,7 @@ __device__ void init_arrivals(gpu_delta_t const d_worst_at_dest, unixtime_t cons
 
 // größten Teil von raptor.execute() wird hierdrin ausgeführt
 // kernel muss sich außerhalb der gpu_raptor Klasse befinden
-template <direction SearchDir, bool Rt>
+template <gpu_direction SearchDir, bool Rt>
 __global__ void gpu_raptor_kernel(unixtime_t const start_time,
                                   std::uint8_t const max_transfers,
                                   unixtime_t const worst_time_at_dest,
@@ -158,7 +158,7 @@ __global__ void gpu_raptor_kernel(unixtime_t const start_time,
                                   gpu_raptor<SearchDir,Rt>& gr){
   auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
   // 1. Initialisierung
-  gpu_delta_t const d_worst_at_dest{};
+  gpu_delta const d_worst_at_dest{};
   init_arrivals(d_worst_at_dest, worst_time_at_dest, gr);
   this_grid().sync();
 
