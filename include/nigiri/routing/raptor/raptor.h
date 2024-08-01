@@ -126,7 +126,7 @@ struct raptor {
         }
       }
 
-      // markieren der stationen -> mit letzter zusammenfügen?
+      // markieren der stationen → mit letzter zusammenfügen?
       auto any_marked = false;
       for (auto i = 0U; i != n_locations_; ++i) {
         // wie convert_station_to_route_marks bei Julian

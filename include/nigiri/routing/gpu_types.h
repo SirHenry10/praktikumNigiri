@@ -440,5 +440,16 @@ namespace raw {
 template <typename K, typename V, typename SizeType = cista::base_t<K>>
 using gpu_vecvec = basic_gpu_vecvec<K, vector<V>, vector<SizeType>>;
 }  // namespace raw
-}
+
+
+struct gpu_transport {
+  CISTA_FRIEND_COMPARABLE(transport)
+  CISTA_PRINTABLE(transport, "idx", "day")
+#ifdef NIGIRI_CUDA
+  __host__ __device__ static transport invalid() noexcept { return transport{}; }
+  __host__ __device__ constexpr bool is_valid() const { return day_ != day_idx_t::invalid(); }
+#endif
+  transport_idx_t t_idx_{transport_idx_t::invalid()};
+  day_idx_t day_{day_idx_t::invalid()};
+};
 

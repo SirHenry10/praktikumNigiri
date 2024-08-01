@@ -52,6 +52,18 @@ extern "C" {
     // Schedule range.
     interval<date::sys_days> date_range_{};
      */
+#ifdef NIGIRI_CUDA
+    __host__ __device__ std::span<gpu_delta const> event_times_at_stop(route_idx_t const r,
+                                               stop_idx_t const stop_idx,
+                                               event_type const ev_type) const {
+      auto const n_transports =
+          static_cast<unsigned>(route_transport_ranges_[r].size());
+      auto const idx = static_cast<unsigned>(
+          route_stop_time_ranges_[r].from_ +
+          n_transports * (stop_idx * 2 - (ev_type == event_type::kArr ? 1 : 0)));
+      return std::span<gpu_delta const>{&route_stop_times_[idx], n_transports};
+    }
+#endif
   };
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,

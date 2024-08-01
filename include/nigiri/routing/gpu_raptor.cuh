@@ -73,14 +73,14 @@ struct gpu_raptor {
   static constexpr auto const kIntermodalTarget =
       to_idx(get_special_station(special_station::kEnd));
 
-  static bool is_better(auto a, auto b) { return kFwd ? a < b : a > b; }
-  static bool is_better_or_eq(auto a, auto b) { return kFwd ? a <= b : a >= b; }
-  static auto get_best(auto a, auto b) { return is_better(a, b) ? a : b; }
-  static auto get_best(auto x, auto... y) {
+  __host__ __device__ static bool is_better(auto a, auto b) { return kFwd ? a < b : a > b; }
+  __host__ __device__ static bool is_better_or_eq(auto a, auto b) { return kFwd ? a <= b : a >= b; }
+  __host__ __device__ static auto get_best(auto a, auto b) { return is_better(a, b) ? a : b; }
+  __host__ __device__ static auto get_best(auto x, auto... y) {
     ((x = get_best(x, y)), ...);
     return x;
   }
-  static auto dir(auto a) { return (kFwd ? 1 : -1) * a; }
+  __host__ __device__ static auto dir(auto a) { return (kFwd ? 1 : -1) * a; }
   gpu_raptor(gpu_timetable const* gtt,
          nigiri::rt_timetable const* rtt,
          gpu_raptor_state& state,
@@ -164,6 +164,24 @@ void execute(gpu_unixtime_t const start_time,
   }
 
   int as_int(gpu_day_idx_t const d) const { return static_cast<int>(d.v_); }
+
+  template <typename T>
+  auto get_begin_it(T const& t) {
+    if constexpr (kFwd) {
+      return t.begin();
+    } else {
+      return t.rbegin();
+    }
+  }
+
+  template <typename T>
+  auto get_end_it(T const& t) {
+    if constexpr (kFwd) {
+      return t.end();
+    } else {
+      return t.rend();
+    }
+  }
 
   gpu_timetable const* gtt_{nullptr};
   nigiri::rt_timetable const* rtt_{nullptr};
