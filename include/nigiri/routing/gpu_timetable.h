@@ -1,75 +1,18 @@
 #pragma once
 #include <cinttypes>
 
+#include "cista/allocator.h"
 #include "cista/containers/vecvec.h"
 #include "date/date.h"
-
-struct gpu_delta{
-  std::uint16_t days_ : 5;
-  std::uint16_t mam_ : 11;
-  bool operator== (gpu_delta const& a) const{
-    return (a.days_== this->days_ && a.mam_==this->mam_);
-  }
-  bool operator!= (gpu_delta const& a) const{
-    return !(operator==(a));
-  }
-};
-//TODO: später raus kicken was nicht brauchen
-
-using gpu_location_idx_t = cista::strong<std::uint32_t, struct _location_idx>;
-using gpu_value_type = gpu_location_idx_t::value_t;
-using gpu_bitfield_idx_t = cista::strong<std::uint32_t, struct _bitfield_idx>;
-using gpu_route_idx_t = cista::strong<std::uint32_t, struct _route_idx>;
-using gpu_section_idx_t = cista::strong<std::uint32_t, struct _section_idx>;
-using gpu_section_db_idx_t = cista::strong<std::uint32_t, struct _section_db_idx>;
-using gpu_trip_idx_t = cista::strong<std::uint32_t, struct _trip_idx>;
-using gpu_trip_id_idx_t = cista::strong<std::uint32_t, struct _trip_id_str_idx>;
-using gpu_transport_idx_t = cista::strong<std::uint32_t, struct _transport_idx>;
-using gpu_source_idx_t = cista::strong<std::uint16_t, struct _source_idx>;
-using gpu_day_idx_t = cista::strong<std::uint16_t, struct _day_idx>;
-using gpu_timezone_idx_t = cista::strong<std::uint16_t, struct _timezone_idx>;
-using gpu_clasz_mask_t = std::uint16_t;
-using gpu_profile_idx_t = std::uint8_t;
-
-enum class gpu_direction { kForward, kBackward };
-using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
-using gpu_unixtime_t = std::chrono::sys_time<gpu_i32_minutes>;
-
-template <gpu_direction SearchDir>
-inline constexpr auto const kInvalidGpuDelta =
-    SearchDir == gpu_direction::kForward ? gpu_delta{31, 2047}
-                                             : gpu_delta{0, 0};
-
-gpu_unixtime_t gpu_delta_to_unixtime(date::sys_days const base,
-                               gpu_delta const gd) {
-  return std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
-         (gd.days_ * 1440 + gd.mam_) * gpu_unixtime_t::duration{1};
-}
-gpu_delta unix_to_gpu_delta(date::sys_days const base,
-                              gpu_unixtime_t const t) {
-  auto mam =
-      (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count();
-  gpu_delta gd;
-  assert(x != std::numeric_limits<mam>::min());
-  assert(x != std::numeric_limits<mam>::max());
-  if (mam < 0) {
-    auto const d = -mam / 1440 + 1;
-    auto const min = mam + (d * 1440);
-    gd.days_ = d;
-    gd.mam_ = min;
-    return gd;
-  } else {
-    gd.days_ = mam / 1440;
-    gd.mam_ = mam % 1440;
-    return gd;
-  }
-}
-
+#include "cista/strong.h"
+#include "gpu_types.h"
+template <typename K, typename V, typename SizeType = cista::base_t<K>>
+using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 extern "C" {
   struct gpu_timetable {
     gpu_delta* route_stop_times_{nullptr};
-    cista::raw::vecvec<gpu_route_idx_t,gpu_value_type>* route_location_seq_ {nullptr};
-    cista::raw::vecvec<gpu_location_idx_t,gpu_route_idx_t>* location_routes_ {nullptr};
+    gpu_vecvec<gpu_route_idx_t,gpu_value_type,unsigned int>* route_location_seq_ {nullptr};
+    gpu_vecvec<gpu_location_idx_t,gpu_route_idx_t,unsigned int>* location_routes_ {nullptr};
     std::uint32_t* n_locations_{nullptr};
     std::uint32_t* n_routes_{nullptr};
     /*
@@ -113,8 +56,8 @@ extern "C" {
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                              std::uint32_t n_route_stop_times,
-                                             cista::raw::vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq, // Route -> list_of_stops
-                                             cista::raw::vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes, // location -> Route
+                                             gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq, // Route -> list_of_stops
+                                             gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes, // location -> Route
                                              std::uint32_t const* n_locations
                                              /*,
                                              route_idx_t* location_routes,
