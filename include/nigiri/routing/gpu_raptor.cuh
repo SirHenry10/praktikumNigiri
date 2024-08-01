@@ -87,25 +87,29 @@ struct gpu_raptor {
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
          std::vector<std::uint16_t>& lb,
-         nigiri::day_idx_t const base,
-         nigiri::routing::clasz_mask_t const allowed_claszes)
+         gpu_day_idx_t const base,
+         gpu_clasz_mask_t const allowed_claszes)
       : gtt_{gtt},
         rtt_{rtt},
         state_{state},
-        is_dest_{is_dest},
         dist_to_end_{dist_to_dest},
-        lb_{lb},
         base_{base},
         n_days_{gtt_->internal_interval_days().size().count()},
-        n_locations_{gtt_->}, //benötigt um journy zu konstruieren
-        n_routes_{gtt_->n_routes_},
         //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
-        allowed_claszes_{allowed_claszes} {
-    state_.init(*gtt_);
-    utl::fill(time_at_dest_, kInvalid);
+        {
+    state_.init(*gtt_,kInvalid);
     loaned_mem loan(state_,kInvalid);
     mem_ = loan.mem_;
     //state_.round_times_.reset(kInvalid);
+    allowed_claszes_ = nullptr;
+    CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t , allowed_claszes_,
+                        &allowed_claszes, 1);
+    dist_to_end_ = nullptr;
+    CUDA_COPY_TO_DEVICE(uint16_t, dist_to_end_,
+                        dist_to_dest.data, dist_to_dest.size*sizeof(uint16_t));
+    base_ = nullptr;
+    CUDA_COPY_TO_DEVICE(gpu_day_idx_t , base_,
+                        &base, 1);
   }
 
   algo_stats_t get_stats() const {
@@ -135,6 +139,7 @@ struct gpu_raptor {
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
+    //TODO:keinen SINN, RÜBER KOPIEREN!!
     mem_->device_.best_[to_idx(l)] = unix_to_gpu_delta(base(), t);
     //nur device oder auch host ??? also round_times
     mem_->device_.round_times_[0U*mem_->device_.row_count_round_times_+to_idx(l)] = unix_to_gpu_delta(base(), t);
@@ -153,6 +158,7 @@ void execute(gpu_unixtime_t const start_time,
   launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
   cuda_check();
   //TODO: copy result back
+  //TODO: ALLES LÖSCHEN!!!!!!!!!!!!!
 }
 
 
@@ -188,14 +194,13 @@ void execute(gpu_unixtime_t const start_time,
   // all diese müssen mit malloc (evtl. in anderer Datei)
   gpu_raptor_state& state_;
   mem* mem_;
-  std::vector<bool>& is_dest_;
-  std::vector<std::uint16_t>& dist_to_end_;
-  std::vector<std::uint16_t>& lb_;
-  std::array<gpu_delta, nigiri::routing::kMaxTransfers + 1> time_at_dest_;
-  gpu_day_idx_t base_;
+  bool* is_dest_;
+  uint16_t* dist_to_end_;
+  uint16_t* lb_;
+  gpu_day_idx_t* base_;
   int n_days_;
   raptor_stats stats_;
-  std::uint32_t n_locations_, n_routes_, n_rt_transports_;
-  gpu_clasz_mask_t allowed_claszes_;
+  std::uint32_t n_rt_transports_;
+  gpu_clasz_mask_t const* allowed_claszes_;
 };
 

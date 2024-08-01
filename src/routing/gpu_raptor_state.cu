@@ -85,6 +85,8 @@ device_memory::device_memory(uint32_t size_tmp,
 
 
   cudaMalloc(&tmp_, size_tmp_ * sizeof(gpu_delta_t));
+  time_at_dest_ = nullptr;
+  cudaMalloc(&time_at_dest_, (nigiri::routing::kMaxTransfers+1) *sizeof(gpu_delta_t));
   cudaMalloc(&best_, size_best_ * sizeof(gpu_delta_t));
   cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ *
                                 sizeof(gpu_delta_t));
@@ -98,6 +100,7 @@ device_memory::device_memory(uint32_t size_tmp,
 }
 
 void device_memory::destroy() {
+  cudaFree(time_at_dest_);
   cudaFree(tmp_);
   cudaFree(best_);
   cudaFree(round_times_);
@@ -108,6 +111,7 @@ void device_memory::destroy() {
 
 
 void device_memory::reset_async(cudaStream_t s) {
+  cudaMemsetAsync(time_at_dest_,invalid_, (nigiri::routing::kMaxTransfers+1)*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(tmp_,invalid_, size_tmp_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(best_, invalid_, size_best_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(round_times_, invalid_, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);

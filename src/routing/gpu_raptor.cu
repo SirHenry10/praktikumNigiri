@@ -290,7 +290,7 @@ __device__ void raptor_round(unsigned const k, profile_idx_t const prf_idx, gpu_
   update_transfers(k, gr);
   this_grid().sync();
   // update_footpaths
-  update_footpaths(k, prf_idx, gtt, gr); //müssen wir gtt hier mit einsetzen??
+  update_footpaths(k, prf_idx, gr.gtt_, gr); //müssen wir gtt hier mit einsetzen??
   this_grid().sync();
   // update_intermodal_footpaths
   update_intermodal_footpaths(k, gr);
@@ -298,7 +298,7 @@ __device__ void raptor_round(unsigned const k, profile_idx_t const prf_idx, gpu_
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void init_arrivals(gpu_delta const d_worst_at_dest, unixtime_t const worst_time_at_dest, gpu_raptor<SearchDir, Rt>& gr){
+__device__ void init_arrivals(gpu_delta const d_worst_at_dest, gpu_unixtime_t const worst_time_at_dest, gpu_raptor<SearchDir, Rt>& gr){
   auto const t_id = get_global_thread_id();
 
   if(t_id==0){
@@ -314,13 +314,13 @@ __device__ void init_arrivals(gpu_delta const d_worst_at_dest, unixtime_t const 
 // größten Teil von raptor.execute() wird hierdrin ausgeführt
 // kernel muss sich außerhalb der gpu_raptor Klasse befinden
 template <gpu_direction SearchDir, bool Rt>
-__global__ void gpu_raptor_kernel(unixtime_t const start_time,
+__global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   std::uint8_t const max_transfers,
-                                  unixtime_t const worst_time_at_dest,
-                                  profile_idx_t const prf_idx,
+                                  gpu_unixtime_t const worst_time_at_dest,
+                                  gpu_profile_idx_t const prf_idx,
                                   pareto_set<journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr){
-  auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
+  auto const end_k = std::min(max_transfers, nigiri::routing::kMaxTransfers) + 1U;
   // 1. Initialisierung
   gpu_delta const d_worst_at_dest{};
   init_arrivals(d_worst_at_dest, worst_time_at_dest, gr);

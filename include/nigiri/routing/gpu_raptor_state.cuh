@@ -87,6 +87,7 @@ struct device_memory {
   gpu_delta_t* tmp_{};
   gpu_delta_t* best_{};
   gpu_delta_t* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  gpu_delta_t* time_at_dest_{};
   gpu_delta_t invalid_{};
   //uint32_t da wir 32 Threads haben die jeweils ihre route die marks setzen
   uint32_t* station_mark_{};

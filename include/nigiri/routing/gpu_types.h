@@ -24,6 +24,7 @@ struct gpu_strong : public cista::strong<T, Tag> {
 
 //TODO: später raus kicken was nicht brauchen
 using gpu_delta_t = int16_t;
+using gpu_clasz_mask_t = std::uint16_t;
 using gpu_location_idx_t = gpu_strong<std::uint32_t, struct _location_idx>;
 using gpu_value_type = gpu_location_idx_t::value_t;
 using gpu_bitfield_idx_t = gpu_strong<std::uint32_t, struct _bitfield_idx>;
