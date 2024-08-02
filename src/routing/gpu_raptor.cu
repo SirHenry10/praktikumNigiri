@@ -44,7 +44,7 @@ __device__ void reset_store(unsigned int* store, int const store_size) {
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void update_time_at_dest(unsigned const k, gpu_delta_t const t, gpu_raptor<SearchDir, Rt>& gr){
+__device__ void time_at_dest(unsigned const k, gpu_delta_t const t, gpu_raptor<SearchDir, Rt>& gr){
   for (auto i = k; i != gr.mem_->device.time_at_dest_.size(); ++i) {
     gr.mem_->device.time_at_dest_[i] = get_best(gr.mem_->device.time_at_dest_[i], t);
   }
@@ -107,6 +107,21 @@ __device__ bool loop_routes(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
 }
 
 template <gpu_direction SearchDir, bool Rt>
+__device__ bool update_route(unsigned const k, gpu_route_idx_t const r, gpu_raptor<SearchDir,Rt>& gr){
+  return false;
+}
+
+template <gpu_direction SearchDir, bool Rt>
+__device__ bool update_route_smaller32(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
+  return false;
+}
+
+template <gpu_direction SearchDir, bool Rt>
+__device__ bool update_route_bigger32(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
+  return false;
+}
+
+template <gpu_direction SearchDir, bool Rt>
 __device__ void update_transfers(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
@@ -140,7 +155,7 @@ __device__ void update_transfers(unsigned const k, gpu_raptor<SearchDir,Rt>& gr)
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_idx, gpu_timetable const gtt, gpu_raptor<SearchDir,Rt>& gr){
+__device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_idx, gpu_raptor<SearchDir,Rt>& gr){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto idx = global_t_id; idx <= gr.gtt_.n_locations_; idx += global_stride){
@@ -197,11 +212,6 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_raptor<SearchD
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ bool update_route(unsigned const k, gpu_route_idx_t const r, gpu_raptor<SearchDir,Rt>& gr){
-  return false;
-}
-
-template <gpu_direction SearchDir, bool Rt>
 __device__ gpu_transport get_earliest_transport(unsigned const k,
                                        gpu_route_idx_t const r,
                                        gpu_stop_idx_t const stop_idx,
@@ -217,31 +227,27 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
   auto const seek_first_day = [&]() {
     return linear_lb(get_begin_it(event_times), get_end_it(event_times), mam_at_stop,
                      [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
-                       return is_better(a.mam(), b.count()); // anders mit gpu_delta umgehen
+                       return gr.is_better(a.mam_, b.count()); // anders mit gpu_delta umgehen
                      });
   };
 
   // for Schleife über n_days_to_iterate
 }
 
-// nur für trace
-__device__ bool is_transport_active(gpu_transport_idx_t const t, std::size_t const day)  {
-  return false;
-}
-
-// nur für trace
-__device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const t, gpu_stop_idx_t const stop_idx, gpu_event_type const ev_type){
-
-}
-
+//TODO bitfields & transport_traffic_days gtt hinzufügen
 template <gpu_direction SearchDir, bool Rt>
-__device__ void update_route_smaller32(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
-
+__device__ bool is_transport_active(gpu_transport_idx_t const t, std::size_t const day , gpu_raptor<SearchDir,Rt>& gr)  {
+  return gr.gtt_.bitfields_[gr.gtt_.transport_traffic_days_[t]].test(day);
 }
 
+//TODO route_stop_time_ranges & route_transport_ranges in gtt hinzufügen
 template <gpu_direction SearchDir, bool Rt>
-__device__ void update_route_bigger32(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
-
+__device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const t, gpu_stop_idx_t const stop_idx, gpu_event_type const ev_type, gpu_raptor<SearchDir,Rt>& gr){
+  auto const n_transports = gr.gtt_.route_transport_ranges_[r].size();
+  auto const route_stop_begin = static_cast<unsigned>(gr.gtt_.route_stop_time_ranges[r].from_ + n_transports *
+                                (stop_idx * 2 - (ev_type==gpu_event_type::kArr ? 1 : 0)));
+  return gpu_clamp((gr.as_int(t.day_) - gr.as_int(gr.base_)) * 1440
+                   + gr.gtt_->route_stop_times_[route_stop_begin + (gpu_to_idx(t.day_) - gpu_to_idx(gr.gtt_.route_transport_ranges_[r].from_))]);
 }
 
 template <gpu_direction SearchDir, bool Rt>
@@ -272,11 +278,12 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx, 
     // SWAP ???
     utl::fill(gr.mem_->device_.station_mark_, false);
   }
-
+  this_grid().sync();
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
   *gr.mem_->device_.any_station_marked_ = (gr.allowed_claszes_ = nigiri::routing::all_clasz_allowed())
                                               ? loop_routes<false>(k, gr) : loop_routes<false>(k, gr);
+  this_grid().sync();
   if(get_global_thread_id()==0){
     if(!gr.mem_->device_.any_station_marked_){
       return;
@@ -291,7 +298,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx, 
   update_transfers(k, gr);
   this_grid().sync();
   // update_footpaths
-  update_footpaths(k, prf_idx, gr.gtt_, gr); //müssen wir gtt hier mit einsetzen??
+  update_footpaths(k, prf_idx, gr); //müssen wir gtt hier mit einsetzen??
   this_grid().sync();
   // update_intermodal_footpaths
   update_intermodal_footpaths(k, gr);
@@ -332,6 +339,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
 
     // Resultate aus lezter Runde von device in variable speichern?
     raptor_round(k, prf_idx, gr);
+    this_grid().sync();
   }
   this_grid().sync();
 

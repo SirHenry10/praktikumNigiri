@@ -140,8 +140,7 @@ struct gpu_raptor {
       : gtt_{gtt},
         rtt_{rtt},
         state_{state},
-        n_days_{gtt_->gpu_internal_interval_days().size().count()},
-        //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
+        n_days_{gtt_->gpu_internal_interval_days().size().count()}
         {
     state_.init(*gtt_,kInvalid);
     loaned_mem loan(state_,kInvalid);
@@ -190,10 +189,10 @@ struct gpu_raptor {
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
     //TODO:keinen SINN, RÜBER KOPIEREN!!
-    mem_->device_.best_[to_idx(l)] = unix_to_gpu_delta(base(), t);
+    mem_->device_.best_[to_idx(l).v_] = unix_to_gpu_delta(base(), t);
     //nur device oder auch host ??? also round_times
     mem_->device_.round_times_[0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))] = unix_to_gpu_delta(base(), t);
-    mem_->device_.station_mark_[to_idx(l)] = true;
+    mem_->device_.station_mark_[to_idx(l).v_] = true;
   }
 
 
