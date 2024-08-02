@@ -54,7 +54,7 @@ struct gpu_raptor;
 
 template <gpu_direction SearchDir, bool Rt>
 __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
-                                  std::uint8_t const max_transfers,
+                                  uint8_t const max_transfers,
                                   gpu_unixtime_t const worst_time_at_dest,
                                   gpu_profile_idx_t const prf_idx,
                                   pareto_set<journey>& results,
@@ -149,7 +149,7 @@ struct gpu_raptor {
 
   // hier wird Kernel aufgerufen
 void execute(gpu_unixtime_t const start_time,
-             std::uint8_t const max_transfers,
+             uint8_t const max_transfers,
              gpu_unixtime_t const worst_time_at_dest,
              gpu_profile_idx_t const prf_idx,
              nigiri::pareto_set<nigiri::routing::journey>& results){
@@ -200,7 +200,7 @@ void execute(gpu_unixtime_t const start_time,
   gpu_day_idx_t* base_;
   int n_days_;
   raptor_stats stats_;
-  std::uint32_t n_rt_transports_;
+  uint32_t n_rt_transports_;
   gpu_clasz_mask_t const* allowed_claszes_;
 };
 
