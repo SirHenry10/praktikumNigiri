@@ -32,8 +32,8 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            gpu_vector_map<gpu_route_idx_t,interval<std::uint32_t>> const* route_stop_time_ranges,
                                            gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                            gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
-                                           gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days
-                                           ) {
+                                           gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
+                                           gpu_interval<date::sys_days> const* date_range) {
   size_t device_bytes = 0U;
 
   cudaError_t code;
@@ -79,6 +79,12 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   using gpu_vecmap_transport_traffic_days = gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>;
   CUDA_COPY_TO_DEVICE(gpu_vecmap_transport_traffic_days, gtt->transport_traffic_days_, transport_traffic_days,1);
   return gtt;
+  //date_range_
+  gtt->date_range_ = nullptr;
+  using gpu_date_range = gpu_interval<date::sys_days>;
+  CUDA_COPY_TO_DEVICE(gpu_date_range , gtt->date_range_, date_range,1);
+  return gtt;
+
 
 fail:
   cudaFree(gtt->route_stop_times_);
@@ -90,6 +96,7 @@ fail:
   cudaFree(gtt->route_transport_ranges_);
   cudaFree(gtt->bitfields_);
   cudaFree(gtt->transport_traffic_days_);
+  cudaFree(gtt->date_range_);
   free(gtt);
   return nullptr;
 }
@@ -103,6 +110,7 @@ void destroy_gpu_timetable(gpu_timetable*& gtt) {
   cudaFree(gtt->route_transport_ranges_);
   cudaFree(gtt->bitfields_);
   cudaFree(gtt->transport_traffic_days_);
+  cudaFree(gtt->date_range_);
   free(gtt);
   gtt = nullptr;
   cudaDeviceSynchronize();

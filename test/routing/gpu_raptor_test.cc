@@ -26,7 +26,7 @@ TEST(routing, gpu_raptor) {
   *///EXPECT_NE(nullptr, gtt);
   //destroy_gpu_timetable(gtt);
 
-  cista::raw::gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* te = reinterpret_cast<cista::raw::gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t>*>(&tt.location_routes_);
+  gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* te = reinterpret_cast<gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t>*>(&tt.location_routes_);
   std::cout<<"erster Wert: " << te->bucket_starts_ <<" \n"<< tt.location_routes_.bucket_starts_ << "\n";
   std::cout<<"";
 }

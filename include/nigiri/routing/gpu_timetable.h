@@ -57,11 +57,9 @@ extern "C" {
     interval<date::sys_days> internal_interval_days() const {
       return {date_range_.from_ - kTimetableOffset,
               date_range_.to_ + date::days{1}};
-    }
+    }*/
     // Schedule range.
-    interval<date::sys_days> date_range_{};
-     */
-    std::span<gpu_delta const> test;
+    gpu_interval<date::sys_days>* date_range_{nullptr};
 #ifdef NIGIRI_CUDA
     __host__ __device__ std::span<gpu_delta const> event_times_at_stop(gpu_route_idx_t const r,
                                                gpu_stop_idx_t const stop_idx,
@@ -74,8 +72,9 @@ extern "C" {
       return std::span<gpu_delta const>{&route_stop_times_[idx], n_transports};
     }
     __host__ __device__ interval<date::sys_days> gpu_internal_interval_days() const {
-      return {date_range_.from_ - kTimetableOffset,
-              date_range_.to_ + gpu_days{1}};
+      auto date_range = *date_range_
+      return {date_range.from_ - kTimetableOffset,
+              date_range.to_ + gpu_days{1}};
     }
 #endif
 
@@ -91,40 +90,7 @@ extern "C" {
                                              gpu_vector_map<gpu_route_idx_t,interval<std::uint32_t>> const* route_stop_time_ranges,
                                              gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                              gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
-                                             gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days
-
-                                             /*,
-                                             route_idx_t* location_routes,
-                                             std::uint32_t n_locations,
-                                             route_idx_t* route_clasz_keys,
-                                             clasz* route_clasz_values,
-                                             std::uint32_t n_route_clasz,
-                                             location_idx_t* transfer_time_keys,
-                                             u8_minutes* transfer_time_values,
-                                             std::uint32_t n_transfer_time,
-                                             footpath* footpaths_out,
-                                             std::uint32_t n_footpaths_out,
-                                             route_idx_t* route_transport_ranges_keys,
-                                             interval<transport_idx_t>* route_transport_ranges_values,
-                                             std::uint32_t n_route_transport_ranges,
-                                             bitfield_idx_t* bitfields_keys,
-                                             bitfield* bitfields_values,
-                                             std::uint32_t n_bitfields,
-                                             transport_idx_t* transport_traffic_days_keys,
-                                             bitfield_idx_t* transport_traffic_days_values,
-                                             std::uint32_t n_transport_traffic_days,
-                                             interval<date::sys_days> date_range, //ich glaube durch dieses intervall müssen wir nicht iterieren bzw. dazu sind intervalle gar nicht gedacht
-                                             char* trip_display_names,
-                                             std::uint32_t n_trip_display_names,
-                                             trip_idx_t* merged_trips,
-                                             std::uint32_t n_merged_trips,
-                                             merged_trips_idx_t* transport_to_trip_section,
-                                             std::uint32_t n_transport_to_trip_section,
-                                             transport_idx_t* transport_route_keys,
-                                             route_idx_t* transport_route_values,
-                                             std::uint32_t n_transport_routes,
-                                             route_idx_t* route_stop_time_ranges_keys_keys,
-                                             interval<std::uint32_t>* route_stop_time_ranges_values,
-                                             std::uint32_t n_route_stop_time_ranges*/);
+                                             gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
+                                             gpu_interval<date::sys_days> const* date_range);
   void destroy_gpu_timetable(gpu_timetable* &gtt);
 }  // extern "C"
