@@ -63,9 +63,10 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks,
       if (!*any_station_marked) {
         *any_station_marked = true;
       }
+      auto test  = gpu_to_idx(gpu_location_idx_t{idx});
       auto const location_routes = gr.gtt_.location_routes_;
       for (auto const& r :  location_routes[gpu_location_idx_t{idx}]) {
-        mark(route_marks, to_idx(r));
+        mark(route_marks, gpu_to_idx(r));
       }
       /*if constexpr (Rt) {
         for (auto const& rt_t :
@@ -79,7 +80,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks,
 }
 
 template <gpu_direction SearchDir, bool Rt>
-void reconstruct(query const& q, journey& j){
+void reconstruct(nigiri::routing::query const& q, nigiri::routing::journey& j){
   //reconstruct_journey<SearchDir, Rt>(...);
 }
 
@@ -101,7 +102,7 @@ __device__ bool loop_routes(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
       ++gr.stats_.n_routes_visited_;
       // TODO hier in smaller32 und bigger32 aufteilen? → aber hier geht nur ein thread rein...
       // also sollte vielleicht diese Schleife mit allen auf einmal durchgangen werden???
-      gr.mem_->device_.any_station_marked_ |= update_route(k, r);
+      gr.mem_->device_.any_station_marked_ |= update_route(k, r, gr);
     }
   }
 }
@@ -150,7 +151,7 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
     auto const l_idx = gpu_location_idx_t{idx};
     auto const& fps = gr.kFwd
          ? gr.gtt_.locations_.footpaths_out_[prf_idx][l_idx] : gr.gtt_.locations_.footpaths_in_[prf_idx][l_idx];
-    for(auto const& fp; fps){
+    for(auto const& fp: fps){
       ++gr.stats_.n_footpaths_visited_;
       auto const target = to_idx(fp.target());
       auto const fp_target_time =
@@ -197,7 +198,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_raptor<SearchD
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ bool update_route(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
+__device__ bool update_route(unsigned const k, gpu_route_idx_t const r, gpu_raptor<SearchDir,Rt>& gr){
   return false;
 }
 
@@ -206,12 +207,12 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
                                        gpu_route_idx_t const r,
                                        gpu_stop_idx_t const stop_idx,
                                        gpu_day_idx_t const day_at_stop,
-                                       minutes_after_midnight_t const mam_at_stop,
+                                       gpu_minutes_after_midnight_t const mam_at_stop,
                                        gpu_location_idx_t const l,
                                        gpu_raptor<SearchDir,Rt>& gr){
   ++gr.stats_.n_earliest_trip_calls_;
   auto const n_days_to_iterate = std::min(gr.gtt_.kMaxTravelTime.count()/1440 +1,
-                                          gr.kFwd ? gr.n_days_ - as_int(day_at_stop) : as_int(day_at_stop)+1);
+                                          gr.kFwd ? gr.n_days_ - as_int(gpu_day_idx_t{day_at_stop}) : as_int(day_at_stop)+1);
   auto const event_times =
       gr.gtt_.event_times_at_stop(r, stop_idx, gr.kFwd ? event_type::kDep : event_type::kArr);
   auto const seek_first_day = [&]() {

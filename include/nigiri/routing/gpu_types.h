@@ -19,7 +19,19 @@ struct gpu_strong : public cista::strong<T, Tag> {
   __host__ __device__ explicit constexpr gpu_strong(T&& v) noexcept(
       std::is_nothrow_move_constructible_v<T>)
       : Base{std::move(v)} {}
+  template <typename T, typename Tag>
+  __host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
+      gpu_strong<T, Tag> const& s) {
+    return s.v_;
+  }
+#else
+  template <typename T, typename Tag>
+  inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
+    gpu_strong<T, Tag> const& s) {
+    return s.v_;
+  }
 #endif
+
 };
 
 //TODO: später raus kicken was nicht brauchen
@@ -39,6 +51,10 @@ using gpu_day_idx_t = gpu_strong<std::uint16_t, struct _day_idx>;
 //using gpu_timezone_idx_t = gpu_strong<std::uint16_t, struct _timezone_idx>;
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_profile_idx_t = std::uint8_t;
+using gpu_stop_idx_t = std::uint16_t;
+using i16_minutes = std::chrono::duration<std::int16_t, std::ratio<60>>;
+using duration_t = i16_minutes;
+using gpu_minutes_after_midnight_t = duration_t;
 
 enum class gpu_direction { kForward, kBackward };
 using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;

@@ -2,6 +2,7 @@
 
 #include "nigiri/common/linear_lower_bound.h"
 #include "nigiri/routing/journey.h"
+#include "nigiri/routing/query.h"
 #include "nigiri/routing/limits.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
