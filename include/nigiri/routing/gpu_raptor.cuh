@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cinttypes>
 #include "nigiri/common/linear_lower_bound.h"
 #include "nigiri/routing/journey.h"
 #include "nigiri/routing/query.h"
@@ -13,7 +14,40 @@
 #include "nigiri/special_stations.h"
 #include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/special_stations.h"
+extern "C" {
+#define XSTR(s) STR(s)
+#define STR(s) #s
 
+#define CUDA_CALL(call) \
+    if ((code = call) != cudaSuccess) {                     \
+      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
+             cudaGetErrorString(code), __FILE__, __LINE__); \
+      goto fail;                                            \
+    }
+
+#define CUDA_COPY_TO_DEVICE(type, target, source, size)                        \
+    CUDA_CALL(cudaMalloc(&target, size * sizeof(type)))                          \
+    CUDA_CALL(                                                                   \
+        cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice))
+}//extern "C"
+
+extern "C" {
+void copy_to_devices(gpu_clasz_mask_t const allowed_claszes,
+                     std::vector<std::uint16_t> const dist_to_dest,
+                     gpu_day_idx_t const base,
+                     gpu_clasz_mask_t*& allowed_claszes_,
+                     std::uint16_t* & dist_to_end_,
+                     gpu_day_idx_t* & base_){
+  cudaError_t code;
+  CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t,allowed_claszes_,&allowed_claszes,1);
+  CUDA_COPY_TO_DEVICE(std::uint16_t,dist_to_end_,dist_to_dest.data(),dist_to_dest.size());
+  CUDA_COPY_TO_DEVICE(gpu_day_idx_t,base_,&base,1);
+fail:
+  cudaFree(allowed_claszes_);
+  cudaFree(dist_to_end_);
+  cudaFree(base_);
+};
+}//extern "C"
 struct raptor_stats {
   std::uint64_t n_routing_time_{0ULL};
   std::uint64_t n_footpaths_visited_{0ULL};
@@ -94,8 +128,6 @@ struct gpu_raptor {
       : gtt_{gtt},
         rtt_{rtt},
         state_{state},
-        dist_to_end_{dist_to_dest},
-        base_{base},
         n_days_{gtt_->gpu_internal_interval_days().size().count()},
         //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
         {
@@ -104,16 +136,14 @@ struct gpu_raptor {
     mem_ = loan.mem_;
     //state_.round_times_.reset(kInvalid);
     allowed_claszes_ = nullptr;
-    CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t , allowed_claszes_,
-                        &allowed_claszes, 1);
-    dist_to_end_ = nullptr;
-    CUDA_COPY_TO_DEVICE(std::uint16_t, dist_to_end_,
-                        dist_to_dest.data, dist_to_dest.size()*sizeof(uint16_t));
-    base_ = nullptr;
-    CUDA_COPY_TO_DEVICE(gpu_day_idx_t , base_,
-                        &base, 1);
+    copy_to_devices(allowed_claszes,
+                    dist_to_dest,
+                    base,
+                    allowed_claszes_,
+                    dist_to_end_,
+                    base_);
   }
-
+  //TODO: BUILD DESTRUKTOR TO DESTORY mallocs
   algo_stats_t get_stats() const {
     return stats_;
   }
@@ -126,9 +156,6 @@ struct gpu_raptor {
   void next_start_time() {
     utl::fill(mem_->device_.best_, kInvalid);
     utl::fill(mem_->device_.tmp_, kInvalid);
-    for (int s = 0; s< mem_->device_.size_prev_station_mark_;++s){
-      mem_->device_.prev_station_mark_[s] = false;
-    }
     for (int s = 0; s< mem_->device_.size_station_mark_;++s){
       mem_->device_.station_mark_[s] = false;
     }
@@ -203,6 +230,5 @@ void execute(gpu_unixtime_t const start_time,
   int n_days_;
   raptor_stats stats_;
   uint32_t n_rt_transports_;
-  gpu_clasz_mask_t const* allowed_claszes_;
+  gpu_clasz_mask_t* allowed_claszes_;
 };
-
