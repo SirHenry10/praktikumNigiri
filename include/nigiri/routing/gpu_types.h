@@ -938,4 +938,4 @@ using gpu_vector_map = gpu_basic_vector<Value, ptr, false, Key>;
 }  // namespace cista
 
 template <typename K, typename V>
-using gpu_vector_map = cista::raw::vector_map<K, V>;
+using gpu_vector_map = cista::raw::gpu_vector_map<K, V>;
