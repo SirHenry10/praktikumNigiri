@@ -91,7 +91,7 @@ device_memory::device_memory(uint32_t size_tmp,
   cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ *
                                 sizeof(gpu_delta_t));
   cudaMalloc(&station_mark_, size_station_mark_ * sizeof(uint32_t));
-  //cudaMalloc(&prev_station_mark_, size_prev_station_mark_ * sizeof(bool));
+  cudaMalloc(&prev_station_mark_, size_station_mark_ * sizeof(uint32_t));
   cudaMalloc(&route_mark_, size_route_mark_ * sizeof(uint32_t));
   cudaMalloc(&any_station_marked_, sizeof(bool));
   invalid_ = invalid;
@@ -105,7 +105,7 @@ void device_memory::destroy() {
   cudaFree(best_);
   cudaFree(round_times_);
   cudaFree(station_mark_);
-  //cudaFree(prev_station_mark_);
+  cudaFree(prev_station_mark_);
   cudaFree(route_mark_);
 }
 
@@ -116,7 +116,7 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemsetAsync(best_, invalid_, size_best_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(round_times_, invalid_, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(station_mark_, 0, size_station_mark_*sizeof(uint32_t), s);
-  //cudaMemsetAsync(prev_station_mark_, 0, size_prev_station_mark_*sizeof(bool), s);
+  cudaMemsetAsync(prev_station_mark_, 0, size_station_mark_*sizeof(uint32_t), s);
   cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(uint32_t), s);
   cudaMemsetAsync(any_station_marked_, 0, sizeof(bool), s);
   //additional_start_count_ = invalid<decltype(additional_start_count_)>;

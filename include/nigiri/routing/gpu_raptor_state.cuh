@@ -91,10 +91,10 @@ struct device_memory {
   gpu_delta_t invalid_{};
   //uint32_t da wir 32 Threads haben die jeweils ihre route die marks setzen
   uint32_t* station_mark_{};
-  //uint32_t* prev_station_mark_{};
+  uint32_t* prev_station_mark_{};
   uint32_t* route_mark_{};
   bool* any_station_marked_{};
-  uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_route_mark_{};//,size_prev_station_mark_{};
+  uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_route_mark_{};
   gpu_direction search_dir_{};
 };
 

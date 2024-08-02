@@ -38,11 +38,12 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      bool* const& is_dest,
                      std::size_t is_dest_size,
                      std::vector<std::uint16_t> const& lb,
+                     gpu_direction & search_dir,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
                      gpu_day_idx_t* & base_,
                      bool* & is_dest_,
-                     std::uint16_t* & lb_){
+                     std::uint16_t* & lb_,gpu_direction* & search_dir_){
   cudaError_t code;
   allowed_claszes_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t,allowed_claszes_,&allowed_claszes,1);
@@ -54,10 +55,15 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
   CUDA_COPY_TO_DEVICE(bool,is_dest_,is_dest,is_dest_size);
   lb_ = nullptr;
   CUDA_COPY_TO_DEVICE(std::uint16_t ,lb_,lb.data(),lb.size());
+  search_dir_ = nullptr;
+  CUDA_COPY_TO_DEVICE(gpu_direction,search_dir_,&search_dir,1);
 fail:
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
   cudaFree(base_);
+  cudaFree(is_dest_);
+  cudaFree(lb_);
+  cudaFree(search_dir_);
 };
 }//extern "C"
 struct raptor_stats {
@@ -247,6 +253,7 @@ void execute(gpu_unixtime_t const start_time,
   bool* is_dest_;
   uint16_t* dist_to_end_;
   uint16_t* lb_;
+  gpu_direction* search_dir_;
   gpu_day_idx_t* base_;
   int n_days_;
   raptor_stats stats_;
