@@ -32,16 +32,28 @@ extern "C" {
 }//extern "C"
 
 extern "C" {
-void copy_to_devices(gpu_clasz_mask_t const allowed_claszes,
-                     std::vector<std::uint16_t> const dist_to_dest,
-                     gpu_day_idx_t const base,
+void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
+                     std::vector<std::uint16_t> const& dist_to_dest,
+                     gpu_day_idx_t const& base,
+                     bool* const& is_dest,
+                     std::size_t is_dest_size,
+                     std::vector<std::uint16_t> const& lb,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
-                     gpu_day_idx_t* & base_){
+                     gpu_day_idx_t* & base_,
+                     bool* & is_dest_,
+                     std::uint16_t* & lb_){
   cudaError_t code;
+  allowed_claszes_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t,allowed_claszes_,&allowed_claszes,1);
+  dist_to_end_ = nullptr;
   CUDA_COPY_TO_DEVICE(std::uint16_t,dist_to_end_,dist_to_dest.data(),dist_to_dest.size());
+  base_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_day_idx_t,base_,&base,1);
+  is_dest_ = nullptr;
+  CUDA_COPY_TO_DEVICE(bool,is_dest_,is_dest,is_dest_size);
+  lb_ = nullptr;
+  CUDA_COPY_TO_DEVICE(std::uint16_t ,lb_,lb.data(),lb.size());
 fail:
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
@@ -136,12 +148,21 @@ struct gpu_raptor {
     mem_ = loan.mem_;
     //state_.round_times_.reset(kInvalid);
     allowed_claszes_ = nullptr;
+    bool copy_array[is_dest.size()];
+    for (int i = 0; i<is_dest.size();i++){
+      copy_array[i] = is_dest[i];
+    }
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
+                    copy_array,
+                    is_dest.size(),
+                    lb,
                     allowed_claszes_,
                     dist_to_end_,
-                    base_);
+                    base_,
+                    is_dest_,
+                    lb_);
   }
   //TODO: BUILD DESTRUKTOR TO DESTORY mallocs
   algo_stats_t get_stats() const {
