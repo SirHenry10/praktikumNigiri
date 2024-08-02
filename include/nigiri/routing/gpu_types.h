@@ -38,6 +38,8 @@ __host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to
 
 //TODO: später raus kicken was nicht brauchen
 using gpu_delta_t = int16_t;
+constexpr auto const gpu_kTimetableOffset =
+    std::chrono::days{1} + std::chrono::days{4};
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_location_idx_t = gpu_strong<std::uint32_t, struct _location_idx>;
 using gpu_value_type = gpu_location_idx_t::value_t;

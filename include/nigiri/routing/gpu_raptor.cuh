@@ -40,8 +40,8 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::vector<std::uint16_t> const& lb,
                      gpu_direction const& search_dir,
                      int const& n_days,
-                     std::uint16_t & kUnreachable,
-                     gpu_location_idx_t* const& kIntermodalTarget,
+                     std::uint16_t const& kUnreachable,
+                     gpu_location_idx_t const* & kIntermodalTarget,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
                      gpu_day_idx_t* & base_,
@@ -139,8 +139,10 @@ __host__ __device__ static auto get_best(auto x, auto... y) {
   ((x = get_best(x, y)), ...);
   return x;
 }
+
+__host__ __device__ int as_int(gpu_location_idx_t d)  { return static_cast<int>(d.v_); }
 __host__ __device__ int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
-__host__ __device__ date::sys_days base(gpu_timetable* const gtt, gpu_day_idx_t* base) {
+__host__ __device__ date::sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
   return gtt->gpu_internal_interval_days().from_ + as_int(*base) * date::days{1};
 }
 template<gpu_direction SearchDir>
@@ -179,7 +181,7 @@ struct gpu_raptor {
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
     }
-    gpu_location_idx_t const* gpu_kIntermodalTarget = reinterpret_cast<gpu_location_idx_t const*>(&kIntermodalTarget);
+    auto gpu_kIntermodalTarget = reinterpret_cast<gpu_location_idx_t const*>(&kIntermodalTarget);
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
@@ -189,7 +191,7 @@ struct gpu_raptor {
                     SearchDir,
                     gtt_->gpu_internal_interval_days().size().count(),
                     kUnreachable,
-                    kIntermodalTarget,
+                    gpu_kIntermodalTarget,
                     allowed_claszes_,
                     dist_to_end_,
                     base_,
@@ -229,8 +231,8 @@ struct gpu_raptor {
     trace_upd("adding start {}: {}\n", location{tt_, l}, t);
     std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
     std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
-    best_new[to_idx(l).v_] = unix_to_gpu_delta(base(), t);
-    round_times_new[0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))] = unix_to_gpu_delta(base(), t);
+    best_new[to_idx(l).v_] = unix_to_gpu_delta(base(gtt_,base_), t);
+    round_times_new[0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))] = unix_to_gpu_delta(base(gtt_,base_), t);
     bool copy_array[mem_->device_.size_station_mark_];
     std::fill(std::begin(copy_array), std::end(copy_array), false);
     copy_array[to_idx(l).v_] = true;

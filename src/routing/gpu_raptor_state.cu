@@ -1,7 +1,7 @@
 #pragma once
 
 #include "nigiri/routing/gpu_raptor_state.cuh"
-
+#include "fmt/base.h"
 
 std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {

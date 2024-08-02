@@ -39,11 +39,10 @@ extern "C" {
     }
     __host__ __device__ interval<date::sys_days> gpu_internal_interval_days() const {
       auto date_range = *date_range_;
-      return {date_range.from_ - kTimetableOffset,
+      return {date_range.from_ - gpu_kTimetableOffset,
               date_range.to_ + gpu_days{1}};
     }
 #endif
-
 
   };
 
