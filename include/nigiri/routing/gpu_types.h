@@ -21,8 +21,8 @@ struct gpu_strong : public cista::strong<T, Tag> {
   __host__ __device__ explicit constexpr gpu_strong(T&& v) noexcept(
       std::is_nothrow_move_constructible_v<T>)
       : Base{std::move(v)} {}
-  __host__ __device__ static constexpr strong invalid() {
-    return strong{std::numeric_limits<T>::max()};
+  __host__ __device__ static constexpr gpu_strong invalid() {
+    return gpu_strong{std::numeric_limits<T>::max()};
   }
 #endif
 
