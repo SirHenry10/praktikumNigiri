@@ -63,7 +63,6 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks,
       if (!*any_station_marked) {
         *any_station_marked = true;
       }
-      auto test  = gpu_to_idx(gpu_location_idx_t{idx});
       auto const location_routes = gr.gtt_.location_routes_;
       for (auto const& r :  location_routes[gpu_location_idx_t{idx}]) {
         mark(route_marks, gpu_to_idx(r));
@@ -212,13 +211,13 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
                                        gpu_raptor<SearchDir,Rt>& gr){
   ++gr.stats_.n_earliest_trip_calls_;
   auto const n_days_to_iterate = std::min(gr.gtt_.kMaxTravelTime.count()/1440 +1,
-                                          gr.kFwd ? gr.n_days_ - as_int(gpu_day_idx_t{day_at_stop}) : as_int(day_at_stop)+1);
+                                          gr.kFwd ? gr.n_days_ - gr.as_int(day_at_stop) : gr.as_int(day_at_stop)+1);
   auto const event_times =
       gr.gtt_.event_times_at_stop(r, stop_idx, gr.kFwd ? event_type::kDep : event_type::kArr);
   auto const seek_first_day = [&]() {
     return linear_lb(get_begin_it(event_times), get_end_it(event_times), mam_at_stop,
-                     [&](gpu_delta const a, minutes_after_midnight_t const b) {
-                       return is_better(a.mam(), b.count());
+                     [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
+                       return is_better(a.mam(), b.count()); // anders mit gpu_delta umgehen
                      });
   };
 
@@ -231,7 +230,7 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t, std::size_t con
 }
 
 // nur für trace
-__device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const t, stop_idx_t const stop_idx, event_type const ev_type){
+__device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const t, gpu_stop_idx_t const stop_idx, event_type const ev_type){
 
 }
 
@@ -263,7 +262,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx, 
   if(get_global_thread_id()==0){
     *gr.mem_->device_.any_station_marked_ = false;
   }
-  convert_station_to_route_marks(gr.mem_->device_.station_mark_, gr.mem_->device_.route_mark_, gr.mem_->device_.any_station_marked_, gtt_);
+  convert_station_to_route_marks(gr.mem_->device_.station_mark_, gr.mem_->device_.route_mark_, gr.mem_->device_.any_station_marked_, gr.gtt_);
   this_grid().sync();
 
   if(get_global_thread_id()==0){
@@ -276,7 +275,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx, 
 
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
-  *gr.mem_->device_.any_station_marked_ = (gr.allowed_claszes_ = all_clasz_allowed())
+  *gr.mem_->device_.any_station_marked_ = (gr.allowed_claszes_ = nigiri::routing::all_clasz_allowed())
                                               ? loop_routes<false>(k, gr) : loop_routes<false>(k, gr);
   if(get_global_thread_id()==0){
     if(!gr.mem_->device_.any_station_marked_){
