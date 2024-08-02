@@ -96,7 +96,7 @@ struct gpu_raptor {
         state_{state},
         dist_to_end_{dist_to_dest},
         base_{base},
-        n_days_{gtt_->internal_interval_days().size().count()},
+        n_days_{gtt_->gpu_internal_interval_days().size().count()},
         //n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
         {
     state_.init(*gtt_,kInvalid);
@@ -107,8 +107,8 @@ struct gpu_raptor {
     CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t , allowed_claszes_,
                         &allowed_claszes, 1);
     dist_to_end_ = nullptr;
-    CUDA_COPY_TO_DEVICE(uint16_t, dist_to_end_,
-                        dist_to_dest.data, dist_to_dest.size*sizeof(uint16_t));
+    CUDA_COPY_TO_DEVICE(std::uint16_t, dist_to_end_,
+                        dist_to_dest.data, dist_to_dest.size()*sizeof(uint16_t));
     base_ = nullptr;
     CUDA_COPY_TO_DEVICE(gpu_day_idx_t , base_,
                         &base, 1);
@@ -119,7 +119,7 @@ struct gpu_raptor {
   }
 
   void reset_arrivals() {
-    utl::fill(time_at_dest_, kInvalid);
+    utl::fill(mem_->device_.time_at_dest_, kInvalid);
     mem_->host_.reset(kInvalid);
   }
 
@@ -144,7 +144,7 @@ struct gpu_raptor {
     //TODO:keinen SINN, RÜBER KOPIEREN!!
     mem_->device_.best_[to_idx(l)] = unix_to_gpu_delta(base(), t);
     //nur device oder auch host ??? also round_times
-    mem_->device_.round_times_[0U*mem_->device_.row_count_round_times_+to_idx(l)] = unix_to_gpu_delta(base(), t);
+    mem_->device_.round_times_[0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))] = unix_to_gpu_delta(base(), t);
     mem_->device_.station_mark_[to_idx(l)] = true;
   }
 
@@ -168,7 +168,7 @@ void execute(gpu_unixtime_t const start_time,
     // reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
   }
   date::sys_days base() const {
-    return gtt_->internal_interval_days().from_ + as_int(base_) * date::days{1};
+    return gtt_->gpu_internal_interval_days().from_ + as_int(base_) * date::days{1};
   }
 
   int as_int(gpu_day_idx_t const d) const { return static_cast<int>(d.v_); }

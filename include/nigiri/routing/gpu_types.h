@@ -56,6 +56,8 @@ using gpu_stop_idx_t = std::uint16_t;
 using i16_minutes = std::chrono::duration<std::int16_t, std::ratio<60>>;
 using duration_t = i16_minutes;
 using gpu_minutes_after_midnight_t = duration_t;
+using gpu_days = std::chrono::duration
+    <int, date::detail::ratio_multiply<std::ratio<24>, std::chrono::hours::period>>;
 
 enum class gpu_event_type { kArr, kDep };
 enum class gpu_direction { kForward, kBackward };

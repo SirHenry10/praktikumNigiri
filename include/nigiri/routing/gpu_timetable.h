@@ -63,7 +63,13 @@ extern "C" {
           n_transports * (stop_idx * 2 - (ev_type == event_type::kArr ? 1 : 0)));
       return std::span<gpu_delta const>{&route_stop_times_[idx], n_transports};
     }
+    __host__ __device__ interval<date::sys_days> gpu_internal_interval_days() const {
+      return {date_range_.from_ - kTimetableOffset,
+              date_range_.to_ + gpu_days{1}};
+    }
 #endif
+
+
   };
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
