@@ -7,6 +7,7 @@
 #include "cista/verify.h"
 #include "cista/reflection/comparable.h"
 #include "cista/reflection/printable.h"
+#include "cista/containers/bitset.h"
 
 template <typename T, typename Tag>
 struct gpu_strong : public cista::strong<T, Tag> {
@@ -76,6 +77,9 @@ struct gpu_delta{
   bool operator!= (gpu_delta const& a) const{
     return !(operator==(a));
   }
+#ifdef NIGIRI_CUDA
+  __host__ __device__ std::int16_t count() const { return days_ * 1440U + mam_; }
+#endif
 };
 #ifdef NIGIRI_CUDA
 template <typename T>
