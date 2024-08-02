@@ -85,12 +85,12 @@ inline gpu_unixtime_t gpu_delta_to_unix(date::sys_days const base, gpu_delta_t c
          d * gpu_unixtime_t::duration{1};
 }
 
-namespace cista{
+namespace cista {
 template <typename Key, typename DataVec, typename IndexVec>
 struct basic_gpu_vecvec {
   using data_value_type = typename DataVec::value_type;
   using index_value_type = typename IndexVec::value_type;
-  #ifdef NIGIRI_CUDA
+#ifdef NIGIRI_CUDA
   struct bucket final {
     using value_type = data_value_type;
     using iterator = typename DataVec::iterator;
@@ -105,9 +105,13 @@ struct basic_gpu_vecvec {
         : map_{map}, i_{to_idx(i)} {}
 
     __host__ __device__ friend data_value_type* data(bucket b) { return &b[0]; }
-    __host__ __device__ friend index_value_type size(bucket b) { return b.size(); }
+    __host__ __device__ friend index_value_type size(bucket b) {
+      return b.size();
+    }
 
-    __host__ __device__ data_value_type const* data() const { return empty() ? nullptr : &front(); }
+    __host__ __device__ data_value_type const* data() const {
+      return empty() ? nullptr : &front();
+    }
 
     template <typename T = std::decay_t<data_value_type>,
               typename = std::enable_if_t<std::is_same_v<T, char>>>
@@ -141,7 +145,8 @@ struct basic_gpu_vecvec {
       return map_->data_[to_idx(map_->bucket_starts_[i_] + i)];
     }
 
-    __host__ __device__ value_type const& operator[](std::size_t const i) const {
+    __host__ __device__ value_type const& operator[](
+        std::size_t const i) const {
       assert(is_inside_bucket(i));
       return map_->data_[to_idx(map_->bucket_starts_[i_] + i)];
     }
@@ -156,25 +161,35 @@ struct basic_gpu_vecvec {
       return *(begin() + i);
     }
 
-    __host__ __device__ std::size_t size() const { return bucket_end_idx() - bucket_begin_idx(); }
-    __host__ __device__ iterator begin() { return map_->data_.begin() + bucket_begin_idx(); }
-    __host__ __device__ iterator end() { return map_->data_.begin() + bucket_end_idx(); }
+    __host__ __device__ std::size_t size() const {
+      return bucket_end_idx() - bucket_begin_idx();
+    }
+    __host__ __device__ iterator begin() {
+      return map_->data_.begin() + bucket_begin_idx();
+    }
+    __host__ __device__ iterator end() {
+      return map_->data_.begin() + bucket_end_idx();
+    }
     __host__ __device__ const_iterator begin() const {
       return map_->data_.begin() + bucket_begin_idx();
     }
     __host__ __device__ const_iterator end() const {
       return map_->data_.begin() + bucket_end_idx();
     }
-    __host__ __device__ friend iterator begin(bucket const& b) { return b.begin(); }
+    __host__ __device__ friend iterator begin(bucket const& b) {
+      return b.begin();
+    }
     __host__ __device__ friend iterator end(bucket const& b) { return b.end(); }
     __host__ __device__ friend iterator begin(bucket& b) { return b.begin(); }
     __host__ __device__ friend iterator end(bucket& b) { return b.end(); }
 
-    __host__ __device__ friend bool operator==(bucket const& a, bucket const& b) {
+    __host__ __device__ friend bool operator==(bucket const& a,
+                                               bucket const& b) {
       assert(a.map_ == b.map_);
       return a.i_ == b.i_;
     }
-    __host__ __device__ friend bool operator!=(bucket const& a, bucket const& b) {
+    __host__ __device__ friend bool operator!=(bucket const& a,
+                                               bucket const& b) {
       assert(a.map_ == b.map_);
       return a.i_ != b.i_;
     }
@@ -205,7 +220,8 @@ struct basic_gpu_vecvec {
       tmp -= n;
       return tmp;
     }
-    __host__ __device__ friend difference_type operator-(bucket const& a, bucket const& b) {
+    __host__ __device__ friend difference_type operator-(bucket const& a,
+                                                         bucket const& b) {
       assert(a.map_ == b.map_);
       return a.i_ - b.i_;
     }
@@ -235,13 +251,20 @@ struct basic_gpu_vecvec {
     using pointer = std::add_pointer_t<value_type>;
     using reference = std::add_lvalue_reference<value_type>;
 
-    __host__ __device__ const_bucket(basic_gpu_vecvec const* map, index_value_type const i)
+    __host__ __device__ const_bucket(basic_gpu_vecvec const* map,
+                                     index_value_type const i)
         : map_{map}, i_{to_idx(i)} {}
 
-    __host__ __device__ friend data_value_type const* data(const_bucket b) { return b.data(); }
-    __host__ __device__ friend index_value_type size(const_bucket b) { return b.size(); }
+    __host__ __device__ friend data_value_type const* data(const_bucket b) {
+      return b.data();
+    }
+    __host__ __device__ friend index_value_type size(const_bucket b) {
+      return b.size();
+    }
 
-    __host__ __device__ data_value_type const* data() const { return empty() ? nullptr : &front(); }
+    __host__ __device__ data_value_type const* data() const {
+      return empty() ? nullptr : &front();
+    }
 
     template <typename T = std::decay_t<data_value_type>,
               typename = std::enable_if_t<std::is_same_v<T, char>>>
@@ -266,7 +289,8 @@ struct basic_gpu_vecvec {
       return *(begin() + i);
     }
 
-    __host__ __device__ value_type const& operator[](std::size_t const i) const {
+    __host__ __device__ value_type const& operator[](
+        std::size_t const i) const {
       assert(is_inside_bucket(i));
       return map_->data_[map_->bucket_starts_[i_] + i];
     }
@@ -280,14 +304,20 @@ struct basic_gpu_vecvec {
     __host__ __device__ const_iterator end() const {
       return map_->data_.begin() + bucket_end_idx();
     }
-    __host__ __device__ friend const_iterator begin(const_bucket const& b) { return b.begin(); }
-    __host__ __device__ friend const_iterator end(const_bucket const& b) { return b.end(); }
+    __host__ __device__ friend const_iterator begin(const_bucket const& b) {
+      return b.begin();
+    }
+    __host__ __device__ friend const_iterator end(const_bucket const& b) {
+      return b.end();
+    }
 
-    __host__ __device__ friend bool operator==(const_bucket const& a, const_bucket const& b) {
+    __host__ __device__ friend bool operator==(const_bucket const& a,
+                                               const_bucket const& b) {
       assert(a.map_ == b.map_);
       return a.i_ == b.i_;
     }
-    __host__ __device__ friend bool operator!=(const_bucket const& a, const_bucket const& b) {
+    __host__ __device__ friend bool operator!=(const_bucket const& a,
+                                               const_bucket const& b) {
       assert(a.map_ == b.map_);
       return a.i_ != b.i_;
     }
@@ -318,8 +348,8 @@ struct basic_gpu_vecvec {
       tmp -= n;
       return tmp;
     }
-    __host__ __device__ friend difference_type operator-(const_bucket const& a,
-                                     const_bucket const& b) {
+    __host__ __device__ friend difference_type operator-(
+        const_bucket const& a, const_bucket const& b) {
       assert(a.map_ == b.map_);
       return a.i_ - b.i_;
     }
@@ -343,8 +373,12 @@ struct basic_gpu_vecvec {
   using iterator = bucket;
   using const_iterator = const_bucket;
 
-  __host__ __device__ bucket operator[](Key const i) { return {this, to_idx(i)}; }
-  __host__ __device__ const_bucket operator[](Key const i) const { return {this, to_idx(i)}; }
+  __host__ __device__ bucket operator[](Key const i) {
+    return {this, to_idx(i)};
+  }
+  __host__ __device__ const_bucket operator[](Key const i) const {
+    return {this, to_idx(i)};
+  }
 
   __host__ __device__ const_bucket at(Key const i) const {
     verify(to_idx(i) < bucket_starts_.size(),
@@ -371,7 +405,8 @@ struct basic_gpu_vecvec {
 
   template <typename Container,
             typename = std::enable_if_t<std::is_convertible_v<
-                decltype(*std::declval<Container>().begin()), data_value_type>>>
+                decltype(*std::declval<Container>().begin()),
+                data_value_type>>>
   __host__ __device__ void emplace_back(Container&& bucket) {
     if (bucket_starts_.empty()) {
       bucket_starts_.emplace_back(index_value_type{0U});
@@ -422,14 +457,24 @@ struct basic_gpu_vecvec {
 
   __host__ __device__ bucket begin() { return bucket{this, 0U}; }
   __host__ __device__ bucket end() { return bucket{this, size()}; }
-  __host__ __device__ const_bucket begin() const { return const_bucket{this, 0U}; }
-  __host__ __device__ const_bucket end() const { return const_bucket{this, size()}; }
+  __host__ __device__ const_bucket begin() const {
+    return const_bucket{this, 0U};
+  }
+  __host__ __device__ const_bucket end() const {
+    return const_bucket{this, size()};
+  }
 
-  __host__ __device__ friend bucket begin(basic_gpu_vecvec& m) { return m.begin(); }
+  __host__ __device__ friend bucket begin(basic_gpu_vecvec& m) {
+    return m.begin();
+  }
   __host__ __device__ friend bucket end(basic_gpu_vecvec& m) { return m.end(); }
-  __host__ __device__ friend const_bucket begin(basic_gpu_vecvec const& m) { return m.begin(); }
-  __host__ __device__ friend const_bucket end(basic_gpu_vecvec const& m) { return m.end(); }
-  #endif
+  __host__ __device__ friend const_bucket begin(basic_gpu_vecvec const& m) {
+    return m.begin();
+  }
+  __host__ __device__ friend const_bucket end(basic_gpu_vecvec const& m) {
+    return m.end();
+  }
+#endif
   DataVec data_;
   IndexVec bucket_starts_;
 };
@@ -438,15 +483,19 @@ template <typename K, typename V, typename SizeType = cista::base_t<K>>
 using gpu_vecvec = basic_gpu_vecvec<K, vector<V>, vector<SizeType>>;
 }  // namespace raw
 
+} //namespace cista
 
 struct gpu_transport {
   CISTA_FRIEND_COMPARABLE(gpu_transport)
   CISTA_PRINTABLE(gpu_transport, "idx", "day")
 #ifdef NIGIRI_CUDA
-  __host__ __device__ static gpu_transport invalid() noexcept { return gpu_transport{}; }
-  __host__ __device__ constexpr bool is_valid() const { return day_ != gpu_day_idx_t::invalid(); }
+  __host__ __device__ static gpu_transport invalid() noexcept {
+    return gpu_transport{};
+  }
+  __host__ __device__ constexpr bool is_valid() const {
+    return day_ != gpu_day_idx_t::invalid();
+  }
 #endif
   gpu_transport_idx_t t_idx_{gpu_transport_idx_t::invalid()};
   gpu_day_idx_t day_{gpu_day_idx_t::invalid()};
 };
-
