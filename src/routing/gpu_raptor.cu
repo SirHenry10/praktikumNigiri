@@ -213,7 +213,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
   auto const n_days_to_iterate = std::min(gr.gtt_.kMaxTravelTime.count()/1440 +1,
                                           gr.kFwd ? gr.n_days_ - gr.as_int(day_at_stop) : gr.as_int(day_at_stop)+1);
   auto const event_times =
-      gr.gtt_.event_times_at_stop(r, stop_idx, gr.kFwd ? event_type::kDep : event_type::kArr);
+      gr.gtt_.event_times_at_stop(r, stop_idx, gr.kFwd ? gpu_event_type::kDep : gpu_event_type::kArr);
   auto const seek_first_day = [&]() {
     return linear_lb(get_begin_it(event_times), get_end_it(event_times), mam_at_stop,
                      [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
@@ -230,7 +230,7 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t, std::size_t con
 }
 
 // nur für trace
-__device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const t, gpu_stop_idx_t const stop_idx, event_type const ev_type){
+__device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const t, gpu_stop_idx_t const stop_idx, gpu_event_type const ev_type){
 
 }
 
@@ -319,7 +319,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   gpu_unixtime_t const worst_time_at_dest,
                                   gpu_profile_idx_t const prf_idx,
-                                  pareto_set<journey>& results,
+                                  nigiri::pareto_set<nigiri::routing::journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr){
   auto const end_k = std::min(max_transfers, nigiri::routing::kMaxTransfers) + 1U;
   // 1. Initialisierung
@@ -342,4 +342,3 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
 }
 
 
-}  // extern "C"

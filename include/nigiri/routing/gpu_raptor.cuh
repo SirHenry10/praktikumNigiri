@@ -12,6 +12,7 @@
 #include "nigiri/rt/rt_timetable.h"
 #include "nigiri/special_stations.h"
 #include "nigiri/routing/gpu_timetable.h"
+#include "nigiri/special_stations.h"
 
 struct raptor_stats {
   std::uint64_t n_routing_time_{0ULL};
@@ -58,7 +59,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   gpu_unixtime_t const worst_time_at_dest,
                                   gpu_profile_idx_t const prf_idx,
-                                  pareto_set<journey>& results,
+                                  nigiri::pareto_set<nigiri::routing::journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr);
 
 template <gpu_direction SearchDir, bool Rt>
@@ -72,7 +73,7 @@ struct gpu_raptor {
   static constexpr auto const kUnreachable =
       std::numeric_limits<std::uint16_t>::max();
   static constexpr auto const kIntermodalTarget =
-      to_idx(get_special_station(special_station::kEnd));
+      to_idx(get_special_station(nigiri::special_station::kEnd));
 
   __host__ __device__ static bool is_better(auto a, auto b) { return kFwd ? a < b : a > b; }
   __host__ __device__ static bool is_better_or_eq(auto a, auto b) { return kFwd ? a <= b : a >= b; }

@@ -57,7 +57,7 @@ using i16_minutes = std::chrono::duration<std::int16_t, std::ratio<60>>;
 using duration_t = i16_minutes;
 using gpu_minutes_after_midnight_t = duration_t;
 
-enum class event_type { kArr, kDep };
+enum class gpu_event_type { kArr, kDep };
 enum class gpu_direction { kForward, kBackward };
 using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
 using gpu_unixtime_t = std::chrono::sys_time<gpu_i32_minutes>;
