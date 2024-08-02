@@ -5,6 +5,8 @@
 
 #include "cista/containers/vector.h"
 #include "cista/verify.h"
+#include "cista/reflection/comparable.h"
+#include "cista/reflection/printable.h"
 
 template <typename T, typename Tag>
 struct gpu_strong : public cista::strong<T, Tag> {
@@ -19,20 +21,16 @@ struct gpu_strong : public cista::strong<T, Tag> {
   __host__ __device__ explicit constexpr gpu_strong(T&& v) noexcept(
       std::is_nothrow_move_constructible_v<T>)
       : Base{std::move(v)} {}
-  template <typename T, typename Tag>
-  __host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
-      gpu_strong<T, Tag> const& s) {
-    return s.v_;
-  }
-#else
-  template <typename T, typename Tag>
-  inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
-    gpu_strong<T, Tag> const& s) {
-    return s.v_;
-  }
 #endif
 
 };
+#ifdef NIGIRI_CUDA
+template <typename T, typename Tag>
+__host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
+    gpu_strong<T, Tag> const& s) {
+  return s.v_;
+}
+#endif
 
 //TODO: später raus kicken was nicht brauchen
 using gpu_delta_t = int16_t;
@@ -85,17 +83,10 @@ __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
                  static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
 }
 #endif
-#ifdef NIGIRI_CUDA
-__host__ __device__ template <gpu_direction SearchDir>
-inline constexpr auto const kInvalidGpuDelta =
-    SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::min()
-                                         : std::numeric_limits<gpu_delta_t>::max();
-#else
 template <gpu_direction SearchDir>
 inline constexpr auto const kInvalidGpuDelta =
     SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::min()
                                          : std::numeric_limits<gpu_delta_t>::max();
-#endif
 inline gpu_unixtime_t gpu_delta_to_unix(date::sys_days const base, gpu_delta_t const d) {
   return std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
          d * gpu_unixtime_t::duration{1};
@@ -509,6 +500,13 @@ struct gpu_transport {
     return gpu_transport{};
   }
   __host__ __device__ constexpr bool is_valid() const {
+    return day_ != gpu_day_idx_t::invalid();
+  }
+#else
+  static gpu_transport invalid() noexcept {
+    return gpu_transport{};
+  }
+  constexpr bool is_valid() const {
     return day_ != gpu_day_idx_t::invalid();
   }
 #endif

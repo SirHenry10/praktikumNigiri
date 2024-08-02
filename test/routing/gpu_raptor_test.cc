@@ -28,7 +28,5 @@ TEST(routing, gpu_raptor) {
 
   cista::raw::gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* te = reinterpret_cast<cista::raw::gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t>*>(&tt.location_routes_);
   std::cout<<"erster Wert: " << te->bucket_starts_ <<" \n"<< tt.location_routes_.bucket_starts_ << "\n";
-  uint32_t tester2 = 22222222;
-  auto tester = gpu_clamp(tester2);
   std::cout<<"";
 }
