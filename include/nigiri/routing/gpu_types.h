@@ -943,3 +943,108 @@ using gpu_vector_map = gpu_basic_vector<Value, ptr, false, Key>;
 
 template <typename K, typename V>
 using gpu_vector_map = cista::raw::gpu_vector_map<K, V>;
+
+namespace nigiri {
+
+template <typename T>
+struct gpu_interval {
+#ifdef NIGIRI_CUDA
+  struct iterator {
+    using iterator_category = std::random_access_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = T;
+    using pointer = std::add_pointer_t<value_type>;
+    using reference = value_type;
+    CISTA_FRIEND_COMPARABLE(iterator);
+    __host__ __device__ value_type operator*() const { return t_; }
+    __host__ __device__ iterator& operator++() {
+      ++t_;
+      return *this;
+    }
+    __host__ __device__ iterator& operator--() {
+      --t_;
+      return *this;
+    }
+    __host__ __device__ iterator& operator+=(difference_type const x) {
+      t_ += x;
+      return *this;
+    }
+    __host__ __device__ iterator& operator-=(difference_type const x) {
+      t_ -= x;
+      return *this;
+    }
+    __host__ __device__ iterator operator+(difference_type const x) const { return *this += x; }
+    __host__ __device__ iterator operator-(difference_type const x) const { return *this -= x; }
+    __host__ __device__ friend difference_type operator-(iterator const& a, iterator const& b) {
+      return static_cast<difference_type>(cista::to_idx(a.t_) -
+                                          cista::to_idx(b.t_));
+    }
+    T t_;
+  };
+
+  template <typename X>
+  __host__ __device__ gpu_interval operator+(X const& x) const {
+    return {from_ + x, to_ + x};
+  }
+
+  template <typename X>
+  __host__ __device__ gpu_interval operator-(X const& x) const {
+    return {from_ - x, to_ - x};
+  }
+
+  template <typename X>
+    requires std::is_convertible_v<T, X>
+  __host__ __device__ operator gpu_interval<X>() {
+    return {from_, to_};
+  }
+
+  __host__ __device__ T clamp(T const x) const { return std::clamp(x, from_, to_); }
+
+  __host__ __device__ bool contains(T const t) const { return t >= from_ && t < to_; }
+
+  __host__ __device__ bool overlaps(gpu_interval const& o) const {
+    return from_ < o.to_ && to_ > o.from_;
+  }
+
+  __host__ __device__ iterator begin() const { return {from_}; }
+  __host__ __device__ iterator end() const { return {to_}; }
+  __host__ __device__ friend iterator begin(gpu_interval const& r) { return r.begin(); }
+  __host__ __device__ friend iterator end(gpu_interval const& r) { return r.end(); }
+
+  __host__ __device__ std::reverse_iterator<iterator> rbegin() const {
+    return std::reverse_iterator<iterator>{iterator{to_}};
+  }
+  __host__ __device__ std::reverse_iterator<iterator> rend() const {
+    return std::reverse_iterator<iterator>{iterator{from_}};
+  }
+  __host__ __device__ friend std::reverse_iterator<iterator> rbegin(gpu_interval const& r) {
+    return r.begin();
+  }
+  __host__ __device__ friend std::reverse_iterator<iterator> rend(gpu_interval const& r) {
+    return r.end();
+  }
+
+  __host__ __device__ auto size() const { return to_ - from_; }
+
+  __host__ __device__ T operator[](std::size_t const i) const {
+    assert(contains(from_ + static_cast<T>(i)));
+    return from_ + static_cast<T>(i);
+  }
+
+  __host__ __device__ friend std::ostream& operator<<(std::ostream& out, gpu_interval const& i) {
+    return out << "[" << i.from_ << ", " << i.to_ << "[";
+  }
+#endif
+  T from_{}, to_{};
+};
+
+template <typename T, typename T1, typename = std::common_type_t<T1, T>>
+gpu_interval(T, T1) -> gpu_interval<std::common_type_t<T, T1>>;
+
+}  // namespace nigiri
+
+template <typename T>
+struct fmt::formatter<nigiri::gpu_interval<T>> : ostream_formatter {};
+
+template <typename T>
+using gpu_interval = nigiri::gpu_interval<T>;

@@ -40,13 +40,17 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::vector<std::uint16_t> const& lb,
                      gpu_direction const& search_dir,
                      int const& n_days,
+                     std::uint16_t & kUnreachable,
+                     gpu_location_idx_t* const& kIntermodalTarget,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
                      gpu_day_idx_t* & base_,
                      bool* & is_dest_,
                      std::uint16_t* & lb_,
                      gpu_direction* & search_dir_,
-                     int* & n_days_){
+                     int* & n_days_,
+                     std::uint16_t* & kUnreachable_,
+                     gpu_location_idx_t* & kIntermodalTarget_){
   cudaError_t code;
   allowed_claszes_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t,allowed_claszes_,&allowed_claszes,1);
@@ -62,6 +66,10 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
   CUDA_COPY_TO_DEVICE(gpu_direction,search_dir_,&search_dir,1);
   n_days_ = nullptr;
   CUDA_COPY_TO_DEVICE(int,n_days_,&n_days,1);
+  kUnreachable_ = nullptr;
+  CUDA_COPY_TO_DEVICE(std::uint16_t,kUnreachable_,&kUnreachable,1);
+  kIntermodalTarget_ = nullptr;
+  CUDA_COPY_TO_DEVICE(gpu_location_idx_t,kIntermodalTarget_,kIntermodalTarget,1);
 fail:
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
@@ -69,6 +77,9 @@ fail:
   cudaFree(is_dest_);
   cudaFree(lb_);
   cudaFree(search_dir_);
+  cudaFree(n_days_);
+  cudaFree(kUnreachable_);
+  cudaFree(kIntermodalTarget_);
 };
 }//extern "C"
 struct raptor_stats {
@@ -167,6 +178,7 @@ struct gpu_raptor {
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
     }
+    gpu_location_idx_t const* gpu_kIntermodalTarget = reinterpret_cast<gpu_location_idx_t const*>(&kIntermodalTarget);
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
@@ -175,13 +187,17 @@ struct gpu_raptor {
                     lb,
                     SearchDir,
                     gtt_->gpu_internal_interval_days().size().count(),
+                    kUnreachable,
+                    kIntermodalTarget,
                     allowed_claszes_,
                     dist_to_end_,
                     base_,
                     is_dest_,
                     lb_,
                     search_dir_,
-                    n_days_);
+                    n_days_,
+                    kUnreachable_,
+                    kIntermodalTarget_);
   }
   //TODO: BUILD DESTRUKTOR TO DESTORY mallocs
   algo_stats_t get_stats() const {
@@ -275,4 +291,6 @@ void execute(gpu_unixtime_t const start_time,
   raptor_stats stats_;
   uint32_t n_rt_transports_;
   gpu_clasz_mask_t* allowed_claszes_;
+  std::uint16_t* kUnreachable_;
+  gpu_location_idx_t* kIntermodalTarget_;
 };
