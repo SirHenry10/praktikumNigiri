@@ -549,7 +549,7 @@ struct gpu_basic_vector {
   using allocator_type = Allocator;
 #ifdef NIGIRI_CUDA
   __host__ __device__ explicit gpu_basic_vector(allocator_type const&) noexcept {}
-  gpu_basic_vector() noexcept = default;
+  __host__ __device__ gpu_basic_vector() noexcept = default;
 
   __host__ __device__ explicit gpu_basic_vector(size_type const size, T init = T{},
                         Allocator const& alloc = Allocator{}) {
