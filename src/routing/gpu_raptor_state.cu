@@ -109,7 +109,6 @@ void device_memory::destroy() {
   cudaFree(route_mark_);
 }
 
-
 void device_memory::reset_async(cudaStream_t s) {
   cudaMemsetAsync(time_at_dest_,invalid_, (nigiri::routing::kMaxTransfers+1)*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(tmp_,invalid_, size_tmp_*sizeof(gpu_delta_t), s);

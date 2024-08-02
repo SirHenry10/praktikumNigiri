@@ -180,50 +180,36 @@ struct gpu_raptor {
   }
 
   void reset_arrivals() {
-    utl::fill(mem_->device_.time_at_dest_, kInvalid);
     mem_->host_.reset(kInvalid);
   }
 
   void next_start_time() {
-    utl::fill(mem_->device_.best_, kInvalid);
-    utl::fill(mem_->device_.tmp_, kInvalid);
-    for (int s = 0; s< mem_->device_.size_station_mark_;++s){
-      mem_->device_.station_mark_[s] = false;
-    }
-    for (int s = 0; s< mem_->device_.size_route_mark_;++s){
-      mem_->device_.route_mark_[s] = false;
-    }
-    if constexpr (Rt) {
-      //utl::fill(state_.rt_transport_mark_, false);
-    }//TODO if we want rt
+    std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
+    std::vector<gpu_delta_t> tmp_new(mem_->device_.size_tmp_,kInvalid);
+    bool copy_array_station[mem_->device_.size_station_mark_];
+    std::fill(std::begin(copy_array_station), std::end(copy_array_station), false);
+    bool copy_array_route[mem_->device_.size_route_mark_];
+    std::fill(std::begin(copy_array_route), std::end(copy_array_route), false);
+    cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(mem_->device_.tmp_, tmp_new.data(), mem_->device_.size_tmp_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(mem_->device_.prev_station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
+    cudaMemcpy(mem_->device_.station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
+    cudaMemcpy(mem_->device_.route_mark_, copy_array_route, mem_->device_.size_route_mark_*sizeof(bool), cudaMemcpyHostToDevice);
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
-    cudaDeviceSynchronize();
-    std::vector<gpu_delta_t> best_new;
-    best_new.resize(mem_->device_.size_best_*sizeof(gpu_delta_t));
-    std::vector<gpu_delta_t> round_times_new;
-    best_new.resize(mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_*sizeof(gpu_delta_t));
-    for (int i = 0; i<best_new.size();i++){
-        if(i != to_idx(l).v_){
-          best_new[i] = kInvalid;
-        }else{
-          best_new[i] = unix_to_gpu_delta(base(), t);
-        }
-    }
-    for (int i = 0; i<round_times_new.size();i++){
-      if(i != 0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))){
-        round_times_new[i] = kInvalid;
-      }else{
-        round_times_new[i] = unix_to_gpu_delta(base(), t);
-      }
-    }
-    cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice)
-    //TODO:keinen SINN, RÜBER KOPIEREN!!
-    mem_->device_.best_[to_idx(l).v_] = unix_to_gpu_delta(base(), t);
-    //nur device oder auch host ??? also round_times
-    mem_->device_.round_times_[0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))] = unix_to_gpu_delta(base(), t);
-    mem_->device_.station_mark_[to_idx(l).v_] = true;
+    trace_upd("adding start {}: {}\n", location{tt_, l}, t);
+    std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
+    std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
+    best_new[to_idx(l).v_] = unix_to_gpu_delta(base(), t);
+    round_times_new[0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))] = unix_to_gpu_delta(base(), t);
+    bool copy_array[mem_->device_.size_station_mark_];
+    std::fill(std::begin(copy_array), std::end(copy_array), false);
+    copy_array[to_idx(l).v_] = true;
+    cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(mem_->host_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(mem_->device_.station_mark_, copy_array, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
   }
 
 
