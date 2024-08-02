@@ -167,6 +167,7 @@ loaned_mem::~loaned_mem() {
 void device_memory::print(const gpu_timetable& gtt, date::sys_days sys_days, gpu_delta_t invalid) {
   auto const has_empty_rounds = [&](std::uint32_t const l) {
     for (auto k = 0U; k != row_count_round_times_; ++k) {
+      //TODO SO GREIFT MAN AUF ROUND_TIMES ZU
       if (round_times_[k*row_count_round_times_+l] != invalid) {
         return false;
       }

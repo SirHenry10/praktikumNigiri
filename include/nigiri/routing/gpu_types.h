@@ -92,6 +92,11 @@ __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
       std::clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
                  static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
 }
+
+__host__ __device__ inline gpu_delta_t unix_to_gpu_delta(date::sys_days const base, gpu_unixtime_t const t) {
+  return gpu_clamp(
+      (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
+}
 #endif
 template <gpu_direction SearchDir>
 inline constexpr auto const kInvalidGpuDelta =

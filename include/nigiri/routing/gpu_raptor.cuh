@@ -119,6 +119,20 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   nigiri::pareto_set<nigiri::routing::journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr);
 
+template<gpu_direction SearchDir>
+__host__ __device__ static bool is_better(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a < b : a > b; }
+template<gpu_direction SearchDir>
+__host__ __device__ static bool is_better_or_eq(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a <= b : a >= b; }
+__host__ __device__ static auto get_best(auto a, auto b) { return is_better(a, b) ? a : b; }
+__host__ __device__ static auto get_best(auto x, auto... y) {
+  ((x = get_best(x, y)), ...);
+  return x;
+}
+__host__ __device__ int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
+__host__ __device__ date::sys_days base(gpu_timetable* const gtt, gpu_day_idx_t* base) {
+  return gtt->gpu_internal_interval_days().from_ + as_int(*base) * date::days{1};
+}
+
 template <gpu_direction SearchDir, bool Rt>
 struct gpu_raptor {
   using algo_stats_t = raptor_stats;
@@ -132,13 +146,7 @@ struct gpu_raptor {
   static constexpr auto const kIntermodalTarget =
       to_idx(get_special_station(nigiri::special_station::kEnd));
 
-  __host__ __device__ static bool is_better(auto a, auto b) { return kFwd ? a < b : a > b; }
-  __host__ __device__ static bool is_better_or_eq(auto a, auto b) { return kFwd ? a <= b : a >= b; }
-  __host__ __device__ static auto get_best(auto a, auto b) { return is_better(a, b) ? a : b; }
-  __host__ __device__ static auto get_best(auto x, auto... y) {
-    ((x = get_best(x, y)), ...);
-    return x;
-  }
+
   __host__ __device__ static auto dir(auto a) { return (kFwd ? 1 : -1) * a; }
   gpu_raptor(gpu_timetable const* gtt,
          nigiri::rt_timetable const* rtt,
@@ -180,6 +188,7 @@ struct gpu_raptor {
   }
 
   void reset_arrivals() {
+    utl::fill(mem_->device_.time_at_dest_, kInvalid);
     mem_->host_.reset(kInvalid);
   }
 
@@ -231,11 +240,6 @@ void execute(gpu_unixtime_t const start_time,
   void reconstruct(nigiri::routing::query const& q, nigiri::routing::journey& j) {
     // reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
   }
-  date::sys_days base() const {
-    return gtt_->gpu_internal_interval_days().from_ + as_int(base_) * date::days{1};
-  }
-
-  int as_int(gpu_day_idx_t const d) const { return static_cast<int>(d.v_); }
 
   template <typename T>
   auto get_begin_it(T const& t) {
