@@ -26,17 +26,17 @@ struct gpu_strong : public cista::strong<T, Tag> {
 using gpu_delta_t = int16_t;
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_location_idx_t = gpu_strong<std::uint32_t, struct _location_idx>;
-using gpu_value_type = gpu_location_idx_t::value_t;
+//using gpu_value_type = gpu_location_idx_t::value_t;
 using gpu_bitfield_idx_t = gpu_strong<std::uint32_t, struct _bitfield_idx>;
 using gpu_route_idx_t = gpu_strong<std::uint32_t, struct _route_idx>;
-using gpu_section_idx_t = gpu_strong<std::uint32_t, struct _section_idx>;
-using gpu_section_db_idx_t = gpu_strong<std::uint32_t, struct _section_db_idx>;
-using gpu_trip_idx_t = gpu_strong<std::uint32_t, struct _trip_idx>;
-using gpu_trip_id_idx_t = gpu_strong<std::uint32_t, struct _trip_id_str_idx>;
+//using gpu_section_idx_t = gpu_strong<std::uint32_t, struct _section_idx>;
+//using gpu_section_db_idx_t = gpu_strong<std::uint32_t, struct _section_db_idx>;
+//using gpu_trip_idx_t = gpu_strong<std::uint32_t, struct _trip_idx>;
+//using gpu_trip_id_idx_t = gpu_strong<std::uint32_t, struct _trip_id_str_idx>;
 using gpu_transport_idx_t = gpu_strong<std::uint32_t, struct _transport_idx>;
-using gpu_source_idx_t = gpu_strong<std::uint16_t, struct _source_idx>;
+//using gpu_source_idx_t = gpu_strong<std::uint16_t, struct _source_idx>;
 using gpu_day_idx_t = gpu_strong<std::uint16_t, struct _day_idx>;
-using gpu_timezone_idx_t = gpu_strong<std::uint16_t, struct _timezone_idx>;
+//using gpu_timezone_idx_t = gpu_strong<std::uint16_t, struct _timezone_idx>;
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_profile_idx_t = std::uint8_t;
 

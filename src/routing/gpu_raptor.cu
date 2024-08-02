@@ -201,11 +201,11 @@ __device__ bool update_route(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ gpu_transport get_earliest_transport(unsigned const k,
-                                       route_idx_t const r,
-                                       stop_idx_t const stop_idx,
-                                       day_idx_t const day_at_stop,
+                                       gpu_route_idx_t const r,
+                                       gpu_stop_idx_t const stop_idx,
+                                       gpu_day_idx_t const day_at_stop,
                                        minutes_after_midnight_t const mam_at_stop,
-                                       location_idx_t const l,
+                                       gpu_location_idx_t const l,
                                        gpu_raptor<SearchDir,Rt>& gr){
   ++gr.stats_.n_earliest_trip_calls_;
   auto const n_days_to_iterate = std::min(nigiri::routing::kMaxTravelTime.count()/1440 +1,
