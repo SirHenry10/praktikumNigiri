@@ -39,11 +39,14 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::size_t is_dest_size,
                      std::vector<std::uint16_t> const& lb,
                      gpu_direction & search_dir,
+                     int n_days,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
                      gpu_day_idx_t* & base_,
                      bool* & is_dest_,
-                     std::uint16_t* & lb_,gpu_direction* & search_dir_){
+                     std::uint16_t* & lb_,
+                     gpu_direction* & search_dir_,
+                     int* & n_days_){
   cudaError_t code;
   allowed_claszes_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t,allowed_claszes_,&allowed_claszes,1);
@@ -57,6 +60,8 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
   CUDA_COPY_TO_DEVICE(std::uint16_t ,lb_,lb.data(),lb.size());
   search_dir_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_direction,search_dir_,&search_dir,1);
+  n_days_ = nullptr;
+  CUDA_COPY_TO_DEVICE(int,n_days_,&n_days,1);
 fail:
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
@@ -145,14 +150,11 @@ struct gpu_raptor {
          gpu_clasz_mask_t const allowed_claszes)
       : gtt_{gtt},
         rtt_{rtt},
-        state_{state},
-        n_days_{gtt_->gpu_internal_interval_days().size().count()}
+        state_{state}
         {
     state_.init(*gtt_,kInvalid);
     loaned_mem loan(state_,kInvalid);
     mem_ = loan.mem_;
-    //state_.round_times_.reset(kInvalid);
-    allowed_claszes_ = nullptr;
     bool copy_array[is_dest.size()];
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
@@ -163,14 +165,17 @@ struct gpu_raptor {
                     copy_array,
                     is_dest.size(),
                     lb,
+                    gtt_->gpu_internal_interval_days().size().count(),
                     allowed_claszes_,
                     dist_to_end_,
                     base_,
                     is_dest_,
-                    lb_);
+                    lb_,
+                    n_days_);
   }
   //TODO: BUILD DESTRUKTOR TO DESTORY mallocs
   algo_stats_t get_stats() const {
+    //TODO:
     return stats_;
   }
 
@@ -194,6 +199,26 @@ struct gpu_raptor {
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
+    cudaDeviceSynchronize();
+    std::vector<gpu_delta_t> best_new;
+    best_new.resize(mem_->device_.size_best_*sizeof(gpu_delta_t));
+    std::vector<gpu_delta_t> round_times_new;
+    best_new.resize(mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_*sizeof(gpu_delta_t));
+    for (int i = 0; i<best_new.size();i++){
+        if(i != to_idx(l).v_){
+          best_new[i] = kInvalid;
+        }else{
+          best_new[i] = unix_to_gpu_delta(base(), t);
+        }
+    }
+    for (int i = 0; i<round_times_new.size();i++){
+      if(i != 0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))){
+        round_times_new[i] = kInvalid;
+      }else{
+        round_times_new[i] = unix_to_gpu_delta(base(), t);
+      }
+    }
+    cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice)
     //TODO:keinen SINN, RÜBER KOPIEREN!!
     mem_->device_.best_[to_idx(l).v_] = unix_to_gpu_delta(base(), t);
     //nur device oder auch host ??? also round_times
@@ -254,7 +279,7 @@ void execute(gpu_unixtime_t const start_time,
   uint16_t* lb_;
   gpu_direction* search_dir_;
   gpu_day_idx_t* base_;
-  int n_days_;
+  int* n_days_;
   raptor_stats stats_;
   uint32_t n_rt_transports_;
   gpu_clasz_mask_t* allowed_claszes_;

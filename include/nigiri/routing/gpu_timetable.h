@@ -5,9 +5,11 @@
 #include "cista/containers/vecvec.h"
 #include "date/date.h"
 #include "cista/strong.h"
+#include "nigiri/common/interval.h"
 #include "gpu_types.h"
 #include <span>
-
+template <typename T>
+using interval = nigiri::interval<T>;
 template <typename K, typename V, typename SizeType = cista::base_t<K>>
 using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 extern "C" {
@@ -18,6 +20,10 @@ extern "C" {
     gpu_vecvec<gpu_location_idx_t,gpu_route_idx_t,unsigned int>* location_routes_ {nullptr};
     std::uint32_t* n_locations_{nullptr};
     std::uint32_t* n_routes_{nullptr};
+    gpu_vector_map<gpu_route_idx_t,interval<std::uint32_t>>* route_stop_time_ranges_{nullptr};
+    gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >>* route_transport_ranges_{nullptr};
+    gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>* bitfields_{nullptr};
+    gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>* transport_traffic_days_{nullptr};
     /*
     route_idx_t* route_stop_time_ranges_keys {nullptr};
     interval<std::uint32_t>* route_stop_time_ranges_values {nullptr};
@@ -80,7 +86,13 @@ extern "C" {
                                              std::uint32_t n_route_stop_times,
                                              gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq, // Route -> list_of_stops
                                              gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes, // location -> Route
-                                             std::uint32_t const* n_locations
+                                             std::uint32_t const* n_locations,
+                                             std::uint32_t const* n_routes,
+                                             gpu_vector_map<gpu_route_idx_t,interval<std::uint32_t>> const* route_stop_time_ranges,
+                                             gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >> const* route_transport_ranges,
+                                             gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
+                                             gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days
+
                                              /*,
                                              route_idx_t* location_routes,
                                              std::uint32_t n_locations,

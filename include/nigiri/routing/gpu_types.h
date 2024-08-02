@@ -49,6 +49,10 @@ using gpu_route_idx_t = gpu_strong<std::uint32_t, struct _route_idx>;
 using gpu_transport_idx_t = gpu_strong<std::uint32_t, struct _transport_idx>;
 //using gpu_source_idx_t = gpu_strong<std::uint16_t, struct _source_idx>;
 using gpu_day_idx_t = gpu_strong<std::uint16_t, struct _day_idx>;
+template <size_t Size>
+using bitset = cista::bitset<Size>;
+constexpr auto const kMaxDays = 512;
+using gpu_bitfield = bitset<kMaxDays>;
 //using gpu_timezone_idx_t = gpu_strong<std::uint16_t, struct _timezone_idx>;
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_profile_idx_t = std::uint8_t;
@@ -859,7 +863,7 @@ struct gpu_basic_vector {
     return r;
   }
 
-  T* erase(T* first, T* last) {
+  __host__ __device__ T* erase(T* first, T* last) {
     if (first != last) {
       auto const new_end = std::move(last, end(), first);
       for (auto it = new_end; it != end(); ++it) {
@@ -870,45 +874,45 @@ struct gpu_basic_vector {
     return end();
   }
 
-  bool contains(T const* el) const noexcept {
+  __host__ __device__ bool contains(T const* el) const noexcept {
     return el >= begin() && el < end();
   }
 
-  std::size_t index_of(T const* el) const noexcept {
+  __host__ __device__ std::size_t index_of(T const* el) const noexcept {
     assert(contains(el));
     return std::distance(begin(), el);
   }
 
-  friend bool operator==(gpu_basic_vector const& a,
+  __host__ __device__ friend bool operator==(gpu_basic_vector const& a,
                          gpu_basic_vector const& b) noexcept {
     return std::equal(a.begin(), a.end(), b.begin(), b.end());
   }
-  friend bool operator!=(gpu_basic_vector const& a,
+  __host__ __device__ friend bool operator!=(gpu_basic_vector const& a,
                          gpu_basic_vector const& b) noexcept {
     return !(a == b);
   }
-  friend bool operator<(gpu_basic_vector const& a, gpu_basic_vector const& b) {
+  __host__ __device__ friend bool operator<(gpu_basic_vector const& a, gpu_basic_vector const& b) {
     return std::lexicographical_compare(a.begin(), a.end(), b.begin(), b.end());
   }
-  friend bool operator>(gpu_basic_vector const& a, gpu_basic_vector const& b) noexcept {
+  __host__ __device__ friend bool operator>(gpu_basic_vector const& a, gpu_basic_vector const& b) noexcept {
     return b < a;
   }
-  friend bool operator<=(gpu_basic_vector const& a,
+  __host__ __device__ friend bool operator<=(gpu_basic_vector const& a,
                          gpu_basic_vector const& b) noexcept {
     return !(a > b);
   }
-  friend bool operator>=(gpu_basic_vector const& a,
+  __host__ __device__ friend bool operator>=(gpu_basic_vector const& a,
                          gpu_basic_vector const& b) noexcept {
     return !(a < b);
   }
 
-  void reset() noexcept {
+  __host__ __device__ void reset() noexcept {
     el_ = nullptr;
     used_size_ = {};
     allocated_size_ = {};
     self_allocated_ = false;
   }
-
+#endif
   Ptr<T> el_{nullptr};
   size_type used_size_{0U};
   size_type allocated_size_{0U};
@@ -920,141 +924,13 @@ struct gpu_basic_vector {
 
 namespace raw {
 
-template <typename T>
-using vector = gpu_basic_vector<T, ptr>;
-
-template <typename T>
-using indexed_vector = gpu_basic_vector<T, ptr, true>;
-
 template <typename Key, typename Value>
-using vector_map = gpu_basic_vector<Value, ptr, false, Key>;
-
-template <typename It, typename UnaryOperation>
-auto to_vec(It s, It e, UnaryOperation&& op)
-    -> vector<decay_t<decltype(op(*s))>> {
-  vector<decay_t<decltype(op(*s))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(std::distance(s, e)));
-  std::transform(s, e, std::back_inserter(v), op);
-  return v;
-}
-
-template <typename Container, typename UnaryOperation>
-auto to_vec(Container const& c, UnaryOperation&& op)
-    -> vector<decltype(op(*std::begin(c)))> {
-  vector<decltype(op(*std::begin(c)))> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(
-      std::distance(std::begin(c), std::end(c))));
-  std::transform(std::begin(c), std::end(c), std::back_inserter(v), op);
-  return v;
-}
-
-template <typename Container>
-auto to_vec(Container const& c) -> vector<decay_t<decltype(*std::begin(c))>> {
-  vector<decay_t<decltype(*std::begin(c))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(
-      std::distance(std::begin(c), std::end(c))));
-  std::copy(std::begin(c), std::end(c), std::back_inserter(v));
-  return v;
-}
-template <typename It, typename UnaryOperation>
-auto to_indexed_vec(It s, It e, UnaryOperation&& op)
-    -> indexed_vector<decay_t<decltype(op(*s))>> {
-  indexed_vector<decay_t<decltype(op(*s))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(std::distance(s, e)));
-  std::transform(s, e, std::back_inserter(v), op);
-  return v;
-}
-
-template <typename Container, typename UnaryOperation>
-auto to_indexed_vec(Container const& c, UnaryOperation&& op)
-    -> indexed_vector<decay_t<decltype(op(*std::begin(c)))>> {
-  indexed_vector<decay_t<decltype(op(*std::begin(c)))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(
-      std::distance(std::begin(c), std::end(c))));
-  std::transform(std::begin(c), std::end(c), std::back_inserter(v), op);
-  return v;
-}
-
-template <typename Container>
-auto to_indexed_vec(Container const& c)
-    -> indexed_vector<decay_t<decltype(*std::begin(c))>> {
-  indexed_vector<decay_t<decltype(*std::begin(c))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(
-      std::distance(std::begin(c), std::end(c))));
-  std::copy(std::begin(c), std::end(c), std::back_inserter(v));
-  return v;
-}
+using gpu_vector_map = gpu_basic_vector<Value, ptr, false, Key>;
 
 }  // namespace raw
-
-namespace offset {
-
-template <typename T>
-using vector = gpu_basic_vector<T, ptr>;
-
-template <typename T>
-using indexed_vector = gpu_basic_vector<T, ptr, true>;
-
-template <typename Key, typename Value>
-using vector_map = gpu_basic_vector<Value, ptr, false, Key>;
-
-template <typename It, typename UnaryOperation>
-auto to_vec(It s, It e, UnaryOperation&& op)
-    -> vector<decay_t<decltype(op(*s))>> {
-  vector<decay_t<decltype(op(*s))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(std::distance(s, e)));
-  std::transform(s, e, std::back_inserter(v), op);
-  return v;
-}
-
-template <typename Container, typename UnaryOperation>
-auto to_vec(Container&& c, UnaryOperation&& op)
-    -> vector<decltype(op(*std::begin(c)))> {
-  vector<decltype(op(*std::begin(c)))> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(c.size()));
-  std::transform(std::begin(c), std::end(c), std::back_inserter(v), op);
-  return v;
-}
-
-template <typename Container>
-auto to_vec(Container&& c) -> vector<decay_t<decltype(*std::begin(c))>> {
-  vector<decay_t<decltype(*std::begin(c))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(
-      std::distance(std::begin(c), std::end(c))));
-  std::copy(std::begin(c), std::end(c), std::back_inserter(v));
-  return v;
-}
-template <typename It, typename UnaryOperation>
-auto to_indexed_vec(It s, It e, UnaryOperation&& op)
-    -> indexed_vector<decay_t<decltype(op(*s))>> {
-  indexed_vector<decay_t<decltype(op(*s))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(std::distance(s, e)));
-  std::transform(s, e, std::back_inserter(v), op);
-  return v;
-}
-
-template <typename Container, typename UnaryOperation>
-auto to_indexed_vec(Container const& c, UnaryOperation&& op)
-    -> indexed_vector<decay_t<decltype(op(*std::begin(c)))>> {
-  indexed_vector<decay_t<decltype(op(*std::begin(c)))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(
-      std::distance(std::begin(c), std::end(c))));
-  std::transform(std::begin(c), std::end(c), std::back_inserter(v), op);
-  return v;
-}
-
-template <typename Container>
-auto to_indexed_vec(Container const& c)
-    -> indexed_vector<decay_t<decltype(*std::begin(c))>> {
-  indexed_vector<decay_t<decltype(*std::begin(c))>> v;
-  v.reserve(static_cast<typename decltype(v)::size_type>(
-      std::distance(std::begin(c), std::end(c))));
-  std::copy(std::begin(c), std::end(c), std::back_inserter(v));
-  return v;
-}
-
-}  // namespace offset
-
 #undef CISTA_TO_VEC
 
 }  // namespace cista
+
+template <typename K, typename V>
+using gpu_vector_map = cista::raw::vector_map<K, V>;
