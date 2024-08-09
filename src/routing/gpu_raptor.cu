@@ -85,7 +85,8 @@ void reconstruct(nigiri::routing::query const& q, nigiri::routing::journey& j){
 template <gpu_direction SearchDir, bool Rt, bool WithClaszFilter>
 __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
                             gpu_timetable* gtt_, uint32_t* route_mark_,
-                            gpu_clasz_mask_t* allowed_claszes_, raptor_stats* stats_){
+                            gpu_clasz_mask_t* allowed_claszes_, raptor_stats* stats_,
+                            short* kMaxTravelTimeTicks_){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
 
@@ -241,9 +242,9 @@ __device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_
                                                 gpu_location_idx_t const l,
                                                 int n_days_, gpu_timetable* gtt_,
                                                 gpu_direction search_dir_,
-                                                raptor_stats* stats_){
+                                                raptor_stats* stats_, short* kMaxTravelTimeTicks_){
   ++stats_[l.v_>>5].n_earliest_trip_calls_;
-  auto const n_days_to_iterate = std::min(nigiri::routing::kMaxTravelTime.count()/1440 +1,
+  auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
                                           (SearchDir == gpu_direction::kForward) ?
                                            n_days_ - as_int(day_at_stop) : as_int(day_at_stop)+1);
   auto const event_times =
@@ -297,7 +298,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                              uint32_t column_count_round_times_,
                              uint32_t size_route_mark_, uint32_t size_station_mark_,
                              gpu_location_idx_t* gpu_kIntermodalTarget,
-                             raptor_stats stats_){
+                             raptor_stats stats_, short* kMaxTravelTimeTicks_){
 
   // update_time_at_dest für alle locations
   auto const global_t_id = get_global_thread_id();
@@ -351,7 +352,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     for(int i = 0; i<size_route_mark_; i++){
       route_mark_[i] = 0xFFFF;
     }
-    // swap TODO mit mark machen
+    // swap
     uint32_t const size = size_station_mark_;
     uint32_t dummy_marks[size];
     for(int i=0; i<size_station_mark_; i++){
@@ -411,7 +412,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   nigiri::pareto_set<nigiri::routing::journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr){
   auto const end_k =
-      std::min(max_transfers, nigiri::routing::kMaxTransfers) + 1U;
+      get_smaller(max_transfers, nigiri::routing::kMaxTransfers) + 1U;
   // 1. Initialisierung
   gpu_delta_t d_worst_at_dest{};
   init_arrivals<SearchDir, Rt>(d_worst_at_dest, worst_time_at_dest, gr.base_,
@@ -434,7 +435,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                  gr.mem_->device_.column_count_round_times_,
                  gr.mem_->device_.size_route_mark_,
                  gr.mem_->device_.size_station_mark_,
-                 gr.kIntermodalTarget, gr.stats_);
+                 gr.kIntermodalTarget, gr.stats_, gr.kMaxTravelTimeTicks_);
     this_grid().sync();
   }
   this_grid().sync();
