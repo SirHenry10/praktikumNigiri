@@ -84,6 +84,22 @@ using gpu_stop_idx_t = std::uint16_t;
 using i16_minutes = std::chrono::duration<std::int16_t, std::ratio<60>>;
 using duration_t = i16_minutes;
 using gpu_minutes_after_midnight_t = duration_t;
+enum class gpu_clasz : std::uint8_t {
+  kAir = 0,
+  kHighSpeed = 1,
+  kLongDistance = 2,
+  kCoach = 3,
+  kNight = 4,
+  kRegionalFast = 5,
+  kRegional = 6,
+  kMetro = 7,
+  kSubway = 8,
+  kTram = 9,
+  kBus = 10,
+  kShip = 11,
+  kOther = 12,
+  kNumClasses
+};
 using gpu_days = std::chrono::duration
     <int, date::detail::ratio_multiply<std::ratio<24>, std::chrono::hours::period>>;
 

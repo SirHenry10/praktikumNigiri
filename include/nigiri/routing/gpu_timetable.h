@@ -24,6 +24,7 @@ extern "C" {
     gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>* transport_traffic_days_{nullptr};
     gpu_interval<date::sys_days>* date_range_{nullptr};
     gpu_locations* locations_{nullptr};
+    gpu_vector_map<gpu_route_idx_t, gpu_clasz>* route_clasz_{nullptr};
 #ifdef NIGIRI_CUDA
     __host__ __device__ std::span<gpu_delta const> event_times_at_stop(gpu_route_idx_t const r,
                                                gpu_stop_idx_t const stop_idx,
@@ -56,6 +57,7 @@ extern "C" {
                                              gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
                                              gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
                                              gpu_interval<date::sys_days> const* date_range,
-                                             gpu_locations const* locations);
+                                             gpu_locations const* locations,
+                                             gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz);
   void destroy_gpu_timetable(gpu_timetable* &gtt);
 }  // extern "C"
