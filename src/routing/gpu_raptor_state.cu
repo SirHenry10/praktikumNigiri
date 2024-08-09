@@ -1,5 +1,6 @@
 #pragma once
 
+#include "nigiri/location.h"
 #include "nigiri/routing/gpu_raptor_state.cuh"
 #include "fmt/base.h"
 
@@ -47,25 +48,29 @@ void device_context::destroy() {
 }
 
 // Attribute, die von Host benötigt werden
-host_memory::host_memory(uint32_t row_count_round_times_,
-                         uint32_t column_count_round_times_) {
-  cudaMallocHost(
-      &round_times_,
-      row_count_round_times_ * column_count_round_times_ * sizeof(gpu_delta_t));
-}
+host_memory::host_memory(uint32_t row_count_round_times,
+                         uint32_t column_count_round_times
+                         ):row_count_round_times_{row_count_round_times},column_count_round_times_{column_count_round_times},
+round_times_{std::make_unique<gpu_delta_t>(row_count_round_times*column_count_round_times)},
+stats_{std::make_unique<raptor_stats>(32)}{}
 
 void host_memory::destroy() {
-  cudaFreeHost(round_times_);
   round_times_ = nullptr;
+  stats_ = nullptr;
 }
 void host_memory::reset(gpu_delta_t invalid) const {
+  auto rt = round_times_.get();
   for (auto k = 0U; k != row_count_round_times_; ++k) {
     for (auto l = 0U; l != column_count_round_times_; ++l) {
-      round_times_[k*row_count_round_times_+l] = invalid;
+      rt[k * row_count_round_times_ + l] = invalid;
     }
   }
+  auto s = stats_.get();
+  raptor_stats init = {};
+  for (auto i = 0U; i < 32; ++i) {
+    s[i] = init;
+  }
 }
-
 // Zuweisung von Speicherplatz an Attribute, die in devices verwendet werden
 device_memory::device_memory(uint32_t size_tmp,
                              uint32_t size_best,
@@ -120,7 +125,10 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemsetAsync(prev_station_mark_, 0, size_station_mark_*sizeof(uint32_t), s);
   cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(uint32_t), s);
   cudaMemsetAsync(any_station_marked_, 0, sizeof(bool), s);
-  cudaMemsetAsync(stats_, raptor_stats{}, 32*sizeof(raptor_stats), s);
+  raptor_stats init_value = {};
+  for (int i = 0; i < 32; ++i) {
+    cudaMemcpyAsync(&stats_[i], &init_value, sizeof(raptor_stats), cudaMemcpyHostToDevice, s);
+  }
   //additional_start_count_ = invalid<decltype(additional_start_count_)>;
 }
 
@@ -191,7 +199,7 @@ void device_memory::print(const gpu_timetable& gtt, date::sys_days sys_days, gpu
       continue;
     }
 
-    fmt::print("{:80}  ", location{gtt, location_idx_t{l}});
+    fmt::print("{:80}  ", nigiri::location{gtt, gpu_location_idx_t{l}});
 
     auto const b = best_[l];
     fmt::print("best=");

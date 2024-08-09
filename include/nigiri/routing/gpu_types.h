@@ -10,6 +10,7 @@
 #include "cista/reflection/printable.h"
 #include "cista/verify.h"
 #include "nigiri/footpath.h"
+#include "geo/latlng.h"
 
 template <typename T, typename Tag>
 struct gpu_strong : public cista::strong<T, Tag> {
@@ -27,8 +28,26 @@ struct gpu_strong : public cista::strong<T, Tag> {
   __host__ __device__ static constexpr gpu_strong invalid() {
     return gpu_strong{std::numeric_limits<T>::max()};
   }
+#else
+  gpu_strong() = default;
+  explicit constexpr gpu_strong(T const& v) noexcept(
+      std::is_nothrow_copy_constructible_v<T>)
+      : Base{v} {}
+  explicit constexpr gpu_strong(T&& v) noexcept(
+      std::is_nothrow_move_constructible_v<T>)
+      : Base{std::move(v)} {}
+  static constexpr gpu_strong invalid() {
+    return gpu_strong{std::numeric_limits<T>::max()};
+  }
 #endif
 
+    template <typename X>
+  #if _MSVC_LANG >= 202002L || __cplusplus >= 202002L
+      requires std::is_integral_v<std::decay_t<X>> &&
+               std::is_integral_v<std::decay_t<T>>
+  #endif
+  explicit constexpr gpu_strong(X&& x)
+        : Base{static_cast<T>(x)} {}
 };
 #ifdef NIGIRI_CUDA
 template <typename T, typename Tag>
@@ -1070,13 +1089,20 @@ template <typename V, std::size_t SIZE>
 using array = cista::raw::array<V, SIZE>;
 
 struct gpu_locations {
-  gpu_locations(gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> const& transfer_time,
-                array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>,nigiri::kMaxProfiles> const& footpaths_out,
-                array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>, nigiri::kMaxProfiles> const& footpaths_in
-                ):transfer_time_{transfer_time}, footpaths_out_{footpaths_out},footpaths_in_{footpaths_in}
-  {}
-  // Station access: external station id -> internal station idx
+  nigiri::hash_map<nigiri::location_id, gpu_location_idx_t> location_id_to_idx_;
+  nigiri::vecvec<gpu_location_idx_t, char> names_;
+  nigiri::vecvec<gpu_location_idx_t, char> ids_;
+  nigiri::vector_map<gpu_location_idx_t, geo::latlng> coordinates_;
+  nigiri::vector_map<gpu_location_idx_t, gpu_source_idx_t> src_;
   gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> transfer_time_;
+  nigiri::vector_map<gpu_location_idx_t, nigiri::location_type> types_;
+  nigiri::vector_map<gpu_location_idx_t, gpu_location_idx_t> parents_;
+  nigiri::vector_map<gpu_location_idx_t, gpu_timezone_idx_t> location_timezones_;
+  nigiri::mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> equivalences_;
+  nigiri::mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> children_;
+  nigiri::mutable_fws_multimap<gpu_location_idx_t, nigiri::footpath> preprocessing_footpaths_out_;
+  nigiri::mutable_fws_multimap<gpu_location_idx_t, nigiri::footpath> preprocessing_footpaths_in_;
   array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>, nigiri::kMaxProfiles> footpaths_out_;
   array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>, nigiri::kMaxProfiles> footpaths_in_;
+  nigiri::vector_map<gpu_timezone_idx_t, nigiri::timezone> timezones_;
 };
