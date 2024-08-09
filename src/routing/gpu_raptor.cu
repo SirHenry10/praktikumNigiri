@@ -240,7 +240,6 @@ __device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_
                                                 gpu_minutes_after_midnight_t const mam_at_stop,
                                                 gpu_location_idx_t const l,
                                                 int n_days_, gpu_timetable* gtt_,
-                                                gpu_direction search_dir_,
                                                 raptor_stats* stats_){
   ++stats_[l.v_>>5].n_earliest_trip_calls_;
   auto const n_days_to_iterate = std::min(nigiri::routing::kMaxTravelTime.count()/1440 +1,
@@ -250,8 +249,9 @@ __device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_
       gtt_->event_times_at_stop(r, stop_idx, (search_dir_ == gpu_direction::kForward) ?
                                               gpu_event_type::kDep : gpu_event_type::kArr);
   auto const seek_first_day = [&]() {
-    return linear_lb(get_begin_it<std::span<gpu_delta>, search_dir_>(event_times),
-        get_end_it<std::span<gpu_delta>, search_dir_>(event_times), mam_at_stop,
+    auto test23 = get_begin_it<SearchDir>(event_times);
+    return linear_lb(get_begin_it<const std::span<gpu_delta const>,search_dir_>(event_times),
+        get_end_it<std::span<gpu_delta const>, search_dir_>(event_times), mam_at_stop,
                      [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
                        return is_better<search_dir_, Rt>(a.mam_, b.count()); // anders mit gpu_delta umgehen
                      });

@@ -38,7 +38,6 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      bool* const& is_dest,
                      std::size_t is_dest_size,
                      std::vector<std::uint16_t> const& lb,
-                     gpu_direction const& search_dir,
                      int const& n_days,
                      std::uint16_t const& kUnreachable,
                      gpu_location_idx_t const* & kIntermodalTarget,
@@ -48,17 +47,16 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      gpu_day_idx_t* & base_,
                      bool* & is_dest_,
                      std::uint16_t* & lb_,
-                     gpu_direction* & search_dir_,
                      int* & n_days_,
                      std::uint16_t* & kUnreachable_,
                      gpu_location_idx_t* & kIntermodalTarget_){
   cudaError_t code;
+  auto dist_to_end_size = dist_to_dest.size();
   allowed_claszes_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t,allowed_claszes_,&allowed_claszes,1);
   dist_to_end_ = nullptr;
   CUDA_COPY_TO_DEVICE(std::uint16_t,dist_to_end_,dist_to_dest.data(),dist_to_dest.size());
   dist_to_end_size_ = nullptr;
-  auto dist_to_end_size = dist_to_dest.size();
   CUDA_COPY_TO_DEVICE(std::uint32_t,dist_to_end_size_,&dist_to_end_size_,1);
   base_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_day_idx_t,base_,&base,1);
@@ -66,8 +64,6 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
   CUDA_COPY_TO_DEVICE(bool,is_dest_,is_dest,is_dest_size);
   lb_ = nullptr;
   CUDA_COPY_TO_DEVICE(std::uint16_t ,lb_,lb.data(),lb.size());
-  search_dir_ = nullptr;
-  CUDA_COPY_TO_DEVICE(gpu_direction,search_dir_,&search_dir,1);
   n_days_ = nullptr;
   CUDA_COPY_TO_DEVICE(int,n_days_,&n_days,1);
   kUnreachable_ = nullptr;
@@ -77,10 +73,10 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
 fail:
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
+  cudaFree(dist_to_end_size_);
   cudaFree(base_);
   cudaFree(is_dest_);
   cudaFree(lb_);
-  cudaFree(search_dir_);
   cudaFree(n_days_);
   cudaFree(kUnreachable_);
   cudaFree(kIntermodalTarget_);
@@ -143,7 +139,7 @@ __host__ __device__ static auto dir(auto a) { return (SearchDir==gpu_direction::
 
 template <typename T, gpu_direction SearchDir>
 __host__ __device__ auto get_begin_it(T const& t) {
-  if constexpr ((SearchDir == gpu_direction::kForward)) {
+  if constexpr (SearchDir == gpu_direction::kForward) {
     return t.begin();
   } else {
     return t.rbegin();
@@ -199,7 +195,6 @@ struct gpu_raptor {
                     copy_array,
                     is_dest.size(),
                     lb,
-                    SearchDir,
                     gtt_->gpu_internal_interval_days().size().count(),
                     kUnreachable,
                     gpu_kIntermodalTarget,
@@ -209,7 +204,6 @@ struct gpu_raptor {
                     base_,
                     is_dest_,
                     lb_,
-                    search_dir_,
                     n_days_,
                     kUnreachable_,
                     kIntermodalTarget_);
@@ -283,7 +277,6 @@ void execute(gpu_unixtime_t const start_time,
   uint16_t* dist_to_end_;
   uint32_t* dist_to_end_size_;
   uint16_t* lb_;
-  gpu_direction* search_dir_;
   gpu_day_idx_t* base_;
   int* n_days_;
   raptor_stats stats_;
