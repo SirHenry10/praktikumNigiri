@@ -139,6 +139,24 @@ __host__ __device__ date::sys_days base(gpu_timetable const* gtt, gpu_day_idx_t*
 template<gpu_direction SearchDir>
 __host__ __device__ static auto dir(auto a) { return (SearchDir==gpu_direction::kForward ? 1 : -1) * a; }
 
+template <typename T, gpu_direction SearchDir>
+__host__ __device__ auto get_begin_it(T const& t) {
+  if constexpr ((SearchDir == gpu_direction::kForward)) {
+    return t.begin();
+  } else {
+    return t.rbegin();
+  }
+}
+
+template <typename T, gpu_direction SearchDir>
+__host__ __device__ auto get_end_it(T const& t) {
+  if constexpr ((SearchDir == gpu_direction::kForward)) {
+    return t.end();
+  } else {
+    return t.rend();
+  }
+}
+
 template <gpu_direction SearchDir, bool Rt>
 struct gpu_raptor {
   using algo_stats_t = raptor_stats;
@@ -251,24 +269,6 @@ void execute(gpu_unixtime_t const start_time,
 
   void reconstruct(nigiri::routing::query const& q, nigiri::routing::journey& j) {
     // reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
-  }
-
-  template <typename T>
-  auto get_begin_it(T const& t) {
-    if constexpr (kFwd) {
-      return t.begin();
-    } else {
-      return t.rbegin();
-    }
-  }
-
-  template <typename T>
-  auto get_end_it(T const& t) {
-    if constexpr (kFwd) {
-      return t.end();
-    } else {
-      return t.rend();
-    }
   }
 
   gpu_timetable const* gtt_{nullptr};
