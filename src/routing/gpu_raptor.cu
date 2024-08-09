@@ -192,7 +192,7 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
           continue;
         }
       }
-      ++stats_[idx>>5].n_earliest_arrival_updated_by_footpath_;
+      ++stats_[idx>>5].n_earliest_arrival_updated_by_footpath_; //
       round_times_[k * row_count_round_times_ + to_idx(fp.target())] = fp_target_time;
       best_[to_idx(fp.target())] = fp_target_time;
       mark(station_mark_, to_idx(fp.target()));

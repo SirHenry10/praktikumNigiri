@@ -263,7 +263,7 @@ void execute(gpu_unixtime_t const start_time,
   launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
   cuda_check();
   //TODO: copy result back
-  //TODO: ALLES LÖSCHEN!!!!!!!!!!!!!
+  //TODO: ALLES LÖSCHEN!!!!!!!!!!!
 }
 
 
