@@ -40,6 +40,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::vector<std::uint16_t> const& lb,
                      int const& n_days,
                      std::uint16_t const& kUnreachable,
+                     short const& kMaxTravelTimeTicks,
                      gpu_location_idx_t const* & kIntermodalTarget,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
@@ -49,7 +50,8 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & lb_,
                      int* & n_days_,
                      std::uint16_t* & kUnreachable_,
-                     gpu_location_idx_t* & kIntermodalTarget_){
+                     gpu_location_idx_t* & kIntermodalTarget_,
+                     short* & kMaxTravelTimeTicks_){
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
   allowed_claszes_ = nullptr;
@@ -70,6 +72,8 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
   CUDA_COPY_TO_DEVICE(std::uint16_t,kUnreachable_,&kUnreachable,1);
   kIntermodalTarget_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_location_idx_t,kIntermodalTarget_,kIntermodalTarget,1);
+  kMaxTravelTimeTicks_ = nullptr;
+  CUDA_COPY_TO_DEVICE(short,kMaxTravelTimeTicks_,&kMaxTravelTimeTicks,1);
 fail:
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
@@ -80,6 +84,7 @@ fail:
   cudaFree(n_days_);
   cudaFree(kUnreachable_);
   cudaFree(kIntermodalTarget_);
+  cudaFree(kMaxTravelTimeTicks_);
 };
 }//extern "C"
 
@@ -121,6 +126,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
 
 template<gpu_direction SearchDir>
 __host__ __device__ static bool is_better(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a < b : a > b; }
+__host__ __device__ static auto get_smaller(auto a, auto b) { return a < b ? a : b ;}
 template<gpu_direction SearchDir>
 __host__ __device__ static bool is_better_or_eq(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a <= b : a >= b; }
 __host__ __device__ static auto get_best(auto a, auto b) { return is_better(a, b) ? a : b; }
@@ -159,6 +165,7 @@ template <gpu_direction SearchDir, bool Rt>
 struct gpu_raptor {
   using algo_stats_t = raptor_stats;
 
+  static constexpr auto const kMaxTravelTimeTicks = nigiri::routing::kMaxTravelTime.count();
   static constexpr bool kUseLowerBounds = true;
   static constexpr auto const kFwd = (SearchDir == gpu_direction::kForward);
   static constexpr auto const kBwd = (SearchDir == gpu_direction::kBackward);
@@ -198,6 +205,7 @@ struct gpu_raptor {
                     gtt_->gpu_internal_interval_days().size().count(),
                     kUnreachable,
                     gpu_kIntermodalTarget,
+                    kMaxTravelTimeTicks,
                     allowed_claszes_,
                     dist_to_end_,
                     dist_to_end_size_,
@@ -206,7 +214,8 @@ struct gpu_raptor {
                     lb_,
                     n_days_,
                     kUnreachable_,
-                    kIntermodalTarget_);
+                    kIntermodalTarget_,
+                    kMaxTravelTimeTicks_);
   }
   //TODO: BUILD DESTRUKTOR TO DESTORY mallocs
   algo_stats_t get_stats() const {
@@ -284,4 +293,5 @@ void execute(gpu_unixtime_t const start_time,
   gpu_clasz_mask_t* allowed_claszes_;
   std::uint16_t* kUnreachable_;
   gpu_location_idx_t* kIntermodalTarget_;
+  short* kMaxTravelTimeTicks_;
 };
