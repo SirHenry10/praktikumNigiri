@@ -44,6 +44,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      gpu_location_idx_t const* & kIntermodalTarget,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
+                     std::uint32_t* & dist_to_end_size_,
                      gpu_day_idx_t* & base_,
                      bool* & is_dest_,
                      std::uint16_t* & lb_,
@@ -56,6 +57,9 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
   CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t,allowed_claszes_,&allowed_claszes,1);
   dist_to_end_ = nullptr;
   CUDA_COPY_TO_DEVICE(std::uint16_t,dist_to_end_,dist_to_dest.data(),dist_to_dest.size());
+  dist_to_end_size_ = nullptr;
+  auto dist_to_end_size = dist_to_dest.size();
+  CUDA_COPY_TO_DEVICE(std::uint32_t,dist_to_end_size_,&dist_to_end_size_,1);
   base_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_day_idx_t,base_,&base,1);
   is_dest_ = nullptr;
@@ -201,6 +205,7 @@ struct gpu_raptor {
                     gpu_kIntermodalTarget,
                     allowed_claszes_,
                     dist_to_end_,
+                    dist_to_end_size_,
                     base_,
                     is_dest_,
                     lb_,
@@ -276,6 +281,7 @@ void execute(gpu_unixtime_t const start_time,
   mem* mem_;
   bool* is_dest_;
   uint16_t* dist_to_end_;
+  uint32_t* dist_to_end_size_;
   uint16_t* lb_;
   gpu_direction* search_dir_;
   gpu_day_idx_t* base_;

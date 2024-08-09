@@ -1118,7 +1118,7 @@ struct gpu_locations {
   nigiri::mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> children_;
   nigiri::mutable_fws_multimap<gpu_location_idx_t, nigiri::footpath> preprocessing_footpaths_out_;
   nigiri::mutable_fws_multimap<gpu_location_idx_t, nigiri::footpath> preprocessing_footpaths_in_;
-  gpu_vecvec<gpu_location_idx_t, nigiri::footpath>* footpaths_out_;
-  gpu_vecvec<gpu_location_idx_t, nigiri::footpath>* footpaths_in_;
+  gpu_vecvec<gpu_location_idx_t, nigiri::footpath>* footpaths_out_; //nigiri::kMaxProfiles is the size
+  gpu_vecvec<gpu_location_idx_t, nigiri::footpath>* footpaths_in_;  //same here
   nigiri::vector_map<gpu_timezone_idx_t, nigiri::timezone> timezones_;
 };
