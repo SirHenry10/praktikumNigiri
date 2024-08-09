@@ -692,7 +692,7 @@ struct gpu_basic_vector {
     return el_[to_idx(index)];
   }
 
-  __host__ __device__ T& at(access_type const index) {
+  T& at(access_type const index) {
     if (index >= used_size_) {
       throw std::out_of_range{"vector::at(): invalid index"};
     }
@@ -856,7 +856,7 @@ struct gpu_basic_vector {
     used_size_ = 0;
   }
 
-  __host__ __device__ void reserve(size_type new_size) {
+  void reserve(size_type new_size) {
     new_size = std::max(allocated_size_, new_size);
 
     if (allocated_size_ >= new_size) {
