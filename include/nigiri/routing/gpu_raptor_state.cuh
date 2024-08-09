@@ -14,7 +14,33 @@ namespace std {
 class mutex;
 }
 
+struct raptor_stats {
+  __host__ __device__ raptor_stats(std::uint64_t const& n_routing_time = 0ULL,
+               std::uint64_t const& n_footpaths_visited = 0ULL,
+               std::uint64_t const& n_routes_visited = 0ULL,
+               std::uint64_t const &n_earliest_trip_calls = 0ULL,
+               std::uint64_t const& n_earliest_arrival_updated_by_route = 0ULL,
+               std::uint64_t const& n_earliest_arrival_updated_by_footpath = 0ULL,
+               std::uint64_t const& fp_update_prevented_by_lower_bound = 0ULL,
+               std::uint64_t const& route_update_prevented_by_lower_bound = 0ULL)
+      : n_routing_time_(n_routing_time),
+        n_footpaths_visited_(n_footpaths_visited),
+        n_routes_visited_(n_routes_visited),
+        n_earliest_trip_calls_(n_earliest_trip_calls),
+        n_earliest_arrival_updated_by_route_(n_earliest_arrival_updated_by_route),
+        n_earliest_arrival_updated_by_footpath_(n_earliest_arrival_updated_by_footpath),
+        fp_update_prevented_by_lower_bound_(fp_update_prevented_by_lower_bound),
+        route_update_prevented_by_lower_bound_(route_update_prevented_by_lower_bound) {}
 
+  std::uint64_t n_routing_time_{0ULL};
+  std::uint64_t n_footpaths_visited_{0ULL};
+  std::uint64_t n_routes_visited_{0ULL};
+  std::uint64_t n_earliest_trip_calls_{0ULL};
+  std::uint64_t n_earliest_arrival_updated_by_route_{0ULL};
+  std::uint64_t n_earliest_arrival_updated_by_footpath_{0ULL};
+  std::uint64_t fp_update_prevented_by_lower_bound_{0ULL};
+  std::uint64_t route_update_prevented_by_lower_bound_{0ULL};
+};
 using device_id = int32_t;
 
 std::pair<dim3, dim3> get_launch_parameters(cudaDeviceProp const& prop,
@@ -57,6 +83,7 @@ struct host_memory {
   void reset(gpu_delta_t invalid) const;
 
   gpu_delta_t* round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  raptor_stats* stats_;
   uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
 
@@ -95,7 +122,7 @@ struct device_memory {
   uint32_t* route_mark_{};
   bool* any_station_marked_{};
   uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_route_mark_{};
-  gpu_direction search_dir_{};
+  raptor_stats* stats_{};
 };
 
 struct mem {

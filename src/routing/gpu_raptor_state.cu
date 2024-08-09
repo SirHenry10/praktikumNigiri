@@ -94,6 +94,7 @@ device_memory::device_memory(uint32_t size_tmp,
   cudaMalloc(&prev_station_mark_, size_station_mark_ * sizeof(uint32_t));
   cudaMalloc(&route_mark_, size_route_mark_ * sizeof(uint32_t));
   cudaMalloc(&any_station_marked_, sizeof(bool));
+  cudaMalloc(&stats_,32*sizeof(raptor_stats));
   invalid_ = invalid;
   cuda_check();
   this->reset_async(nullptr);
@@ -107,6 +108,7 @@ void device_memory::destroy() {
   cudaFree(station_mark_);
   cudaFree(prev_station_mark_);
   cudaFree(route_mark_);
+  cudaFree(stats_);
 }
 
 void device_memory::reset_async(cudaStream_t s) {
@@ -118,6 +120,7 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemsetAsync(prev_station_mark_, 0, size_station_mark_*sizeof(uint32_t), s);
   cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(uint32_t), s);
   cudaMemsetAsync(any_station_marked_, 0, sizeof(bool), s);
+  cudaMemsetAsync(stats_, raptor_stats{}, 32*sizeof(raptor_stats), s);
   //additional_start_count_ = invalid<decltype(additional_start_count_)>;
 }
 

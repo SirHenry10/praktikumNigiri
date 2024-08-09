@@ -3,11 +3,13 @@
 #include <cassert>
 #include <type_traits>
 
+#include "cista/containers/bitset.h"
+#include "cista/containers/ptr.h"
 #include "cista/containers/vector.h"
-#include "cista/verify.h"
 #include "cista/reflection/comparable.h"
 #include "cista/reflection/printable.h"
-#include "cista/containers/bitset.h"
+#include "cista/verify.h"
+#include "nigiri/footpath.h"
 
 template <typename T, typename Tag>
 struct gpu_strong : public cista::strong<T, Tag> {
@@ -50,13 +52,13 @@ using gpu_route_idx_t = gpu_strong<std::uint32_t, struct _route_idx>;
 //using gpu_trip_idx_t = gpu_strong<std::uint32_t, struct _trip_idx>;
 //using gpu_trip_id_idx_t = gpu_strong<std::uint32_t, struct _trip_id_str_idx>;
 using gpu_transport_idx_t = gpu_strong<std::uint32_t, struct _transport_idx>;
-//using gpu_source_idx_t = gpu_strong<std::uint16_t, struct _source_idx>;
+using gpu_source_idx_t = gpu_strong<std::uint16_t, struct _source_idx>;
 using gpu_day_idx_t = gpu_strong<std::uint16_t, struct _day_idx>;
 template <size_t Size>
 using bitset = cista::bitset<Size>;
 constexpr auto const kMaxDays = 512;
 using gpu_bitfield = bitset<kMaxDays>;
-//using gpu_timezone_idx_t = gpu_strong<std::uint16_t, struct _timezone_idx>;
+using gpu_timezone_idx_t = gpu_strong<std::uint16_t, struct _timezone_idx>;
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_profile_idx_t = std::uint8_t;
 using gpu_stop_idx_t = std::uint16_t;
@@ -68,7 +70,16 @@ using gpu_days = std::chrono::duration
 
 enum class gpu_event_type { kArr, kDep };
 enum class gpu_direction { kForward, kBackward };
+
+using gpu_string = cista::raw::string;
+struct gpu_location_id {
+  CISTA_COMPARABLE()
+  CISTA_PRINTABLE(gpu_location_id, "id", "src")
+  gpu_string id_;
+  gpu_source_idx_t src_;
+};
 using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
+using gpu_u8_minutes = std::chrono::duration<std::uint8_t, std::ratio<60>>;
 using gpu_unixtime_t = std::chrono::sys_time<gpu_i32_minutes>;
 struct gpu_delta{
   std::uint16_t days_ : 5;
@@ -512,6 +523,9 @@ using gpu_vecvec = basic_gpu_vecvec<K, vector<V>, vector<SizeType>>;
 }  // namespace raw
 
 } //namespace cista
+
+template <typename K, typename V, typename SizeType = cista::base_t<K>>
+using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 
 struct gpu_transport {
   CISTA_FRIEND_COMPARABLE(gpu_transport)
@@ -1050,3 +1064,19 @@ struct fmt::formatter<nigiri::gpu_interval<T>> : ostream_formatter {};
 
 template <typename T>
 using gpu_interval = nigiri::gpu_interval<T>;
+
+
+template <typename V, std::size_t SIZE>
+using array = cista::raw::array<V, SIZE>;
+
+struct gpu_locations {
+  gpu_locations(gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> const& transfer_time,
+                array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>,nigiri::kMaxProfiles> const& footpaths_out,
+                array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>, nigiri::kMaxProfiles> const& footpaths_in
+                ):transfer_time_{transfer_time}, footpaths_out_{footpaths_out},footpaths_in_{footpaths_in}
+  {}
+  // Station access: external station id -> internal station idx
+  gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> transfer_time_;
+  array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>, nigiri::kMaxProfiles> footpaths_out_;
+  array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>, nigiri::kMaxProfiles> footpaths_in_;
+};

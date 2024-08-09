@@ -10,8 +10,6 @@
 #include <span>
 template <typename T>
 using interval = nigiri::interval<T>;
-template <typename K, typename V, typename SizeType = cista::base_t<K>>
-using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 extern "C" {
 
   struct gpu_timetable {
@@ -25,6 +23,7 @@ extern "C" {
     gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>* bitfields_{nullptr};
     gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>* transport_traffic_days_{nullptr};
     gpu_interval<date::sys_days>* date_range_{nullptr};
+    gpu_locations* locations_{nullptr};
 #ifdef NIGIRI_CUDA
     __host__ __device__ std::span<gpu_delta const> event_times_at_stop(gpu_route_idx_t const r,
                                                gpu_stop_idx_t const stop_idx,
@@ -56,6 +55,7 @@ extern "C" {
                                              gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                              gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
                                              gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
-                                             gpu_interval<date::sys_days> const* date_range);
+                                             gpu_interval<date::sys_days> const* date_range,
+                                             gpu_locations const* locations);
   void destroy_gpu_timetable(gpu_timetable* &gtt);
 }  // extern "C"
