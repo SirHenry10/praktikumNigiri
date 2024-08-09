@@ -559,9 +559,6 @@ using gpu_vecvec = basic_gpu_vecvec<K, vector<V>, vector<SizeType>>;
 
 } //namespace cista
 
-template <typename K, typename V, typename SizeType = cista::base_t<K>>
-using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
-
 struct gpu_transport {
   CISTA_FRIEND_COMPARABLE(gpu_transport)
   CISTA_PRINTABLE(gpu_transport, "idx", "day")
@@ -1101,6 +1098,9 @@ template <typename T>
 using gpu_interval = nigiri::gpu_interval<T>;
 
 
+template <typename K, typename V, typename SizeType = cista::base_t<K>>
+using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
+
 template <typename V, std::size_t SIZE>
 using array = cista::raw::array<V, SIZE>;
 
@@ -1118,7 +1118,7 @@ struct gpu_locations {
   nigiri::mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> children_;
   nigiri::mutable_fws_multimap<gpu_location_idx_t, nigiri::footpath> preprocessing_footpaths_out_;
   nigiri::mutable_fws_multimap<gpu_location_idx_t, nigiri::footpath> preprocessing_footpaths_in_;
-  array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>, nigiri::kMaxProfiles> footpaths_out_;
-  array<gpu_vecvec<gpu_location_idx_t, nigiri::footpath>, nigiri::kMaxProfiles> footpaths_in_;
+  gpu_vecvec<gpu_location_idx_t, nigiri::footpath>* footpaths_out_;
+  gpu_vecvec<gpu_location_idx_t, nigiri::footpath>* footpaths_in_;
   nigiri::vector_map<gpu_timezone_idx_t, nigiri::timezone> timezones_;
 };
