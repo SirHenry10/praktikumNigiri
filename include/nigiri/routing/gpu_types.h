@@ -9,46 +9,270 @@
 #include "cista/reflection/comparable.h"
 #include "cista/reflection/printable.h"
 #include "cista/verify.h"
-#include "nigiri/footpath.h"
+#include "cista/containers/string.h"
 #include "geo/latlng.h"
 
 template <typename T, typename Tag>
-struct gpu_strong : public cista::strong<T, Tag> {
-  using Base = cista::strong<T, Tag>;
-  using typename Base::value_t;
-
+struct gpu_strong {
+  using value_t = T;
 #ifdef NIGIRI_CUDA
   __host__ __device__ gpu_strong() = default;
-  __host__ __device__ explicit constexpr gpu_strong(T const& v) noexcept(
+  __host__ __device__ explicit gpu_strong(T const& v) noexcept(
       std::is_nothrow_copy_constructible_v<T>)
-      : Base{v} {}
-  __host__ __device__ explicit constexpr gpu_strong(T&& v) noexcept(
+      : v_{v} {}
+  __host__ __device__ explicit gpu_strong(T&& v) noexcept(
       std::is_nothrow_move_constructible_v<T>)
-      : Base{std::move(v)} {}
-  __host__ __device__ static constexpr gpu_strong invalid() {
+      : v_{std::move(v)} {}
+  template <typename X>
+#if _MSVC_LANG >= 202002L || __cplusplus >= 202002L
+    requires std::is_integral_v<std::decay_t<X>> &&
+             std::is_integral_v<std::decay_t<T>>
+#endif
+  explicit constexpr gpu_strong(X&& x) : v_{static_cast<T>(x)} {
+  }
+
+  __host__ __device__ gpu_strong(gpu_strong&& o) noexcept(
+      std::is_nothrow_move_constructible_v<T>) = default;
+  __host__ __device__ gpu_strong& operator=(gpu_strong&& o) noexcept(
+      std::is_nothrow_move_constructible_v<T>) = default;
+
+  __host__ __device__ gpu_strong(gpu_strong const& o) = default;
+  __host__ __device__ gpu_strong& operator=(gpu_strong const& o) = default;
+
+  __host__ __device__ static gpu_strong invalid() {
     return gpu_strong{std::numeric_limits<T>::max()};
   }
+
+  __host__ __device__ gpu_strong& operator++() {
+    ++v_;
+    return *this;
+  }
+
+  __host__ __device__ gpu_strong operator++(int) {
+    auto cpy = *this;
+    ++v_;
+    return cpy;
+  }
+
+  __host__ __device__ gpu_strong& operator--() {
+    --v_;
+    return *this;
+  }
+
+  __host__ __device__ const gpu_strong operator--(int) {
+    auto cpy = *this;
+    --v_;
+    return cpy;
+  }
+
+  __host__ __device__ gpu_strong operator+(gpu_strong const& s) const {
+    return gpu_strong{static_cast<value_t>(v_ + s.v_)};
+  }
+  __host__ __device__ gpu_strong operator-(gpu_strong const& s) const {
+    return gpu_strong{static_cast<value_t>(v_ - s.v_)};
+  }
+  __host__ __device__ gpu_strong operator*(gpu_strong const& s) const {
+    return gpu_strong{static_cast<value_t>(v_ * s.v_)};
+  }
+  __host__ __device__ gpu_strong operator/(gpu_strong const& s) const {
+    return gpu_strong{static_cast<value_t>(v_ / s.v_)};
+  }
+  __host__ __device__ gpu_strong operator+(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ + i)};
+  }
+  __host__ __device__ gpu_strong operator-(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ - i)};
+  }
+  __host__ __device__ gpu_strong operator*(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ * i)};
+  }
+  __host__ __device__ gpu_strong operator/(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ / i)};
+  }
+
+  __host__ __device__ gpu_strong& operator+=(T const& i) {
+    v_ += i;
+    return *this;
+  }
+  __host__ __device__ gpu_strong& operator-=(T const& i) {
+    v_ -= i;
+    return *this;
+  }
+
+  __host__ __device__ gpu_strong operator>>(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ >> i)};
+  }
+  __host__ __device__ gpu_strong operator<<(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ << i)};
+  }
+  __host__ __device__ gpu_strong operator>>(gpu_strong const& o) const { return v_ >> o.v_; }
+  __host__ __device__ gpu_strong operator<<(gpu_strong const& o) const { return v_ << o.v_; }
+
+  __host__ __device__ gpu_strong& operator|=(gpu_strong const& o) {
+    v_ |= o.v_;
+    return *this;
+  }
+  __host__ __device__ gpu_strong& operator&=(gpu_strong const& o) {
+    v_ &= o.v_;
+    return *this;
+  }
+
+  __host__ __device__ bool operator==(gpu_strong const& o) const { return v_ == o.v_; }
+  __host__ __device__ bool operator!=(gpu_strong const& o) const { return v_ != o.v_; }
+  __host__ __device__ bool operator<=(gpu_strong const& o) const { return v_ <= o.v_; }
+  __host__ __device__ bool operator>=(gpu_strong const& o) const { return v_ >= o.v_; }
+  __host__ __device__ bool operator<(gpu_strong const& o) const { return v_ < o.v_; }
+  __host__ __device__ bool operator>(gpu_strong const& o) const { return v_ > o.v_; }
+
+  __host__ __device__ bool operator==(T const& o) const { return v_ == o; }
+  __host__ __device__ bool operator!=(T const& o) const { return v_ != o; }
+  __host__ __device__ bool operator<=(T const& o) const { return v_ <= o; }
+  __host__ __device__ bool operator>=(T const& o) const { return v_ >= o; }
+  __host__ __device__ bool operator<(T const& o) const { return v_ < o; }
+  __host__ __device__ bool operator>(T const& o) const { return v_ > o; }
+
+  __host__ __device__ explicit operator T const&() const& noexcept { return v_; }
+
+  __host__ __device__ friend std::ostream& operator<<(std::ostream& o, gpu_strong const& t) {
+    return o << t.v_;
+  }
+
 #else
-  gpu_strong() = default;
+  constexpr gpu_strong() = default;
   explicit constexpr gpu_strong(T const& v) noexcept(
       std::is_nothrow_copy_constructible_v<T>)
-      : Base{v} {}
+      : v_{v} {}
   explicit constexpr gpu_strong(T&& v) noexcept(
       std::is_nothrow_move_constructible_v<T>)
-      : Base{std::move(v)} {}
+      : v_{std::move(v)} {}
+  template <typename X>
+#if _MSVC_LANG >= 202002L || __cplusplus >= 202002L
+    requires std::is_integral_v<std::decay_t<X>> &&
+             std::is_integral_v<std::decay_t<T>>
+#endif
+  explicit constexpr gpu_strong(X&& x) : v_{static_cast<T>(x)} {
+  }
+
+  constexpr gpu_strong(gpu_strong&& o) noexcept(
+      std::is_nothrow_move_constructible_v<T>) = default;
+  constexpr gpu_strong& operator=(gpu_strong&& o) noexcept(
+      std::is_nothrow_move_constructible_v<T>) = default;
+
+  constexpr gpu_strong(gpu_strong const& o) = default;
+  constexpr gpu_strong& operator=(gpu_strong const& o) = default;
+
   static constexpr gpu_strong invalid() {
     return gpu_strong{std::numeric_limits<T>::max()};
   }
-#endif
 
-    template <typename X>
-  #if _MSVC_LANG >= 202002L || __cplusplus >= 202002L
-      requires std::is_integral_v<std::decay_t<X>> &&
-               std::is_integral_v<std::decay_t<T>>
-  #endif
-  explicit constexpr gpu_strong(X&& x)
-        : Base{static_cast<T>(x)} {}
+  constexpr gpu_strong& operator++() {
+    ++v_;
+    return *this;
+  }
+
+  constexpr gpu_strong operator++(int) {
+    auto cpy = *this;
+    ++v_;
+    return cpy;
+  }
+
+  constexpr gpu_strong& operator--() {
+    --v_;
+    return *this;
+  }
+
+  constexpr const gpu_strong operator--(int) {
+    auto cpy = *this;
+    --v_;
+    return cpy;
+  }
+
+  constexpr gpu_strong operator+(gpu_strong const& s) const {
+    return gpu_strong{static_cast<value_t>(v_ + s.v_)};
+  }
+  constexpr gpu_strong operator-(gpu_strong const& s) const {
+    return gpu_strong{static_cast<value_t>(v_ - s.v_)};
+  }
+  constexpr gpu_strong operator*(gpu_strong const& s) const {
+    return gpu_strong{static_cast<value_t>(v_ * s.v_)};
+  }
+  constexpr gpu_strong operator/(gpu_strong const& s) const {
+    return gpu_strong{static_cast<value_t>(v_ / s.v_)};
+  }
+  constexpr gpu_strong operator+(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ + i)};
+  }
+  constexpr gpu_strong operator-(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ - i)};
+  }
+  constexpr gpu_strong operator*(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ * i)};
+  }
+  constexpr gpu_strong operator/(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ / i)};
+  }
+
+  constexpr gpu_strong& operator+=(T const& i) {
+    v_ += i;
+    return *this;
+  }
+  constexpr gpu_strong& operator-=(T const& i) {
+    v_ -= i;
+    return *this;
+  }
+
+  constexpr gpu_strong operator>>(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ >> i)};
+  }
+  constexpr gpu_strong operator<<(T const& i) const {
+    return gpu_strong{static_cast<value_t>(v_ << i)};
+  }
+  constexpr gpu_strong operator>>(gpu_strong const& o) const { return v_ >> o.v_; }
+  constexpr gpu_strong operator<<(gpu_strong const& o) const { return v_ << o.v_; }
+
+  constexpr gpu_strong& operator|=(gpu_strong const& o) {
+    v_ |= o.v_;
+    return *this;
+  }
+  constexpr gpu_strong& operator&=(gpu_strong const& o) {
+    v_ &= o.v_;
+    return *this;
+  }
+
+  constexpr bool operator==(gpu_strong const& o) const { return v_ == o.v_; }
+  constexpr bool operator!=(gpu_strong const& o) const { return v_ != o.v_; }
+  constexpr bool operator<=(gpu_strong const& o) const { return v_ <= o.v_; }
+  constexpr bool operator>=(gpu_strong const& o) const { return v_ >= o.v_; }
+  constexpr bool operator<(gpu_strong const& o) const { return v_ < o.v_; }
+  constexpr bool operator>(gpu_strong const& o) const { return v_ > o.v_; }
+
+  constexpr bool operator==(T const& o) const { return v_ == o; }
+  constexpr bool operator!=(T const& o) const { return v_ != o; }
+  constexpr bool operator<=(T const& o) const { return v_ <= o; }
+  constexpr bool operator>=(T const& o) const { return v_ >= o; }
+  constexpr bool operator<(T const& o) const { return v_ < o; }
+  constexpr bool operator>(T const& o) const { return v_ > o; }
+
+  explicit operator T const&() const& noexcept { return v_; }
+
+  friend std::ostream& operator<<(std::ostream& o, gpu_strong const& t) {
+    return o << t.v_;
+  }
+#endif
+  T v_;
 };
+
+template <typename T>
+struct gpu_base_type {
+  using type = T;
+};
+template <typename T, typename Tag>
+struct gpu_base_type<gpu_strong<T, Tag>> {
+  using type = T;
+};
+template <typename T>
+using gpu_base_t = typename gpu_base_type<T>::type;
+
 #ifdef NIGIRI_CUDA
 template <typename T, typename Tag>
 __host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
@@ -100,13 +324,17 @@ enum class gpu_clasz : std::uint8_t {
   kOther = 12,
   kNumClasses
 };
-using gpu_days = std::chrono::duration
-    <int, date::detail::ratio_multiply<std::ratio<24>, std::chrono::hours::period>>;
+
+template <typename R1, typename R2>
+using gpu_ratio_multiply = decltype(std::ratio_multiply<R1, R2>{});
+using gpu_days = std::chrono::duration<int, gpu_ratio_multiply<std::ratio<24>, std::chrono::hours::period>>;
 
 enum class gpu_event_type { kArr, kDep };
 enum class gpu_direction { kForward, kBackward };
 
-using gpu_string = cista::raw::string;
+template <typename T>
+using ptr = T*;
+using gpu_string = cista::basic_string<ptr<char const>>;;
 struct gpu_location_id {
   CISTA_COMPARABLE()
   CISTA_PRINTABLE(gpu_location_id, "id", "src")
@@ -116,6 +344,9 @@ struct gpu_location_id {
 using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
 using gpu_u8_minutes = std::chrono::duration<std::uint8_t, std::ratio<60>>;
 using gpu_unixtime_t = std::chrono::sys_time<gpu_i32_minutes>;
+template <class Duration>
+using gpu_sys_time = std::chrono::time_point<std::chrono::system_clock, Duration>;
+using gpu_sys_days    = gpu_sys_time<gpu_days>;
 struct gpu_delta{
   std::uint16_t days_ : 5;
   std::uint16_t mam_ : 11;
@@ -145,7 +376,7 @@ __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
                  static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
 }
 
-__host__ __device__ inline gpu_delta_t unix_to_gpu_delta(date::sys_days const base, gpu_unixtime_t const t) {
+__host__ __device__ inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base, gpu_unixtime_t const t) {
   return gpu_clamp(
       (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
 }
@@ -154,7 +385,7 @@ template <gpu_direction SearchDir>
 inline constexpr auto const kInvalidGpuDelta =
     SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::min()
                                          : std::numeric_limits<gpu_delta_t>::max();
-inline gpu_unixtime_t gpu_delta_to_unix(date::sys_days const base, gpu_delta_t const d) {
+inline gpu_unixtime_t gpu_delta_to_unix(gpu_sys_days const base, gpu_delta_t const d) {
   return std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
          d * gpu_unixtime_t::duration{1};
 }
@@ -566,7 +797,7 @@ struct gpu_transport {
   __host__ __device__ static gpu_transport invalid() noexcept {
     return gpu_transport{};
   }
-  __host__ __device__ constexpr bool is_valid() const {
+  __host__ __device__ bool is_valid() const {
     return day_ != gpu_day_idx_t::invalid();
   }
 #else
@@ -588,7 +819,7 @@ template <typename T, template <typename> typename Ptr,
           bool IndexPointers = false, typename TemplateSizeType = std::uint32_t,
           class Allocator = allocator<T, Ptr>>
 struct gpu_basic_vector {
-  using size_type = base_t<TemplateSizeType>;
+  using size_type = gpu_base_t<TemplateSizeType>;
   using difference_type = std::ptrdiff_t;
   using access_type = TemplateSizeType;
   using reference = T&;
@@ -698,11 +929,11 @@ struct gpu_basic_vector {
 
   __host__ __device__ T const& operator[](access_type const index) const noexcept {
     assert(el_ != nullptr && index < used_size_);
-    return el_[to_idx(index)];
+    return el_[gpu_to_idx(index)];
   }
   __host__ __device__ T& operator[](access_type const index) noexcept {
     assert(el_ != nullptr && index < used_size_);
-    return el_[to_idx(index)];
+    return el_[gpu_to_idx(index)];
   }
 
   T& at(access_type const index) {
@@ -728,10 +959,11 @@ struct gpu_basic_vector {
   template <typename It>
   __host__ __device__ void set(It begin_it, It end_it) {
     auto const range_size = std::distance(begin_it, end_it);
+#ifndef __CUDA_ARCH__
     verify(
         range_size >= 0 && range_size <= std::numeric_limits<size_type>::max(),
         "cista::vector::set: invalid range");
-
+#endif
     reserve(static_cast<size_type>(range_size));
 
     auto copy_source = begin_it;
@@ -747,7 +979,11 @@ struct gpu_basic_vector {
     if constexpr (std::is_trivially_copyable_v<T>) {
       if (arr.used_size_ != 0U) {
         reserve(arr.used_size_);
-        std::memcpy(data(), arr.data(), arr.used_size_ * sizeof(T));
+        #ifdef __CUDA_ARCH__
+          cudaMemcpy(data(), arr.data(), arr.used_size_ * sizeof(T), cudaMemcpyDeviceToDevice);
+        #else
+          std::memcpy(data(), arr.data(), arr.used_size_ * sizeof(T));
+        #endif
       }
       used_size_ = arr.used_size_;
     } else {
@@ -768,93 +1004,11 @@ struct gpu_basic_vector {
     return out << "\n]";
   }
 
-  template <typename Arg>
-  __host__ __device__ T* insert(T* it, Arg&& el) {
-    auto const old_offset = std::distance(begin(), it);
-    auto const old_size = used_size_;
-
-    reserve(used_size_ + 1);
-    new (el_ + used_size_) T{std::forward<Arg&&>(el)};
-    ++used_size_;
-
-    return std::rotate(begin() + old_offset, begin() + old_size, end());
-  }
-
-  template <class InputIt>
-  __host__ __device__ T* insert(T* pos, InputIt first, InputIt last, std::input_iterator_tag) {
-    auto const old_offset = std::distance(begin(), pos);
-    auto const old_size = used_size_;
-
-    for (; !(first == last); ++first) {
-      reserve(used_size_ + 1);
-      new (el_ + used_size_) T{std::forward<decltype(*first)>(*first)};
-      ++used_size_;
-    }
-
-    return std::rotate(begin() + old_offset, begin() + old_size, end());
-  }
-
-  template <class FwdIt>
-  __host__ __device__ T* insert(T* pos, FwdIt first, FwdIt last, std::forward_iterator_tag) {
-    if (empty()) {
-      set(first, last);
-      return begin();
-    }
-
-    auto const pos_idx = pos - begin();
-    auto const new_count = static_cast<size_type>(std::distance(first, last));
-    reserve(used_size_ + new_count);
-    pos = begin() + pos_idx;
-
-    for (auto src_last = end() - 1, dest_last = end() + new_count - 1;
-         !(src_last == pos - 1); --src_last, --dest_last) {
-      if (dest_last >= end()) {
-        new (dest_last) T(std::move(*src_last));
-      } else {
-        *dest_last = std::move(*src_last);
-      }
-    }
-
-    for (auto insert_ptr = pos; !(first == last); ++first, ++insert_ptr) {
-      if (insert_ptr >= end()) {
-        new (insert_ptr) T(std::forward<decltype(*first)>(*first));
-      } else {
-        *insert_ptr = std::forward<decltype(*first)>(*first);
-      }
-    }
-
-    used_size_ += new_count;
-
-    return pos;
-  }
 
   template <class It>
   __host__ __device__ T* insert(T* pos, It first, It last) {
     return insert(pos, first, last,
                   typename std::iterator_traits<It>::iterator_category());
-  }
-
-  __host__ __device__ void push_back(T const& el) {
-    reserve(used_size_ + 1U);
-    new (el_ + used_size_) T(el);
-    ++used_size_;
-  }
-
-  template <typename... Args>
-  __host__ __device__ T& emplace_back(Args&&... el) {
-    reserve(used_size_ + 1U);
-    new (el_ + used_size_) T{std::forward<Args>(el)...};
-    T* ptr = el_ + used_size_;
-    ++used_size_;
-    return *ptr;
-  }
-
-  __host__ __device__ void resize(size_type const size, T init = T{}) {
-    reserve(size);
-    for (auto i = used_size_; i < size; ++i) {
-      new (el_ + i) T{init};
-    }
-    used_size_ = size;
   }
 
   __host__ __device__ void pop_back() noexcept(noexcept(std::declval<T>().~T())) {
@@ -868,56 +1022,65 @@ struct gpu_basic_vector {
     }
     used_size_ = 0;
   }
+  template <typename TemplateSizeType>
+  __host__ __device__ TemplateSizeType gpu_next_power_of_two(TemplateSizeType n) noexcept {
+    --n;
+    n |= n >> 1U;
+    n |= n >> 2U;
+    n |= n >> 4U;
+    n |= n >> 8U;
+    n |= n >> 16U;
+    if constexpr (sizeof(TemplateSizeType) > 32U) {
+      n |= n >> 32U;
+    }
+    ++n;
+    return n;
+  }
 
-  void reserve(size_type new_size) {
+  __host__ __device__ void reserve(size_type new_size) {
     new_size = std::max(allocated_size_, new_size);
 
     if (allocated_size_ >= new_size) {
       return;
     }
 
-    auto next_size = next_power_of_two(new_size);
+    auto next_size = gpu_next_power_of_two(new_size);
     auto num_bytes = static_cast<std::size_t>(next_size) * sizeof(T);
-    auto mem_buf = static_cast<T*>(std::malloc(num_bytes));  // NOLINT
+    // GPU-spezifische Speicherallokation
+    T* mem_buf;
+#ifdef __CUDA_ARCH__
+    cudaError_t err = cudaMalloc(&mem_buf, num_bytes);
+    if (err != cudaSuccess) {
+      printf("GPU allocation failed\n");
+      return;
+    }
+#else
+    mem_buf = static_cast<T*>(std::malloc(num_bytes));  // NOLINT
     if (mem_buf == nullptr) {
       throw std::bad_alloc();
     }
-
+#endif
     if (size() != 0) {
-      try {
-        auto move_target = mem_buf;
-        for (auto& el : *this) {
-          new (move_target++) T(std::move(el));
-        }
-
-        for (auto& el : *this) {
-          el.~T();
-        }
-      } catch (...) {
-        assert(0);
+      T* move_target = mem_buf;
+      for (auto& el : *this) {
+        new (move_target++) T(std::move(el));
+        el.~T();
       }
     }
 
-    auto free_me = el_;
+    T* free_me = el_;
     el_ = mem_buf;
+
     if (self_allocated_) {
-      std::free(free_me);  // NOLINT
+    #ifdef __CUDA_ARCH__
+          cudaFree(free_me);
+    #else
+          std::free(free_me);  // NOLINT
+    #endif
     }
 
     self_allocated_ = true;
     allocated_size_ = next_size;
-  }
-
-  __host__ __device__ T* erase(T* pos) {
-    auto const r = pos;
-    T* last = end() - 1;
-    while (pos < last) {
-      std::swap(*pos, *(pos + 1));
-      pos = pos + 1;
-    }
-    pos->~T();
-    --used_size_;
-    return r;
   }
 
   __host__ __device__ T* erase(T* first, T* last) {
@@ -1082,6 +1245,92 @@ struct gpu_interval {
   __host__ __device__ friend std::ostream& operator<<(std::ostream& out, gpu_interval const& i) {
     return out << "[" << i.from_ << ", " << i.to_ << "[";
   }
+#else
+  struct iterator {
+    using iterator_category = std::random_access_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = T;
+    using pointer = std::add_pointer_t<value_type>;
+    using reference = value_type;
+    CISTA_FRIEND_COMPARABLE(iterator);
+    value_type operator*() const { return t_; }
+    iterator& operator++() {
+      ++t_;
+      return *this;
+    }
+    iterator& operator--() {
+      --t_;
+      return *this;
+    }
+    iterator& operator+=(difference_type const x) {
+      t_ += x;
+      return *this;
+    }
+    iterator& operator-=(difference_type const x) {
+      t_ -= x;
+      return *this;
+    }
+    iterator operator+(difference_type const x) const { return *this += x; }
+    iterator operator-(difference_type const x) const { return *this -= x; }
+    friend difference_type operator-(iterator const& a, iterator const& b) {
+      return static_cast<difference_type>(cista::to_idx(a.t_) -
+                                          cista::to_idx(b.t_));
+    }
+    T t_;
+  };
+
+  template <typename X>
+  gpu_interval operator+(X const& x) const {
+    return {from_ + x, to_ + x};
+  }
+
+  template <typename X>
+  gpu_interval operator-(X const& x) const {
+    return {from_ - x, to_ - x};
+  }
+
+  template <typename X>
+    requires std::is_convertible_v<T, X>
+  operator gpu_interval<X>() {
+    return {from_, to_};
+  }
+
+  T clamp(T const x) const { return std::clamp(x, from_, to_); }
+
+  bool contains(T const t) const { return t >= from_ && t < to_; }
+
+  bool overlaps(gpu_interval const& o) const {
+    return from_ < o.to_ && to_ > o.from_;
+  }
+
+  iterator begin() const { return {from_}; }
+  iterator end() const { return {to_}; }
+  friend iterator begin(gpu_interval const& r) { return r.begin(); }
+  friend iterator end(gpu_interval const& r) { return r.end(); }
+
+  std::reverse_iterator<iterator> rbegin() const {
+    return std::reverse_iterator<iterator>{iterator{to_}};
+  }
+  std::reverse_iterator<iterator> rend() const {
+    return std::reverse_iterator<iterator>{iterator{from_}};
+  }
+  friend std::reverse_iterator<iterator> rbegin(gpu_interval const& r) {
+    return r.begin();
+  }
+  friend std::reverse_iterator<iterator> rend(gpu_interval const& r) {
+    return r.end();
+  }
+
+  auto size() const { return to_ - from_; }
+
+  T operator[](std::size_t const i) const {
+    assert(contains(from_ + static_cast<T>(i)));
+    return from_ + static_cast<T>(i);
+  }
+
+  friend std::ostream& operator<<(std::ostream& out, gpu_interval const& i) {
+    return out << "[" << i.from_ << ", " << i.to_ << "[";
+  }
 #endif
   T from_{}, to_{};
 };
@@ -1098,27 +1347,30 @@ template <typename T>
 using gpu_interval = nigiri::gpu_interval<T>;
 
 
-template <typename K, typename V, typename SizeType = cista::base_t<K>>
+template <typename K, typename V, typename SizeType = gpu_base_t<K>>
 using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 
 template <typename V, std::size_t SIZE>
 using array = cista::raw::array<V, SIZE>;
-
+namespace nigiri{
+#include "nigiri/types.h"
 struct gpu_locations {
-  nigiri::hash_map<nigiri::location_id, gpu_location_idx_t> location_id_to_idx_;
-  nigiri::vecvec<gpu_location_idx_t, char> names_;
-  nigiri::vecvec<gpu_location_idx_t, char> ids_;
-  nigiri::vector_map<gpu_location_idx_t, geo::latlng> coordinates_;
-  nigiri::vector_map<gpu_location_idx_t, gpu_source_idx_t> src_;
+  hash_map<location_id, gpu_location_idx_t> location_id_to_idx_;
+  vecvec<gpu_location_idx_t, char> names_;
+  vecvec<gpu_location_idx_t, char> ids_;
+  vector_map<gpu_location_idx_t, geo::latlng> coordinates_;
+  vector_map<gpu_location_idx_t, gpu_source_idx_t> src_;
   gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> transfer_time_;
-  nigiri::vector_map<gpu_location_idx_t, nigiri::location_type> types_;
-  nigiri::vector_map<gpu_location_idx_t, gpu_location_idx_t> parents_;
-  nigiri::vector_map<gpu_location_idx_t, gpu_timezone_idx_t> location_timezones_;
-  nigiri::mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> equivalences_;
-  nigiri::mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> children_;
-  nigiri::mutable_fws_multimap<gpu_location_idx_t, nigiri::footpath> preprocessing_footpaths_out_;
-  nigiri::mutable_fws_multimap<gpu_location_idx_t, nigiri::footpath> preprocessing_footpaths_in_;
-  gpu_vecvec<gpu_location_idx_t, nigiri::footpath>* footpaths_out_; //nigiri::kMaxProfiles is the size
-  gpu_vecvec<gpu_location_idx_t, nigiri::footpath>* footpaths_in_;  //same here
-  nigiri::vector_map<gpu_timezone_idx_t, nigiri::timezone> timezones_;
+  vector_map<gpu_location_idx_t, location_type> types_;
+  vector_map<gpu_location_idx_t, gpu_location_idx_t> parents_;
+  vector_map<gpu_location_idx_t, gpu_timezone_idx_t> location_timezones_;
+  mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> equivalences_;
+  mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> children_;
+  mutable_fws_multimap<gpu_location_idx_t, footpath> preprocessing_footpaths_out_;
+  mutable_fws_multimap<gpu_location_idx_t, footpath> preprocessing_footpaths_in_;
+  gpu_vecvec<gpu_location_idx_t, footpath>* footpaths_out_; //nigiri::kMaxProfiles is the size
+  gpu_vecvec<gpu_location_idx_t, footpath>* footpaths_in_;  //same here
+  vector_map<gpu_timezone_idx_t, timezone> timezones_;
 };
+} //namespace: nigiri
+using gpu_locations = nigiri::gpu_locations;

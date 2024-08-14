@@ -5,11 +5,10 @@
 #include "cista/containers/vecvec.h"
 #include "date/date.h"
 #include "cista/strong.h"
-#include "nigiri/common/interval.h"
 #include "gpu_types.h"
 #include <span>
 template <typename T>
-using interval = nigiri::interval<T>;
+using gpu_interval = nigiri::gpu_interval<T>;
 extern "C" {
 
   struct gpu_timetable {
@@ -18,8 +17,8 @@ extern "C" {
     gpu_vecvec<gpu_location_idx_t,gpu_route_idx_t,unsigned int>* location_routes_ {nullptr};
     std::uint32_t* n_locations_{nullptr};
     std::uint32_t* n_routes_{nullptr};
-    gpu_vector_map<gpu_route_idx_t,interval<std::uint32_t>>* route_stop_time_ranges_{nullptr};
-    gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >>* route_transport_ranges_{nullptr};
+    gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>>* route_stop_time_ranges_{nullptr};
+    gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >>* route_transport_ranges_{nullptr};
     gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>* bitfields_{nullptr};
     gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>* transport_traffic_days_{nullptr};
     gpu_interval<date::sys_days>* date_range_{nullptr};
@@ -37,7 +36,7 @@ extern "C" {
           n_transports * (stop_idx * 2 - (ev_type == gpu_event_type::kArr ? 1 : 0)));
       return std::span<gpu_delta const>{&route_stop_times_[idx], n_transports};
     }
-    __host__ __device__ interval<date::sys_days> gpu_internal_interval_days() const {
+    __host__ __device__ gpu_interval<date::sys_days> gpu_internal_interval_days() const {
       auto date_range = *date_range_;
       return {date_range.from_ - gpu_kTimetableOffset,
               date_range.to_ + gpu_days{1}};
@@ -52,8 +51,8 @@ extern "C" {
                                              gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes, // location -> Route
                                              std::uint32_t const* n_locations,
                                              std::uint32_t const* n_routes,
-                                             gpu_vector_map<gpu_route_idx_t,interval<std::uint32_t>> const* route_stop_time_ranges,
-                                             gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >> const* route_transport_ranges,
+                                             gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
+                                             gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                              gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
                                              gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
                                              gpu_interval<date::sys_days> const* date_range,

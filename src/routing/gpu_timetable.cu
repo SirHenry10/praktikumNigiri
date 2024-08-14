@@ -28,8 +28,8 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes,
                                            std::uint32_t const* n_locations,
                                            std::uint32_t const* n_routes,
-                                           gpu_vector_map<gpu_route_idx_t,interval<std::uint32_t>> const* route_stop_time_ranges,
-                                           gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >> const* route_transport_ranges,
+                                           gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
+                                           gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                            gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
                                            gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
                                            gpu_interval<date::sys_days> const* date_range,
@@ -65,11 +65,11 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   CUDA_COPY_TO_DEVICE(uint32_t , gtt->n_routes_, n_routes,1);
   //route_stop_time_ranges_
   gtt->route_stop_time_ranges_ = nullptr;
-  using gpu_vecmap_stop_time_ranges = gpu_vector_map<gpu_route_idx_t,interval<std::uint32_t>>;
+  using gpu_vecmap_stop_time_ranges = gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>>;
   CUDA_COPY_TO_DEVICE(gpu_vecmap_stop_time_ranges , gtt->route_stop_time_ranges_, route_stop_time_ranges,1);
   //route_transport_ranges_
   gtt->route_transport_ranges_ = nullptr;
-  using gpu_vecmap_route_transport_ranges = gpu_vector_map<gpu_route_idx_t,interval<gpu_transport_idx_t >>;
+  using gpu_vecmap_route_transport_ranges = gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >>;
   CUDA_COPY_TO_DEVICE(gpu_vecmap_route_transport_ranges , gtt->route_transport_ranges_, route_transport_ranges,1);
   //bitfields_
   gtt->bitfields_ = nullptr;
