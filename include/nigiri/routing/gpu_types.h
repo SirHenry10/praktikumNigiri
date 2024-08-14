@@ -1353,7 +1353,11 @@ using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 template <typename V, std::size_t SIZE>
 using array = cista::raw::array<V, SIZE>;
 namespace nigiri{
+struct footpath;
+struct location_id;
+#ifndef __CUDA_ARCH__
 #include "nigiri/types.h"
+#endif
 struct gpu_locations {
   hash_map<location_id, gpu_location_idx_t> location_id_to_idx_;
   vecvec<gpu_location_idx_t, char> names_;

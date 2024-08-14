@@ -8,7 +8,6 @@
 #include "geo/latlng.h"
 
 #include "nigiri/common/it_range.h"
-#include "nigiri/routing/gpu_types.h"
 #include "nigiri/types.h"
 #include "nigiri/routing/gpu_timetable.h"
 
