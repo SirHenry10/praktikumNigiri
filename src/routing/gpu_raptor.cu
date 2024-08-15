@@ -234,6 +234,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_timetable* gtt
   }
 }
 
+
 template <gpu_direction SearchDir, bool Rt>
 __device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_t const r,
                                                 gpu_stop_idx_t const stop_idx,
@@ -270,7 +271,7 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t,
     return false;
   }
   const auto bitfields_data = (*gtt_->bitfields_data_)[(*gtt_->transport_traffic_days_)[t]];
-  auto const block = bitfields_data[day / traffic_day.bits_per_block]; // TODO [] für cista::array<block_t, num_blocks>
+  auto const block = bitfields_data[day / traffic_day.bits_per_block];
   auto const bit = (day % traffic_day.bits_per_block);
   return (block & (std::uint64_t{1U} << bit)) != 0U;
 }
@@ -349,7 +350,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
-  any_station_marked_ = (allowed_claszes_ = nigiri::routing::all_clasz_allowed())
+  any_station_marked_ = (allowed_claszes_ = std::numeric_limits<nigiri::routing::clasz_mask_t>::max())
                          ? loop_routes<SearchDir, Rt, false>(k, stats_) : loop_routes<SearchDir, Rt,true>(k, stats_);
   this_grid().sync();
   if(get_global_thread_id()==0){
