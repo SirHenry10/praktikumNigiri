@@ -2,27 +2,28 @@
 
 #include <cinttypes>
 #include "nigiri/loader/hrd/load_timetable.h"
-#include "gpu_raptor.cuh"
 #include "nigiri/common/linear_lower_bound.h"
+#include "nigiri/routing/gpu_raptor_state.cuh"
+#include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/routing/journey.h"
-#include "nigiri/routing/query.h"
 #include "nigiri/routing/limits.h"
 #include "nigiri/routing/pareto_set.h"
+#include "nigiri/routing/query.h"
 #include "nigiri/routing/raptor/debug.h"
+#include "nigiri/routing/raptor/raptor.h"
 #include "nigiri/routing/raptor/raptor_state.h"
-#include "nigiri/routing/gpu_raptor_state.cuh"
-#include "gpu_types.h"
-#include "nigiri/routing/raptor/raptor_state.h" //maybe weg
+#include "nigiri/routing/raptor/raptor_state.h"  //maybe weg
 #include "nigiri/routing/raptor/reconstruct.h"
 #include "nigiri/rt/rt_timetable.h"
-#include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/special_stations.h"
-
+#include "gpu_raptor.cuh"
+#include "gpu_types.h"
 
 using namespace date;
 using namespace nigiri;
 using namespace nigiri::loader;
 using namespace nigiri::routing;
+
 
 template <direction SearchDir, bool Rt>
 struct gpu_raptor_translator {
@@ -64,8 +65,8 @@ struct gpu_raptor_translator {
   }
 
   void add_start(location_idx_t const l, unixtime_t const t) {
-    auto gpu_l = *reinterpret_cast<gpu_location_idx_t*>(&l);
-    auto gpu_t = *reinterpret_cast<gpu_unixtime_t*>(&t);
+    auto gpu_l = *reinterpret_cast<const gpu_location_idx_t*>(&l);
+    auto gpu_t = *reinterpret_cast<const gpu_unixtime_t*>(&t);
     gpu_r_.add_start(gpu_l,gpu_t);
   }
 
@@ -97,7 +98,7 @@ struct gpu_raptor_translator {
   clasz_mask_t allowed_claszes_;
 private:
   date::sys_days base() const {
-    return tt_.internal_interval_days().from_ + as_int(base_) * date::days{1};
+    return tt_.internal_interval_days().from_ + raptor<SearchDir, Rt>::as_int(base_) * date::days{1};
   }
   gpu_timetable& translate_tt_in_gtt(timetable& tt){
     vector_map<bitfield_idx_t,std::uint64_t*> bitfields_data_ = vector_map<bitfield_idx_t,std::uint64_t*>();
@@ -125,7 +126,7 @@ private:
         reinterpret_cast<gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>*>(&tt.transport_traffic_days_),
         reinterpret_cast<nigiri::gpu_interval<gpu_sys_days>*>(&tt.date_range_),
         &locations_,
-        reinterpret_cast<gpu_vector_map<gpu_route_idx_t, gpu_clasz>* >(&tt.route_clasz_),
+        reinterpret_cast<gpu_vector_map<gpu_route_idx_t, gpu_clasz>* >(&tt.route_clasz_)
     );
     return gtt;
   }

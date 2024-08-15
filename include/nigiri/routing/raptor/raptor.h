@@ -439,8 +439,9 @@ private:
 
   bool update_route(unsigned const k, route_idx_t const r) {
     auto const stop_seq = tt_.route_location_seq_[r];
-    bool any_marked = false;
+    bool any_marked = false; // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
 
+    // diese Variable ist das Problem beim Parallelisieren
     auto et = transport{};
     // hier gehen wir durch alle Stops der Route r → das wollen wir in update_smaller/bigger machen
     for (auto i = 0U; i != stop_seq.size(); ++i) {
@@ -561,6 +562,7 @@ private:
       // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
       if (is_better_or_eq(prev_round_time, et_time_at_stop)) {
         auto const [day, mam] = split(prev_round_time);
+        // Hier muss leader election stattfinden
         // dann wird neues Transportmittel, das am frühsten von station abfährt
         auto const new_et = get_earliest_transport(k, r, stop_idx, day, mam,
                                                    stp.location_idx());
