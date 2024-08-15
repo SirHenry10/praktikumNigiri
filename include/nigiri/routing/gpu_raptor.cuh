@@ -2,10 +2,10 @@
 
 #include <cinttypes>
 #include "nigiri/common/linear_lower_bound.h"
-#include "nigiri/routing/pareto_set.h"
-#include "nigiri/routing/raptor/debug.h"
 #include "nigiri/routing/gpu_raptor_state.cuh"
 #include "nigiri/routing/gpu_timetable.h"
+#include "nigiri/routing/pareto_set.h"
+#include "nigiri/routing/raptor/debug.h"
 extern "C" {
 #define XSTR(s) STR(s)
 #define STR(s) #s
@@ -113,7 +113,6 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   gpu_unixtime_t const worst_time_at_dest,
                                   gpu_profile_idx_t const prf_idx,
-                                  nigiri::pareto_set<gpu_journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr);
 
 template<gpu_direction SearchDir>
@@ -129,8 +128,8 @@ __host__ __device__ static auto get_best(auto x, auto... y) {
 
 __host__ __device__ int as_int(gpu_location_idx_t d)  { return static_cast<int>(d.v_); }
 __host__ __device__ int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
-__host__ __device__ date::sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
-  return gtt->gpu_internal_interval_days().from_ + as_int(*base) * date::days{1};
+__host__ __device__ gpu_sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
+  return gtt->gpu_internal_interval_days().from_ + as_int(*base) * gpu_days{1};
 }
 template<gpu_direction SearchDir>
 __host__ __device__ static auto dir(auto a) { return (SearchDir==gpu_direction::kForward ? 1 : -1) * a; }
@@ -213,7 +212,7 @@ struct gpu_raptor {
   }
 
   void reset_arrivals() {
-    utl::fill(mem_->device_.time_at_dest_, kInvalid);
+    //TODO: alles reset arrivals
     mem_->host_.reset(kInvalid);
   }
 
@@ -248,17 +247,17 @@ struct gpu_raptor {
 
 
   // hier wird Kernel aufgerufen
-void execute(gpu_unixtime_t const start_time,
+  gpu_delta_t* execute(gpu_unixtime_t const start_time,
              uint8_t const max_transfers,
              gpu_unixtime_t const worst_time_at_dest,
-             gpu_profile_idx_t const prf_idx,
-             nigiri::pareto_set<gpu_journey>& results){
+             gpu_profile_idx_t const prf_idx){
 
-  void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
+  void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&this};
   launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
   cuda_check();
   //TODO: copy result back
   //TODO: ALLES LÖSCHEN!!!!!!!!!!!
+  return mem_->host_.round_times_.get();
 }
   gpu_timetable const* gtt_{nullptr};
   gpu_raptor_state& state_;

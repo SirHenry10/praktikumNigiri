@@ -8,10 +8,8 @@
 #include "nigiri/routing/journey.h"
 #include "nigiri/routing/limits.h"
 #include "nigiri/routing/pareto_set.h"
-#include "nigiri/routing/query.h"
 #include "nigiri/routing/raptor/debug.h"
 #include "nigiri/routing/raptor/raptor.h"
-#include "nigiri/routing/raptor/raptor_state.h"
 #include "nigiri/routing/raptor/raptor_state.h"  //maybe weg
 #include "nigiri/routing/raptor/reconstruct.h"
 #include "nigiri/rt/rt_timetable.h"
@@ -27,6 +25,7 @@ using namespace nigiri::routing;
 
 template <direction SearchDir, bool Rt>
 struct gpu_raptor_translator {
+  static constexpr auto const kInvalid = kInvalidDelta<SearchDir>;
   using algo_stats_t = raptor_stats;
   static direction const cpu_direction_ = SearchDir;
   static gpu_direction const gpu_direction_ = *reinterpret_cast<enum gpu_direction const*>(&cpu_direction_);
@@ -50,7 +49,7 @@ struct gpu_raptor_translator {
   {
     auto gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
     auto gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t *>(&allowed_claszes_);
-    gpu_r_ = gpu_raptor<gpu_direction_,Rt>(translate_tt_in_gtt(tt_),rtt_,state_,is_dest_,dist_to_dest,lb_,gpu_base,gpu_allowed_claszes);
+    gpu_r_ = gpu_raptor<gpu_direction_,Rt>(translate_tt_in_gtt(tt_),state_,is_dest_,dist_to_dest,lb_,gpu_base,gpu_allowed_claszes);
   }
   algo_stats_t get_stats() const {
     return gpu_r_.get_stats();
@@ -77,7 +76,38 @@ struct gpu_raptor_translator {
                unixtime_t const worst_time_at_dest,
                profile_idx_t const prf_idx,
                nigiri::pareto_set<nigiri::routing::journey>& results){
+    auto gpu_start_time = *reinterpret_cast<gpu_unixtime_t const*>(&start_time);
+    auto gpu_worst_time_at_dest = *reinterpret_cast<gpu_unixtime_t const*>(&max_transfers);
+    auto gpu_prf_idx = *reinterpret_cast<gpu_profile_idx_t const*>(&prf_idx);
+    auto gpu_round_times = gpu_r_.execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,gpu_prf_idx);
+    // Konstruktion der Ergebnis-Journey
+    auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
+    for (auto i = 0U; i != n_locations_; ++i) {
+      auto const is_dest = is_dest_[i];
+      if (!is_dest) {
+        continue;
+      }
 
+      for (auto k = 1U; k != end_k; ++k) {
+        auto const dest_time = *reinterpret_cast<delta_t*>(&gpu_round_times[k * (gpu_kMaxTransfers + 1U) + i]);
+        if (dest_time != kInvalid) {
+          trace("ADDING JOURNEY: start={}, dest={} @ {}, transfers={}\n",
+                start_time, delta_to_unix(base(), (*reinterpret_cast<delta_t*>(&gpu_round_times[k * (gpu_kMaxTransfers + 1U) + i]))),
+                location{tt_, location_idx_t{i}}, k - 1);
+          auto const [optimal, it, dominated_by] = results.add(
+              journey{.legs_ = {},
+                      .start_time_ = start_time,
+                      .dest_time_ = delta_to_unix(base(), dest_time),
+                      .dest_ = location_idx_t{i},
+                      .transfers_ = static_cast<std::uint8_t>(k - 1)});
+          if (!optimal) {
+            trace("  DOMINATED BY: start={}, dest={} @ {}, transfers={}\n",
+                  dominated_by->start_time_, dominated_by->dest_time_,
+                  location{tt_, dominated_by->dest_}, dominated_by->transfers_);
+          }
+        }
+      }
+    }
   }
 
 
@@ -100,7 +130,7 @@ private:
   date::sys_days base() const {
     return tt_.internal_interval_days().from_ + raptor<SearchDir, Rt>::as_int(base_) * date::days{1};
   }
-  gpu_timetable& translate_tt_in_gtt(timetable& tt){
+  gpu_timetable* translate_tt_in_gtt(timetable& tt){
     vector_map<bitfield_idx_t,std::uint64_t*> bitfields_data_ = vector_map<bitfield_idx_t,std::uint64_t*>();
     for (bitfield_idx_t i = bitfield_idx_t{0}; i< tt.bitfields_.size(); ++i) {
     auto t = tt.bitfields_.at(i);

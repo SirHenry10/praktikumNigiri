@@ -78,10 +78,6 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
   }
 }
 
-template <gpu_direction SearchDir, bool Rt>
-void reconstruct(nigiri::routing::query const& q, gpu_journey& j){
-  //reconstruct_journey<SearchDir, Rt>(...);
-}
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
@@ -462,7 +458,6 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   gpu_unixtime_t const worst_time_at_dest,
                                   gpu_profile_idx_t const prf_idx,
-                                  nigiri::pareto_set<gpu_journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr){
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;

@@ -5,6 +5,7 @@
 #include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/routing/gpu_types.h"
 #include "../loader/hrd/hrd_timetable.h"
+#include "nigiri/routing/gpu_raptor_translator.h"
 
 using namespace date;
 using namespace nigiri;
