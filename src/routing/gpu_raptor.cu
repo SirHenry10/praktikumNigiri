@@ -261,10 +261,17 @@ __device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_
   // for Schleife über n_days_to_iterate
 }
 
-template <gpu_direction SearchDir, bool Rt>
+template <gpu_direction SearchDir, bool Rt, std::size_t Size>
 __device__ bool is_transport_active(gpu_transport_idx_t const t,
                                     std::size_t const day , gpu_timetable* gtt_)  {
-  return (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]].test(day);
+  const auto traffic_day = (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]];
+  // test(i=day) methode
+  if (day >= traffic_day.size()) {
+    return false;
+  }
+  auto const block = traffic_day.blocks_[day / traffic_day.bits_per_block]; // TODO [] für cista::array<block_t, num_blocks>
+  auto const bit = (day % traffic_day.bits_per_block);
+  return (block & (std::uint64_t{1U} << bit)) != 0U;
 }
 
 template <gpu_direction SearchDir, bool Rt>
