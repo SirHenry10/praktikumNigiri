@@ -2,9 +2,6 @@
 
 #include <cinttypes>
 #include "nigiri/common/linear_lower_bound.h"
-#include "nigiri/routing/journey.h"
-#include "nigiri/routing/query.h"
-#include "nigiri/routing/limits.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
 #include "nigiri/routing/gpu_raptor_state.cuh"
@@ -270,12 +267,6 @@ void execute(gpu_unixtime_t const start_time,
   //TODO: copy result back
   //TODO: ALLES LÖSCHEN!!!!!!!!!!!
 }
-
-
-  void reconstruct(nigiri::routing::query const& q, nigiri::routing::journey& j) {
-    // reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
-  }
-
   gpu_timetable const* gtt_{nullptr};
   nigiri::rt_timetable const* rtt_{nullptr};
   // all diese müssen mit malloc (evtl. in anderer Datei)

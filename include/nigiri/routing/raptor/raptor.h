@@ -28,7 +28,6 @@ struct raptor_stats {
 
 template <direction SearchDir, bool Rt>
 struct raptor {
-  using algo_state_t = raptor_state;
   using algo_stats_t = raptor_stats;
 
   static constexpr bool kUseLowerBounds = true;

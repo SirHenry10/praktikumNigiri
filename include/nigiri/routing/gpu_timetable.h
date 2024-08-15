@@ -3,8 +3,6 @@
 
 #include "gpu_types.h"
 #include <span>
-template <typename T>
-using gpu_interval = nigiri::gpu_interval<T>;
 extern "C" {
 
   struct gpu_timetable {
