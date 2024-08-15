@@ -269,7 +269,8 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t,
   if (day >= traffic_day.size()) {
     return false;
   }
-  auto const block = traffic_day.blocks_[day / traffic_day.bits_per_block]; // TODO [] für cista::array<block_t, num_blocks>
+  const auto bitfields_data = (*gtt_->bitfields_data_)[(*gtt_->transport_traffic_days_)[t]];
+  auto const block = bitfields_data[day / traffic_day.bits_per_block]; // TODO [] für cista::array<block_t, num_blocks>
   auto const bit = (day % traffic_day.bits_per_block);
   return (block & (std::uint64_t{1U} << bit)) != 0U;
 }
