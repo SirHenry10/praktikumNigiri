@@ -35,7 +35,6 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
                                            gpu_interval<gpu_sys_days> const* date_range,
                                            gpu_locations const* locations,
-                                           locations_host locations_host,
                                            gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz) {
   size_t device_bytes = 0U;
 
@@ -92,8 +91,6 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   //locations_
   gtt->locations_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_locations , gtt->locations_, locations,1);
-  //locations_host_
-  gtt->locations_host_ = locations_host;
   //route_clasz_
   gtt->route_clasz_ = nullptr;
   using gpu_vector_map_clasz = gpu_vector_map<gpu_route_idx_t, gpu_clasz>;

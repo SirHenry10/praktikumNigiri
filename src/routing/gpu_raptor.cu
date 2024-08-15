@@ -216,7 +216,7 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
     }
     auto const l_idx = gpu_location_idx_t{idx};
     auto const& fps = (SearchDir == gpu_direction::kForward)
-         ? gtt_->locations_->footpaths_out_[prf_idx][l_idx] : gtt_->locations_->footpaths_in_[prf_idx][l_idx];
+         ? gtt_->locations_->gpu_footpaths_out_[prf_idx][l_idx] : gtt_->locations_->gpu_footpaths_in_[prf_idx][l_idx];
     for(auto const& fp: fps){
       ++stats_[idx>>5].n_footpaths_visited_;
       auto const target = gpu_to_idx(gpu_location_idx_t{fp.target_});

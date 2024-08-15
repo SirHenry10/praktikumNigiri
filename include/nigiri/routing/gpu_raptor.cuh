@@ -246,11 +246,11 @@ struct gpu_raptor {
     trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
     std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
     std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
-    best_new[to_idx(l).v_] = unix_to_gpu_delta(base(gtt_,base_), t);
-    round_times_new[0U*mem_->device_.row_count_round_times_+ as_int(to_idx(l))] = unix_to_gpu_delta(base(gtt_,base_), t);
+    best_new[gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
+    round_times_new[0U*mem_->device_.row_count_round_times_+ gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
     bool copy_array[mem_->device_.size_station_mark_];
     std::fill(std::begin(copy_array), std::end(copy_array), false);
-    copy_array[to_idx(l).v_] = true;
+    copy_array[gpu_to_idx(l)] = true;
     cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
     //TODO: MAYBE noch auf host kopieren weis aber nicht ob notwendig
     cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);

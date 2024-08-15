@@ -9,6 +9,7 @@
 #include "cista/reflection/comparable.h"
 #include "cista/reflection/printable.h"
 #include "cista/verify.h"
+#include "nigiri/logging.h"
 #include "cista/containers/string.h"
 #include "geo/latlng.h"
 
@@ -279,11 +280,16 @@ __host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to
     gpu_strong<T, Tag> const& s) {
   return s.v_;
 }
+#else
+template <typename T, typename Tag>
+inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
+    gpu_strong<T, Tag> const& s) {
+  return s.v_;
+}
 #endif
 
 //TODO: später raus kicken was nicht brauchen
 using gpu_delta_t = int16_t;
-constexpr auto const gpu_kTimetableOffset = std::chrono::days{1} + std::chrono::days{4};
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_location_idx_t = gpu_strong<std::uint32_t, struct _location_idx>;
 using gpu_value_type = gpu_location_idx_t::value_t;
@@ -305,8 +311,9 @@ using gpu_clasz_mask_t = std::uint16_t;
 using gpu_profile_idx_t = std::uint8_t;
 using gpu_stop_idx_t = std::uint16_t;
 using i16_minutes = std::chrono::duration<std::int16_t, std::ratio<60>>;
-using duration_t = i16_minutes;
-using gpu_minutes_after_midnight_t = duration_t;
+using gpu_duration_t = i16_minutes;
+using gpu_minutes_after_midnight_t = gpu_duration_t;
+
 enum class gpu_clasz : std::uint8_t {
   kAir = 0,
   kHighSpeed = 1,
@@ -327,7 +334,6 @@ enum class gpu_clasz : std::uint8_t {
 template <typename R1, typename R2>
 using gpu_ratio_multiply = decltype(std::ratio_multiply<R1, R2>{});
 using gpu_days = std::chrono::duration<int, gpu_ratio_multiply<std::ratio<24>, std::chrono::hours::period>>;
-
 enum class gpu_event_type { kArr, kDep };
 enum class gpu_direction { kForward, kBackward };
 
@@ -1351,34 +1357,62 @@ using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 
 template <typename V, std::size_t SIZE>
 using array = cista::raw::array<V, SIZE>;
-
 namespace nigiri{
-#include "nigiri/types.h"
-#include "nigiri/footpath.h"
+
+struct gpu_footpath {
+  using value_type = gpu_location_idx_t::value_t;
+  static constexpr auto const kTotalBits = 8 * sizeof(value_type);
+  static constexpr auto const kTargetBits = 22U;
+  static constexpr auto const kDurationBits = kTotalBits - kTargetBits;
+  static constexpr auto const kMaxDuration = gpu_duration_t{
+      std::numeric_limits<gpu_location_idx_t::value_t>::max() >> kTargetBits};
+  
+  gpu_footpath() = default;
+
+  gpu_footpath(gpu_location_idx_t::value_t const val) {
+    std::memcpy(this, &val, sizeof(value_type));
+  }
+
+  gpu_footpath(gpu_location_idx_t const target, gpu_duration_t const duration)
+      : target_{target},
+        duration_{static_cast<value_type>(
+            (duration > kMaxDuration ? kMaxDuration : duration).count())} {
+  }
+
+  gpu_location_idx_t target() const { return gpu_location_idx_t{target_}; }
+  gpu_duration_t duration() const { return gpu_duration_t{duration_}; }
+
+  gpu_location_idx_t::value_t value() const {
+    return *reinterpret_cast<gpu_location_idx_t::value_t const*>(this);
+  }
+
+  friend std::ostream& operator<<(std::ostream& out, gpu_footpath const& fp) {
+    return out << "(" << fp.target() << ", " << fp.duration() << ")";
+  }
+
+  friend bool operator==(gpu_footpath const& a, gpu_footpath const& b) {
+    return a.value() == b.value();
+  }
+
+  friend bool operator<(gpu_footpath const& a, gpu_footpath const& b) {
+    return a.value() < b.value();
+  }
+
+  gpu_location_idx_t::value_t target_ : kTargetBits;
+  gpu_location_idx_t::value_t duration_ : kDurationBits;
+};
+
+template <typename Ctx>
+inline void serialize(Ctx&, gpu_footpath const*, cista::offset_t const) {}
+
+template <typename Ctx>
+inline void deserialize(Ctx const&, gpu_footpath*) {}
+
 struct gpu_locations_device {
   gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> transfer_time_;
-  gpu_vecvec<gpu_location_idx_t, footpath>* footpaths_out_; //nigiri::kMaxProfiles is the size
-  gpu_vecvec<gpu_location_idx_t, footpath>* footpaths_in_;  //same here
-};
-struct locations_host{
-  hash_map<location_id, location_idx_t> location_id_to_idx_;
-  vecvec<location_idx_t, char> names_;
-  vecvec<location_idx_t, char> ids_;
-  vector_map<location_idx_t, geo::latlng> coordinates_;
-  vector_map<location_idx_t, source_idx_t> src_;
-  vector_map<location_idx_t, u8_minutes> transfer_time_;
-  vector_map<location_idx_t, location_type> types_;
-  vector_map<location_idx_t, location_idx_t> parents_;
-  vector_map<location_idx_t, timezone_idx_t> location_timezones_;
-  mutable_fws_multimap<location_idx_t, location_idx_t> equivalences_;
-  mutable_fws_multimap<location_idx_t, location_idx_t> children_;
-  mutable_fws_multimap<location_idx_t, footpath> preprocessing_footpaths_out_;
-  mutable_fws_multimap<location_idx_t, footpath> preprocessing_footpaths_in_;
-  array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_out_;
-  array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_in_;
-  vector_map<timezone_idx_t, timezone> timezones_;
+  gpu_vecvec<gpu_location_idx_t, gpu_footpath>* gpu_footpaths_out_; //nigiri::kMaxProfiles is the size
+  gpu_vecvec<gpu_location_idx_t, gpu_footpath>* gpu_footpaths_in_;  //same here
 };
 }//namespace: nigiri
 using gpu_locations = nigiri::gpu_locations_device;
-using locations_host = nigiri::locations_host;
 

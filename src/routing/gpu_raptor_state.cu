@@ -1,7 +1,6 @@
 #pragma once
 
 #include "nigiri/routing/gpu_raptor_state.cuh"
-#include "fmt/base.h"
 
 std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
@@ -173,46 +172,4 @@ loaned_mem::~loaned_mem() {
   mem_->device_.reset_async(mem_->context_.proc_stream_);
   mem_->host_.reset(mem_->device_.invalid_);
   cuda_sync_stream(mem_->context_.proc_stream_);
-}
-
-#ifndef __CUDA_ARCH__
-#include "nigiri/location.h"
-#endif
-void device_memory::print(const gpu_timetable& gtt, gpu_sys_days sys_days, gpu_delta_t invalid) {
-  auto const has_empty_rounds = [&](std::uint32_t const l) {
-    for (auto k = 0U; k != row_count_round_times_; ++k) {
-      //TODO SO GREIFT MAN AUF ROUND_TIMES ZU
-      if (round_times_[k*row_count_round_times_+l] != invalid) {
-        return false;
-      }
-    }
-    return true;
-  };
-
-  auto const print_delta = [&](gpu_delta_t const gd) {
-    if (gd == invalid) {
-      fmt::print("________________");
-    } else {
-      fmt::print("{:16}", gpu_delta_to_unix(sys_days,gd));
-    }
-  };
-
-  for (auto l = 0U; l != *gtt.n_locations_; ++l) {
-    if (best_[l] == invalid && has_empty_rounds(l)) {
-      continue;
-    }
-
-    fmt::print("{:80}  ", nigiri::location{gtt, gpu_location_idx_t{l}});
-
-    auto const b = best_[l];
-    fmt::print("best=");
-    print_delta(b);
-    fmt::print(", round_times: ");
-    for (auto i = 0U; i != row_count_round_times_; ++i) {
-      auto const t = round_times_[i*row_count_round_times_+l];
-      print_delta(t);
-      fmt::print(" ");
-    }
-    fmt::print("\n");
-  }
 }

@@ -21,19 +21,6 @@ location::location(timetable const& tt, location_idx_t idx)
       equivalences_{tt.locations_.equivalences_[idx]} {}
 
 
-location::location(gpu_timetable const& gtt, gpu_location_idx_t idx)
-    : l_{*reinterpret_cast<location_idx_t*>(&idx)},
-      id_{gtt.locations_host_.ids_[l_].view()},
-      name_{gtt.locations_host_.names_[l_].view()},
-      pos_{gtt.locations_host_.coordinates_[l_]},
-      src_{gtt.locations_host_.src_[l_]},
-      type_{gtt.locations_host_.types_[l_]},
-      parent_{gtt.locations_host_.parents_[l_]},
-      timezone_idx_{gtt.locations_host_.location_timezones_[l_]},
-      transfer_time_{gtt.locations_host_.transfer_time_[l_]},
-      equivalences_{gtt.locations_host_.equivalences_[l_]}{
-}
-
 
 location::location(
     std::string_view id,
