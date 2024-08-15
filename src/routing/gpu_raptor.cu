@@ -1,6 +1,7 @@
 #include "nigiri/routing/gpu_raptor.cuh"
+#include "nigiri/routing/query.h"
+#include "nigiri/routing/query.h"
 #include "cooperative_groups.h"
-
 
 using namespace cooperative_groups;
 
@@ -45,7 +46,7 @@ __device__ void reset_store(unsigned int* store, int const store_size) {
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ void update_time_at_dest(unsigned const k, gpu_delta_t const t, gpu_delta_t* time_at_dest_){
-  for (auto i = k; i < nigiri::routing::kMaxTransfers+1; ++i) {
+  for (auto i = k; i < gpu_kMaxTransfers+1; ++i) {
     time_at_dest_[i] = get_best<SearchDir, Rt>(time_at_dest_[i], t);
   }
 }
@@ -78,7 +79,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
 }
 
 template <gpu_direction SearchDir, bool Rt>
-void reconstruct(nigiri::routing::query const& q, nigiri::routing::journey& j){
+void reconstruct(nigiri::routing::query const& q, gpu_journey& j){
   //reconstruct_journey<SearchDir, Rt>(...);
 }
 
@@ -140,8 +141,8 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
     auto const r = gpu_route_idx_t{r_idx};
     if(marked(route_mark_, r_idx)){
       if constexpr (WithClaszFilter){
-        if(!nigiri::routing::is_allowed(*allowed_claszes_,
-                static_cast<nigiri::clasz>((*gtt_->route_clasz_)[r]))){
+        auto const as_mask = static_cast<gpu_clasz_mask_t>(1U << static_cast<std::underlying_type_t<gpu_clasz>>(static_cast<nigiri::clasz>((*gtt_->route_clasz_)[r])));
+        if(!((*allowed_claszes_ & as_mask)==as_mask)){
           continue;
         }
       }
@@ -216,7 +217,8 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
     }
     auto const l_idx = gpu_location_idx_t{idx};
     auto const& fps = (SearchDir == gpu_direction::kForward)
-         ? gtt_->locations_->gpu_footpaths_out_[prf_idx][l_idx] : gtt_->locations_->gpu_footpaths_in_[prf_idx][l_idx];
+         ? gtt_->locations_->gpu_footpaths_out_.data_[prf_idx][l_idx.v_]
+           : gtt_->locations_->gpu_footpaths_in_.data_[prf_idx][l_idx.v_];
     for(auto const& fp: fps){
       ++stats_[idx>>5].n_footpaths_visited_;
       auto const target = gpu_to_idx(gpu_location_idx_t{fp.target_});
@@ -250,7 +252,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_timetable* gtt
                                             uint32_t* prev_station_mark_, gpu_delta_t* time_at_dest_,
                                             unsigned short kUnreachable, gpu_location_idx_t* gpu_kIntermodalTarget,
                                             gpu_delta_t* best_, gpu_delta_t* tmp_,
-                                            gpu_delta_t* round_times_){
+                                            gpu_delta_t* round_times_, uint32_t row_count_round_times_){
   if(get_global_thread_id()==0 && dist_to_end_size_==0){
     return;
   }
@@ -261,7 +263,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_timetable* gtt
     if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
       auto const end_time = clamp(get_best<SearchDir, Rt>(best_[idx], tmp_[idx]) + dir<SearchDir, Rt>(dist_to_end_[idx]));
       if(is_better(end_time, (*best_)[gpu_kIntermodalTarget])){
-        round_times_[k][gpu_kIntermodalTarget] = end_time;
+        round_times_[k*row_count_round_times_ + gpu_kIntermodalTarget->v_] = end_time;
         (*best_)[gpu_kIntermodalTarget] = end_time;
         update_time_at_dest(k, end_time, time_at_dest_);
       }
@@ -447,7 +449,7 @@ __device__ void init_arrivals(gpu_delta_t d_worst_at_dest,
     d_worst_at_dest = unix_to_gpu_delta(base(gtt_, base_), worst_time_at_dest);
   }
 
-  if(t_id < nigiri::routing::kMaxTransfers+1){
+  if(t_id < gpu_kMaxTransfers+1){
     time_at_dest[t_id] = get_best<SearchDir>(d_worst_at_dest, time_at_dest[t_id]);
   }
 
@@ -460,10 +462,10 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   gpu_unixtime_t const worst_time_at_dest,
                                   gpu_profile_idx_t const prf_idx,
-                                  nigiri::pareto_set<nigiri::routing::journey>& results,
+                                  nigiri::pareto_set<gpu_journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr){
   auto const end_k =
-      get_smaller(max_transfers, nigiri::routing::kMaxTransfers) + 1U;
+      get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
   gpu_delta_t d_worst_at_dest{};
   init_arrivals<SearchDir, Rt>(d_worst_at_dest, worst_time_at_dest, gr.base_,
