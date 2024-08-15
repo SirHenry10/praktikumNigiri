@@ -82,17 +82,59 @@ void reconstruct(nigiri::routing::query const& q, nigiri::routing::journey& j){
   //reconstruct_journey<SearchDir, Rt>(...);
 }
 
+template <gpu_direction SearchDir, bool Rt>
+__device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
+                                       gpu_timetable* gtt_, raptor_stats* stats_,
+                                       uint32_t* prev_station_mark_, gpu_delta_t* best_,
+                                       gpu_delta_t* round_times_, gpu_delta_t* tmp_,
+                                       uint16_t* lb_, int n_days_,
+                                       gpu_delta_t* time_at_dest_,
+                                       uint32_t* station_mark_){
+  auto const t_id = threadIdx.x;
+
+  gpu_stop_idx_t stop_id = 0xffff;
+  uint16_t prev_arrival = 0xffff;
+  uint16_t stop_arrival = 0xffff;
+  uint16_t stop_departure = 0xffff;
+
+  unsigned leader = (*gtt_).route_location_seq_->size();
+  unsigned int active_stop_count = (*gtt_).route_location_seq_->size();
+
+  if(t_id < active_stop_count){
+
+  }
+
+  return false;
+}
+
+template <gpu_direction SearchDir, bool Rt>
+__device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
+                                      gpu_timetable* gtt_, raptor_stats* stats_,
+                                      uint32_t* prev_station_mark_, gpu_delta_t* best_,
+                                      gpu_delta_t* round_times_, gpu_delta_t* tmp_,
+                                      uint16_t* lb_, int n_days_,
+                                      gpu_delta_t* time_at_dest_,
+                                      uint32_t* station_mark_){
+  return false;
+}
+
 template <gpu_direction SearchDir, bool Rt, bool WithClaszFilter>
 __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
                             gpu_timetable* gtt_, uint32_t* route_mark_,
                             gpu_clasz_mask_t* allowed_claszes_, raptor_stats* stats_,
-                            short* kMaxTravelTimeTicks_){
+                            short* kMaxTravelTimeTicks_, uint32_t* prev_station_mark_,
+                            gpu_delta_t* best_,
+                            gpu_delta_t* round_times_, gpu_delta_t* tmp_,
+                            uint16_t* lb_, int n_days_,
+                            gpu_delta_t* time_at_dest_,
+                            uint32_t* station_mark_){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
 
   if(get_global_thread_id()==0){
     any_station_marked_ = false;
   }
+  //Hier gehen wir durch alle Routen wie in update_routes_dev von Julian
   for(auto r_idx = global_t_id;
        r_idx <= *gtt_->n_routes_; r_idx += global_stride){
     auto const r = gpu_route_idx_t{r_idx};
@@ -107,25 +149,18 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
       // TODO hier in smaller32 und bigger32 aufteilen? → aber hier geht nur ein thread rein...
       // also sollte vielleicht diese Schleife mit allen auf einmal durchgangen werden???
       // parameter stimmen noch nicht
-      any_station_marked_ |= update_route(k, r, gr);
+      if((*gtt_).route_location_seq_[r_idx].size() <= 32){ // die Route hat <= 32 stops
+        any_station_marked_ |= update_route_smaller32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
+                                                      round_times_, tmp_, lb_, n_days_, time_at_dest_, station_mark_);
+      }
+      else{ // diese Route hat > 32 Stops
+        any_station_marked_ |= update_route_bigger32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
+                                                     round_times_, tmp_, lb_, n_days_, time_at_dest_, station_mark_);
+      }
+
     }
   }
   return any_station_marked_;
-}
-
-template <gpu_direction SearchDir, bool Rt>
-__device__ bool update_route(unsigned const k, gpu_route_idx_t const r, gpu_raptor<SearchDir,Rt>& gr){
-  return false;
-}
-
-template <gpu_direction SearchDir, bool Rt>
-__device__ bool update_route_smaller32(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
-  return false;
-}
-
-template <gpu_direction SearchDir, bool Rt>
-__device__ bool update_route_bigger32(unsigned const k, gpu_raptor<SearchDir,Rt>& gr){
-  return false;
 }
 
 template <gpu_direction SearchDir, bool Rt>
@@ -352,7 +387,13 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
   any_station_marked_ = (allowed_claszes_ = 0xffff)
-                         ? loop_routes<SearchDir, Rt, false>(k, stats_) : loop_routes<SearchDir, Rt,true>(k, stats_);
+                         ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, gtt_, route_mark_, allowed_claszes_,
+                                                             stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
+                                                             round_times_, tmp_, lb_, n_days_, time_at_dest_, station_mark_)
+                           : loop_routes<SearchDir, Rt,true>(k, any_station_marked_, gtt_, route_mark_, allowed_claszes_,
+                                                             stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
+                                                             round_times_, tmp_, lb_, n_days_, time_at_dest_, station_mark_);
+
   this_grid().sync();
   if(get_global_thread_id()==0){
     if(!any_station_marked_){
