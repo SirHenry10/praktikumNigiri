@@ -350,7 +350,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
-  any_station_marked_ = (allowed_claszes_ = std::numeric_limits<nigiri::routing::clasz_mask_t>::max())
+  any_station_marked_ = (allowed_claszes_ = 0xffff)
                          ? loop_routes<SearchDir, Rt, false>(k, stats_) : loop_routes<SearchDir, Rt,true>(k, stats_);
   this_grid().sync();
   if(get_global_thread_id()==0){
