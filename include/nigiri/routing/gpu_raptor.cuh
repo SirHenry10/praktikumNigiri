@@ -6,7 +6,6 @@
 #include "nigiri/routing/raptor/debug.h"
 #include "nigiri/routing/gpu_raptor_state.cuh"
 #include "nigiri/routing/gpu_timetable.h"
-#include "nigiri/special_stations.h"
 extern "C" {
 #define XSTR(s) STR(s)
 #define STR(s) #s
@@ -165,8 +164,8 @@ struct gpu_raptor {
   static constexpr auto const kInvalid = kInvalidGpuDelta<SearchDir>;
   static constexpr auto const kUnreachable =
       std::numeric_limits<std::uint16_t>::max();
-  static constexpr auto const kIntermodalTarget =
-      to_idx(get_special_station(nigiri::special_station::kEnd));
+  static auto const kIntermodalTarget =
+      gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
 
 
   gpu_raptor(gpu_timetable const* gtt,

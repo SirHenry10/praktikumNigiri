@@ -3,13 +3,14 @@
 #include <cassert>
 #include <type_traits>
 
+#include "nigiri/rt/run.h"
 #include "cista/containers/bitset.h"
 #include "cista/containers/ptr.h"
+#include "cista/containers/string.h"
 #include "cista/containers/vector.h"
 #include "cista/reflection/comparable.h"
 #include "cista/reflection/printable.h"
 #include "cista/verify.h"
-#include "cista/containers/string.h"
 #include "geo/latlng.h"
 
 template <typename T, typename Tag>
@@ -20,7 +21,7 @@ struct gpu_strong {
   __host__ __device__ explicit gpu_strong(T const& v) noexcept(
       std::is_nothrow_copy_constructible_v<T>)
       : v_{v} {}
-  __host__ __device__ explicit gpu_strong(T&& v) noexcept(
+  __host__ __device__ constexpr explicit gpu_strong(T&& v) noexcept(
       std::is_nothrow_move_constructible_v<T>)
       : v_{std::move(v)} {}
   template <typename X>
@@ -1425,6 +1426,20 @@ static constexpr auto const gpu_kMaxTransfers = std::uint8_t{7U};
 static constexpr auto const gpu_kMaxTravelTime = 1_gpu_days;
 
 namespace nigiri::routing {
+
+using gpu_start_type_t = std::int32_t;
+struct offset {
+  offset(gpu_location_idx_t const l, gpu_duration_t const d, gpu_start_type_t const t)
+      : target_{l}, duration_{d}, type_{t} {}
+
+  gpu_location_idx_t target() const noexcept { return target_; }
+  gpu_duration_t duration() const noexcept { return duration_; }
+  gpu_start_type_t type() const noexcept { return type_; }
+
+  gpu_location_idx_t target_;
+  gpu_duration_t duration_;
+  gpu_start_type_t type_;
+};
 struct gpu_journey {
   struct run_enter_exit {
     run_enter_exit(rt::run r, gpu_stop_idx_t const a, gpu_stop_idx_t const b)
@@ -1480,3 +1495,38 @@ struct gpu_journey {
 
 }  // namespace nigiri::routing
 using gpu_journey = nigiri::routing::gpu_journey;
+enum class gpu_special_station : gpu_location_idx_t::value_t {
+  kStart,
+  kEnd,
+  kVia0,
+  kVia1,
+  kVia2,
+  kVia3,
+  kVia4,
+  kVia5,
+  kVia6,
+  kSpecialStationsSize
+};
+
+constexpr bool is_special(gpu_location_idx_t const l) {
+  constexpr auto const max =
+      static_cast<std::underlying_type_t<gpu_special_station>>(
+          gpu_special_station::kSpecialStationsSize);
+  return gpu_to_idx(l) < max;
+}
+
+constexpr auto const gpu_special_stations_names =
+    cista::array<std::string_view,
+                 static_cast<std::underlying_type_t<gpu_special_station>>(
+                     gpu_special_station::kSpecialStationsSize)>{
+        "START", "END", "VIA0", "VIA1", "VIA2", "VIA3", "VIA4", "VIA5", "VIA6"};
+
+constexpr gpu_location_idx_t get_gpu_special_station(gpu_special_station const x) {
+  return gpu_location_idx_t{
+      static_cast<std::underlying_type_t<gpu_special_station>>(x)};
+}
+
+constexpr std::string_view get_gpu_special_station_name(gpu_special_station const x) {
+  return gpu_special_stations_names
+      [static_cast<std::underlying_type_t<gpu_special_station>>(x)];
+}
