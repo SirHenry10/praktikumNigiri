@@ -283,8 +283,7 @@ __host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to
 
 //TODO: später raus kicken was nicht brauchen
 using gpu_delta_t = int16_t;
-constexpr auto const gpu_kTimetableOffset =
-    std::chrono::days{1} + std::chrono::days{4};
+constexpr auto const gpu_kTimetableOffset = std::chrono::days{1} + std::chrono::days{4};
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_location_idx_t = gpu_strong<std::uint32_t, struct _location_idx>;
 using gpu_value_type = gpu_location_idx_t::value_t;
@@ -1352,29 +1351,34 @@ using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 
 template <typename V, std::size_t SIZE>
 using array = cista::raw::array<V, SIZE>;
+
 namespace nigiri{
-struct footpath;
-struct location_id;
-#ifndef __CUDA_ARCH__
 #include "nigiri/types.h"
-#endif
-struct gpu_locations {
-  hash_map<location_id, gpu_location_idx_t> location_id_to_idx_;
-  vecvec<gpu_location_idx_t, char> names_;
-  vecvec<gpu_location_idx_t, char> ids_;
-  vector_map<gpu_location_idx_t, geo::latlng> coordinates_;
-  vector_map<gpu_location_idx_t, gpu_source_idx_t> src_;
+#include "nigiri/footpath.h"
+struct gpu_locations_device {
   gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> transfer_time_;
-  vector_map<gpu_location_idx_t, location_type> types_;
-  vector_map<gpu_location_idx_t, gpu_location_idx_t> parents_;
-  vector_map<gpu_location_idx_t, gpu_timezone_idx_t> location_timezones_;
-  mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> equivalences_;
-  mutable_fws_multimap<gpu_location_idx_t, gpu_location_idx_t> children_;
-  mutable_fws_multimap<gpu_location_idx_t, footpath> preprocessing_footpaths_out_;
-  mutable_fws_multimap<gpu_location_idx_t, footpath> preprocessing_footpaths_in_;
   gpu_vecvec<gpu_location_idx_t, footpath>* footpaths_out_; //nigiri::kMaxProfiles is the size
   gpu_vecvec<gpu_location_idx_t, footpath>* footpaths_in_;  //same here
-  vector_map<gpu_timezone_idx_t, timezone> timezones_;
 };
-} //namespace: nigiri
-using gpu_locations = nigiri::gpu_locations;
+struct locations_host{
+  hash_map<location_id, location_idx_t> location_id_to_idx_;
+  vecvec<location_idx_t, char> names_;
+  vecvec<location_idx_t, char> ids_;
+  vector_map<location_idx_t, geo::latlng> coordinates_;
+  vector_map<location_idx_t, source_idx_t> src_;
+  vector_map<location_idx_t, u8_minutes> transfer_time_;
+  vector_map<location_idx_t, location_type> types_;
+  vector_map<location_idx_t, location_idx_t> parents_;
+  vector_map<location_idx_t, timezone_idx_t> location_timezones_;
+  mutable_fws_multimap<location_idx_t, location_idx_t> equivalences_;
+  mutable_fws_multimap<location_idx_t, location_idx_t> children_;
+  mutable_fws_multimap<location_idx_t, footpath> preprocessing_footpaths_out_;
+  mutable_fws_multimap<location_idx_t, footpath> preprocessing_footpaths_in_;
+  array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_out_;
+  array<vecvec<location_idx_t, footpath>, kMaxProfiles> footpaths_in_;
+  vector_map<timezone_idx_t, timezone> timezones_;
+};
+}//namespace: nigiri
+using gpu_locations = nigiri::gpu_locations_device;
+using locations_host = nigiri::locations_host;
+

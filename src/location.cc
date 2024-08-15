@@ -20,28 +20,18 @@ location::location(timetable const& tt, location_idx_t idx)
       transfer_time_{tt.locations_.transfer_time_[idx]},
       equivalences_{tt.locations_.equivalences_[idx]} {}
 
-auto init_equivalences(gpu_timetable const& gtt, location_idx_t l) {
-  auto n_gpu_equivalences = *reinterpret_cast<mutable_fws_multimap<location_idx_t, location_idx_t>*>(&gtt.locations_->equivalences_);
-  return n_gpu_equivalences[l];
-}
+
 location::location(gpu_timetable const& gtt, gpu_location_idx_t idx)
-    : l_{*reinterpret_cast<location_idx_t*>(&idx)},equivalences_{init_equivalences(gtt,l_)}{
-  auto n_gpu_ids = *reinterpret_cast<vecvec<location_idx_t, char>*>(&gtt.locations_->ids_);
-  id_ = n_gpu_ids[l_].view();
-  auto n_gpu_names = *reinterpret_cast<vecvec<location_idx_t, char>*>(&gtt.locations_->names_);
-  name_ = n_gpu_names[l_].view();
-  auto n_gpu_coordinates = *reinterpret_cast<vector_map<location_idx_t, geo::latlng>*>(&gtt.locations_->coordinates_);
-  pos_ = n_gpu_coordinates[l_];
-  auto n_gpu_src = *reinterpret_cast<vector_map<location_idx_t, source_idx_t>*>(&gtt.locations_->src_);
-  src_ = n_gpu_src[l_];
-  auto n_gpu_types = *reinterpret_cast<vector_map<location_idx_t, location_type>*>(&gtt.locations_->types_);
-  type_ = n_gpu_types[l_];
-  auto n_gpu_parent = *reinterpret_cast<vector_map<location_idx_t, location_idx_t>*>(&gtt.locations_->parents_);
-  parent_ = n_gpu_parent[l_];
-  auto n_gpu_timezones = *reinterpret_cast<vector_map<location_idx_t, timezone_idx_t>*>(&gtt.locations_->location_timezones_);
-  timezone_idx_ = n_gpu_timezones[l_];
-  auto n_gpu_transfer_time = *reinterpret_cast<vector_map<location_idx_t, u8_minutes>*>(&gtt.locations_->transfer_time_);
-  transfer_time_ = n_gpu_transfer_time[l_];
+    : l_{*reinterpret_cast<location_idx_t*>(&idx)},
+      id_{gtt.locations_host_.ids_[l_].view()},
+      name_{gtt.locations_host_.names_[l_].view()},
+      pos_{gtt.locations_host_.coordinates_[l_]},
+      src_{gtt.locations_host_.src_[l_]},
+      type_{gtt.locations_host_.types_[l_]},
+      parent_{gtt.locations_host_.parents_[l_]},
+      timezone_idx_{gtt.locations_host_.location_timezones_[l_]},
+      transfer_time_{gtt.locations_host_.transfer_time_[l_]},
+      equivalences_{gtt.locations_host_.equivalences_[l_]}{
 }
 
 

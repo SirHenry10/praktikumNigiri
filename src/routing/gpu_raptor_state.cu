@@ -1,6 +1,5 @@
 #pragma once
 
-#include "nigiri/location.h"
 #include "nigiri/routing/gpu_raptor_state.cuh"
 #include "fmt/base.h"
 
@@ -175,6 +174,10 @@ loaned_mem::~loaned_mem() {
   mem_->host_.reset(mem_->device_.invalid_);
   cuda_sync_stream(mem_->context_.proc_stream_);
 }
+
+#ifndef __CUDA_ARCH__
+#include "nigiri/location.h"
+#endif
 void device_memory::print(const gpu_timetable& gtt, gpu_sys_days sys_days, gpu_delta_t invalid) {
   auto const has_empty_rounds = [&](std::uint32_t const l) {
     for (auto k = 0U; k != row_count_round_times_; ++k) {

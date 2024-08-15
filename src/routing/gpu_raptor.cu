@@ -234,7 +234,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_timetable* gtt
   }
 }
 
-
+/*
 template <gpu_direction SearchDir, bool Rt>
 __device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_t const r,
                                                 gpu_stop_idx_t const stop_idx,
@@ -261,6 +261,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_
 
   // for Schleife über n_days_to_iterate
 }
+ */
 
 template <gpu_direction SearchDir, bool Rt, std::size_t Size>
 __device__ bool is_transport_active(gpu_transport_idx_t const t,
