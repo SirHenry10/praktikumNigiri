@@ -1423,3 +1423,60 @@ constexpr gpu_duration_t operator""_gpu_days(unsigned long long n) {
 }
 static constexpr auto const gpu_kMaxTransfers = std::uint8_t{7U};
 static constexpr auto const gpu_kMaxTravelTime = 1_gpu_days;
+
+namespace nigiri::routing {
+struct gpu_journey {
+  struct run_enter_exit {
+    run_enter_exit(rt::run r, gpu_stop_idx_t const a, gpu_stop_idx_t const b)
+        : r_{std::move(r)},
+          stop_range_{std::min(a, b),
+                      static_cast<gpu_stop_idx_t>(std::max(a, b) + 1U)} {}
+    rt::run r_;
+    gpu_interval<gpu_stop_idx_t> stop_range_;
+  };
+  
+  struct leg {
+    template <typename T>
+    leg(gpu_direction const d,
+        gpu_location_idx_t const a,
+        gpu_location_idx_t const b,
+        gpu_unixtime_t const tima_at_a,
+        gpu_unixtime_t const time_at_b,
+        T&& uses)
+        : from_{d == gpu_direction::kForward ? a : b},
+          to_{d == gpu_direction::kForward ? b : a},
+          dep_time_{d == gpu_direction::kForward ? tima_at_a : time_at_b},
+          arr_time_{d == gpu_direction::kForward ? time_at_b : tima_at_a},
+          uses_{std::forward<T>(uses)} {}
+
+
+    gpu_location_idx_t from_, to_;
+    gpu_unixtime_t dep_time_, arr_time_;
+    std::variant<run_enter_exit, gpu_footpath, offset> uses_;
+  };
+
+  bool dominates(gpu_journey const& o) const {
+    if (start_time_ <= dest_time_) {
+      return transfers_ <= o.transfers_ && start_time_ >= o.start_time_ &&
+             dest_time_ <= o.dest_time_;
+    } else {
+      return transfers_ <= o.transfers_ && start_time_ <= o.start_time_ &&
+             dest_time_ >= o.dest_time_;
+    }
+  }
+
+  void add(leg&& l) { legs_.emplace_back(l); }
+
+  gpu_duration_t travel_time() const {
+    return gpu_duration_t{std::abs((dest_time_ - start_time_).count())};
+  }
+
+  std::vector<leg> legs_;
+  gpu_unixtime_t start_time_;
+  gpu_unixtime_t dest_time_;
+  gpu_location_idx_t dest_;
+  std::uint8_t transfers_{0U};
+};
+
+}  // namespace nigiri::routing
+using gpu_journey = nigiri::routing::gpu_journey;

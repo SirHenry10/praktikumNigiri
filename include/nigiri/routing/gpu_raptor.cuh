@@ -5,9 +5,6 @@
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
 #include "nigiri/routing/gpu_raptor_state.cuh"
-#include "nigiri/routing/raptor/raptor_state.h" //maybe weg
-#include "nigiri/routing/raptor/reconstruct.h"
-#include "nigiri/rt/rt_timetable.h"
 #include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/special_stations.h"
 extern "C" {
@@ -117,7 +114,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   gpu_unixtime_t const worst_time_at_dest,
                                   gpu_profile_idx_t const prf_idx,
-                                  nigiri::pareto_set<nigiri::routing::journey>& results,
+                                  nigiri::pareto_set<gpu_journey>& results,
                                   gpu_raptor<SearchDir,Rt>& gr);
 
 template<gpu_direction SearchDir>
@@ -161,7 +158,7 @@ template <gpu_direction SearchDir, bool Rt>
 struct gpu_raptor {
   using algo_stats_t = raptor_stats;
 
-  static constexpr auto const kMaxTravelTimeTicks = nigiri::routing::kMaxTravelTime.count();
+  static constexpr auto const kMaxTravelTimeTicks = gpu_kMaxTravelTime.count();
   static constexpr bool kUseLowerBounds = true;
   static constexpr auto const kFwd = (SearchDir == gpu_direction::kForward);
   static constexpr auto const kBwd = (SearchDir == gpu_direction::kBackward);
@@ -173,7 +170,6 @@ struct gpu_raptor {
 
 
   gpu_raptor(gpu_timetable const* gtt,
-         nigiri::rt_timetable const* rtt,
          gpu_raptor_state& state,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
@@ -181,7 +177,6 @@ struct gpu_raptor {
          gpu_day_idx_t const base,
          gpu_clasz_mask_t const allowed_claszes)
       : gtt_{gtt},
-        rtt_{rtt},
         state_{state}
         {
     state_.init(*gtt_,kInvalid);
@@ -215,7 +210,6 @@ struct gpu_raptor {
   }
   //TODO: BUILD DESTRUKTOR TO DESTORY mallocs
   algo_stats_t get_stats() const {
-    //TODO:
     return stats_;
   }
 
@@ -259,7 +253,7 @@ void execute(gpu_unixtime_t const start_time,
              uint8_t const max_transfers,
              gpu_unixtime_t const worst_time_at_dest,
              gpu_profile_idx_t const prf_idx,
-             nigiri::pareto_set<nigiri::routing::journey>& results){
+             nigiri::pareto_set<gpu_journey>& results){
 
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&results, (void*)&this};
   launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
@@ -268,8 +262,6 @@ void execute(gpu_unixtime_t const start_time,
   //TODO: ALLES LÖSCHEN!!!!!!!!!!!
 }
   gpu_timetable const* gtt_{nullptr};
-  nigiri::rt_timetable const* rtt_{nullptr};
-  // all diese müssen mit malloc (evtl. in anderer Datei)
   gpu_raptor_state& state_;
   mem* mem_;
   bool* is_dest_;
