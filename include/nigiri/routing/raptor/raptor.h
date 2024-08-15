@@ -225,6 +225,7 @@ private:
   template <bool WithClaszFilter>
   bool loop_routes(unsigned const k) {
     auto any_marked = false;
+    // Hier geht es durch alle Routen wie in update_routes_dev von Julian
     for (auto r_idx = 0U; r_idx != n_routes_; ++r_idx) {
       auto const r = route_idx_t{r_idx};
 
@@ -442,6 +443,7 @@ private:
     bool any_marked = false;
 
     auto et = transport{};
+    // hier gehen wir durch alle Stops der Route r → das wollen wir in update_smaller/bigger machen
     for (auto i = 0U; i != stop_seq.size(); ++i) {
       auto const stop_idx =
           static_cast<stop_idx_t>(kFwd ? i : stop_seq.size() - i - 1U);
@@ -449,6 +451,8 @@ private:
       auto const l_idx = cista::to_idx(stp.location_idx());
       auto const is_last = i == stop_seq.size() - 1U;
 
+      // wenn transportmittel an dem Tag nicht fährt &
+      // wenn station nicht markiert ist, wird diese übersprungen → springt zur nächsten station
       if (!et.is_valid() && !state_.prev_station_mark_[l_idx]) {
         trace("┊ │k={}  stop_idx={} {}: not marked, no et - skip\n", k,
               stop_idx, location{tt_, location_idx_t{l_idx}});
@@ -462,14 +466,20 @@ private:
           to_unix(state_.round_times_[k - 1][l_idx]),
           to_unix(state_.best_[l_idx]), to_unix(state_.tmp_[l_idx]));
 
+
       auto current_best = kInvalid;
+      //wenn station ausgehende/eingehende routen hat & transportmittel an dem Tag fährt
       if (et.is_valid() && (kFwd ? stp.out_allowed() : stp.in_allowed())) {
+        // wann transportmittel an dieser station ankommt
         auto const by_transport = time_at_stop(
             r, et, stop_idx, kFwd ? event_type::kArr : event_type::kDep);
+        // beste Zeit für diese station bekommen
         current_best = get_best(state_.round_times_[k - 1][l_idx],
                                 state_.tmp_[l_idx], state_.best_[l_idx]);
         assert(by_transport != std::numeric_limits<delta_t>::min() &&
                by_transport != std::numeric_limits<delta_t>::max());
+        // wenn Ankunftszeit dieses Transportmittels besser ist als beste Ankunftszeit für station
+        // & vor frühster Ankunftszeit am Ziel liegt
         if (is_better(by_transport, current_best) &&
             is_better(by_transport, time_at_dest_[k]) &&
             lb_[l_idx] != kUnreachable &&
@@ -482,6 +492,7 @@ private:
               !is_better(by_transport, current_best) ? "NOT" : "",
               location{tt_, stp.location_idx()});
 
+          // dann wird frühste Ankunftszeit an dieser Station aktualisiert
           ++stats_.n_earliest_arrival_updated_by_route_;
           state_.tmp_[l_idx] = get_best(by_transport, state_.tmp_[l_idx]);
           state_.station_mark_[l_idx] = true;
@@ -522,15 +533,23 @@ private:
             (kFwd ? stp.out_allowed() : stp.in_allowed()));
       }
 
+      // wenn es die letzte Station in der Route ist
+      // oder es keine ausgehenden/eingehenden transportmittel gibt
+      // oder die Station nicht markiert war
       if (is_last || !(kFwd ? stp.in_allowed() : stp.out_allowed()) ||
           !state_.prev_station_mark_[l_idx]) {
+        //dann wird diese übersprungen
         continue;
       }
 
+      // wenn der lowerBound von der Station nicht erreichbar ist,
+      // werden die darauffolgenden Stationen auch nicht erreichbar sein
       if (lb_[l_idx] == kUnreachable) {
+        // dann wird Durchgehen dieser Route abgebrochen
         break;
       }
 
+      // wenn Transportmittel an dem Tag fährt, dann
       auto const et_time_at_stop =
           et.is_valid()
               ? time_at_stop(r, et, stop_idx,
