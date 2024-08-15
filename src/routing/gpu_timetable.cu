@@ -31,6 +31,7 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
                                            gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                            gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
+                                           gpu_vector_map<gpu_bitfield_idx_t,std::uint64_t*> const* bitfields_data,
                                            gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
                                            gpu_interval<gpu_sys_days> const* date_range,
                                            gpu_locations const* locations,
@@ -75,6 +76,10 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   gtt->bitfields_ = nullptr;
   using gpu_vecmap_bitfields = gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>;
   CUDA_COPY_TO_DEVICE(gpu_vecmap_bitfields, gtt->bitfields_, bitfields,1);
+  //bitfields_data_
+  gtt->bitfields_data_ = nullptr;
+  using gpu_vecmap_bitfields_data = gpu_vector_map<gpu_bitfield_idx_t, std::uint64_t*>;
+  CUDA_COPY_TO_DEVICE(gpu_vecmap_bitfields_data, gtt->bitfields_data_, bitfields_data,1);
   //transport_traffic_days_
   gtt->transport_traffic_days_ = nullptr;
   using gpu_vecmap_transport_traffic_days = gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>;
@@ -102,6 +107,7 @@ fail:
   cudaFree(gtt->route_stop_time_ranges_);
   cudaFree(gtt->route_transport_ranges_);
   cudaFree(gtt->bitfields_);
+  cudaFree(gtt->bitfields_data_);
   cudaFree(gtt->transport_traffic_days_);
   cudaFree(gtt->date_range_);
   cudaFree(gtt->locations_);
@@ -118,6 +124,7 @@ void destroy_gpu_timetable(gpu_timetable*& gtt) {
   cudaFree(gtt->route_stop_time_ranges_);
   cudaFree(gtt->route_transport_ranges_);
   cudaFree(gtt->bitfields_);
+  cudaFree(gtt->bitfields_data_);
   cudaFree(gtt->transport_traffic_days_);
   cudaFree(gtt->date_range_);
   cudaFree(gtt->locations_);
