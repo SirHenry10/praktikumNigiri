@@ -468,7 +468,7 @@ private:
 
 
       auto current_best = kInvalid;
-      //wenn station ausgehende/eingehende routen hat & transportmittel an dem Tag fährt
+      //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
       if (et.is_valid() && (kFwd ? stp.out_allowed() : stp.in_allowed())) {
         // wann transportmittel an dieser station ankommt
         auto const by_transport = time_at_stop(
@@ -549,26 +549,32 @@ private:
         break;
       }
 
-      // wenn Transportmittel an dem Tag fährt, dann
+      // wenn Transportmittel an dem Tag fährt, dann ist das hier Ankunftszeit am Stop
       auto const et_time_at_stop =
           et.is_valid()
               ? time_at_stop(r, et, stop_idx,
                              kFwd ? event_type::kDep : event_type::kArr)
               : kInvalid;
+      // vorherige Ankunftszeit an der Station
       auto const prev_round_time = state_.round_times_[k - 1][l_idx];
       assert(prev_round_time != kInvalid);
+      // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
       if (is_better_or_eq(prev_round_time, et_time_at_stop)) {
         auto const [day, mam] = split(prev_round_time);
+        // dann wird neues Transportmittel, das am frühsten von station abfährt
         auto const new_et = get_earliest_transport(k, r, stop_idx, day, mam,
                                                    stp.location_idx());
         current_best =
             get_best(current_best, state_.best_[l_idx], state_.tmp_[l_idx]);
+        // wenn neues Transportmittel an diesem Tag fährt und
+        // bisherige beste Ankunftszeit Invalid ist ODER Ankunftszeit an Station besser als Ankunftszeit von neuem Transportmittel
         if (new_et.is_valid() &&
             (current_best == kInvalid ||
              is_better_or_eq(
                  time_at_stop(r, new_et, stop_idx,
                               kFwd ? event_type::kDep : event_type::kArr),
                  et_time_at_stop))) {
+          // dann wird neues Transportmittel genommen
           et = new_et;
         } else if (new_et.is_valid()) {
           trace("┊ │k={}    update et: no update time_at_stop={}\n", k,
