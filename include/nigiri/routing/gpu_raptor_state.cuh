@@ -7,7 +7,6 @@
 #include <mutex>
 #include <type_traits>
 #include <vector>
-#include "nigiri/routing/limits.h"
 
 struct cudaDeviceProp;
 namespace std {
@@ -99,7 +98,7 @@ struct device_memory {
 
   ~device_memory() = default;
 
-  void print(gpu_timetable const& gtt, date::sys_days, gpu_delta_t invalid);
+  void print(gpu_timetable const& gtt, gpu_days , gpu_delta_t invalid);
 
   void destroy();
 

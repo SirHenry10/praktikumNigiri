@@ -89,7 +89,7 @@ device_memory::device_memory(uint32_t size_tmp,
 
   cudaMalloc(&tmp_, size_tmp_ * sizeof(gpu_delta_t));
   time_at_dest_ = nullptr;
-  cudaMalloc(&time_at_dest_, (nigiri::routing::kMaxTransfers+1) *sizeof(gpu_delta_t));
+  cudaMalloc(&time_at_dest_, (gpu_kMaxTransfers+1) *sizeof(gpu_delta_t));
   cudaMalloc(&best_, size_best_ * sizeof(gpu_delta_t));
   cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ *
                                 sizeof(gpu_delta_t));
@@ -115,7 +115,7 @@ void device_memory::destroy() {
 }
 
 void device_memory::reset_async(cudaStream_t s) {
-  cudaMemsetAsync(time_at_dest_,invalid_, (nigiri::routing::kMaxTransfers+1)*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(time_at_dest_,invalid_, (gpu_kMaxTransfers+1)*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(tmp_,invalid_, size_tmp_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(best_, invalid_, size_best_*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(round_times_, invalid_, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
@@ -151,7 +151,7 @@ void gpu_raptor_state::init(gpu_timetable const& gtt,gpu_delta_t invalid) {
 
   for (auto device_id = 0; device_id < device_count; ++device_id) {
       memory_.emplace_back(std::make_unique<struct mem>(
-        *gtt.n_locations_,*gtt.n_locations_,nigiri::routing::kMaxTransfers + 1U,*gtt.n_locations_,*gtt.n_locations_,*gtt.n_routes_,invalid, device_id));
+        *gtt.n_locations_,*gtt.n_locations_,gpu_kMaxTransfers + 1U,*gtt.n_locations_,*gtt.n_locations_,*gtt.n_routes_,invalid, device_id));
   }
   memory_mutexes_ = std::vector<std::mutex>(memory_.size());
 }

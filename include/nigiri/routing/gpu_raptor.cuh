@@ -11,7 +11,6 @@
 #include "nigiri/routing/raptor/raptor_state.h" //maybe weg
 #include "nigiri/routing/raptor/reconstruct.h"
 #include "nigiri/rt/rt_timetable.h"
-#include "nigiri/special_stations.h"
 #include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/special_stations.h"
 extern "C" {
