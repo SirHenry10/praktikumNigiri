@@ -1412,8 +1412,8 @@ inline void deserialize(Ctx const&, gpu_footpath*) {}
 
 struct gpu_locations_device {
   gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> transfer_time_;
-  gpu_vecvec<gpu_location_idx_t, gpu_footpath> gpu_footpaths_out_; //nigiri::kMaxProfiles is the size
-  gpu_vecvec<gpu_location_idx_t, gpu_footpath> gpu_footpaths_in_;  //same here
+  gpu_vecvec<gpu_location_idx_t, gpu_footpath>* gpu_footpaths_out_; //nigiri::kMaxProfiles is the size
+  gpu_vecvec<gpu_location_idx_t, gpu_footpath>* gpu_footpaths_in_;  //same here
 };
 }//namespace: nigiri
 using gpu_locations = nigiri::gpu_locations_device;
