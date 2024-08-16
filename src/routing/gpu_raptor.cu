@@ -213,8 +213,8 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
     }
     auto const l_idx = gpu_location_idx_t{idx};
     auto const& fps = (SearchDir == gpu_direction::kForward)
-         ? gtt_->locations_->gpu_footpaths_out_.data_[prf_idx][l_idx.v_]
-           : gtt_->locations_->gpu_footpaths_in_.data_[prf_idx][l_idx.v_];
+         ? gtt_->locations_->gpu_footpaths_out_[prf_idx][l_idx]
+           : gtt_->locations_->gpu_footpaths_in_[prf_idx][l_idx];
     for(auto const& fp: fps){
       ++stats_[idx>>5].n_footpaths_visited_;
       auto const target = gpu_to_idx(gpu_location_idx_t{fp.target_});
@@ -384,7 +384,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
-  any_station_marked_ = (allowed_claszes_ = 0xffff)
+  any_station_marked_ = (allowed_claszes_ == 0xffff)
                          ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, gtt_, route_mark_, allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, tmp_, lb_, n_days_, time_at_dest_, station_mark_)
