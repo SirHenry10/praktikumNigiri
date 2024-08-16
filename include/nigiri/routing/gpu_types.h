@@ -1451,3 +1451,32 @@ constexpr std::string_view get_gpu_special_station_name(gpu_special_station cons
   return gpu_special_stations_names
       [static_cast<std::underlying_type_t<gpu_special_station>>(x)];
 }
+struct gpu_stop {
+  using value_type = gpu_location_idx_t::value_t;
+
+  __host__ __device__ gpu_stop(gpu_location_idx_t::value_t const val) {
+    *reinterpret_cast<value_type*>(this) = val;
+  }
+
+  __host__ __device__ gpu_stop(gpu_location_idx_t const location,
+       bool const in_allowed,
+       bool const out_allowed)
+      : location_{location},
+        in_allowed_{in_allowed ? 1U : 0U},
+        out_allowed_{out_allowed ? 1U : 0U} {}
+
+  __host__ __device__ gpu_location_idx_t gpu_location_idx() const { return gpu_location_idx_t{location_}; }
+  __host__ __device__ bool in_allowed() const { return in_allowed_ != 0U; }
+  __host__ __device__ bool out_allowed() const { return out_allowed_ != 0U; }
+  __host__ __device__ bool is_cancelled() const { return !in_allowed() && !out_allowed(); }
+
+  __host__ __device__ gpu_location_idx_t::value_t value() const {
+    return *reinterpret_cast<gpu_location_idx_t::value_t const*>(this);
+  }
+
+  __host__ __device__ friend auto operator<=>(gpu_stop const&, gpu_stop const&) = default;
+
+  gpu_location_idx_t::value_t location_ : 30;
+  gpu_location_idx_t::value_t in_allowed_ : 1;
+  gpu_location_idx_t::value_t out_allowed_ : 1;
+};
