@@ -1453,7 +1453,7 @@ constexpr std::string_view get_gpu_special_station_name(gpu_special_station cons
 }
 struct gpu_stop {
   using value_type = gpu_location_idx_t::value_t;
-
+#ifdef __CUDA_ARCH__
   __host__ __device__ gpu_stop(gpu_location_idx_t::value_t const val) {
     *reinterpret_cast<value_type*>(this) = val;
   }
@@ -1475,7 +1475,7 @@ struct gpu_stop {
   }
 
   __host__ __device__ friend auto operator<=>(gpu_stop const&, gpu_stop const&) = default;
-
+#endif
   gpu_location_idx_t::value_t location_ : 30;
   gpu_location_idx_t::value_t in_allowed_ : 1;
   gpu_location_idx_t::value_t out_allowed_ : 1;
