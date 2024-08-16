@@ -123,7 +123,6 @@ struct gpu_raptor_translator {
   std::array<delta_t, kMaxTransfers + 1> time_at_dest_;
   day_idx_t base_;
   int n_days_;
-  raptor_stats stats_;
   std::uint32_t n_locations_, n_routes_, n_rt_transports_;
   clasz_mask_t allowed_claszes_;
 private:

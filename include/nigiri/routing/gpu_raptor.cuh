@@ -33,7 +33,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      int const& n_days,
                      std::uint16_t const& kUnreachable,
                      short const& kMaxTravelTimeTicks,
-                     gpu_location_idx_t const& kIntermodalTarget,
+                     unsigned int const& kIntermodalTarget,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
                      std::uint32_t* & dist_to_end_size_,
@@ -42,7 +42,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & lb_,
                      int* & n_days_,
                      std::uint16_t* & kUnreachable_,
-                     gpu_location_idx_t* & kIntermodalTarget_,
+                     unsigned int* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
@@ -192,8 +192,8 @@ struct gpu_raptor {
                     lb,
                     gtt_->gpu_internal_interval_days().size().count(),
                     kUnreachable,
+                    kMaxTravelTimeTicks,
                     kIntermodalTarget,
-                    kMaxTravelTimeTicks, //
                     allowed_claszes_,
                     dist_to_end_,
                     dist_to_end_size_,
@@ -284,6 +284,6 @@ struct gpu_raptor {
   uint32_t n_rt_transports_;
   gpu_clasz_mask_t* allowed_claszes_;
   std::uint16_t* kUnreachable_;
-  gpu_location_idx_t* kIntermodalTarget_;
+  unsigned int* kIntermodalTarget_;
   short* kMaxTravelTimeTicks_;
 };
