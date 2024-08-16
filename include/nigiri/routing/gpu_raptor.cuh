@@ -33,7 +33,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      int const& n_days,
                      std::uint16_t const& kUnreachable,
                      short const& kMaxTravelTimeTicks,
-                     gpu_location_idx_t const* & kIntermodalTarget,
+                     gpu_location_idx_t const& kIntermodalTarget,
                      gpu_clasz_mask_t*& allowed_claszes_,
                      std::uint16_t* & dist_to_end_,
                      std::uint32_t* & dist_to_end_size_,
@@ -63,7 +63,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
   kUnreachable_ = nullptr;
   CUDA_COPY_TO_DEVICE(std::uint16_t,kUnreachable_,&kUnreachable,1);
   kIntermodalTarget_ = nullptr;
-  CUDA_COPY_TO_DEVICE(gpu_location_idx_t,kIntermodalTarget_,kIntermodalTarget,1);
+  CUDA_COPY_TO_DEVICE(gpu_location_idx_t,kIntermodalTarget_,&kIntermodalTarget,1);
   kMaxTravelTimeTicks_ = nullptr;
   CUDA_COPY_TO_DEVICE(short,kMaxTravelTimeTicks_,&kMaxTravelTimeTicks,1);
 fail:
@@ -184,7 +184,6 @@ struct gpu_raptor {
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
     }
-    auto gpu_kIntermodalTarget = reinterpret_cast<gpu_location_idx_t const*>(&kIntermodalTarget);
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
@@ -193,8 +192,8 @@ struct gpu_raptor {
                     lb,
                     gtt_->gpu_internal_interval_days().size().count(),
                     kUnreachable,
-                    gpu_kIntermodalTarget,
-                    kMaxTravelTimeTicks,
+                    kIntermodalTarget,
+                    kMaxTravelTimeTicks, //
                     allowed_claszes_,
                     dist_to_end_,
                     dist_to_end_size_,
@@ -257,6 +256,19 @@ struct gpu_raptor {
   cuda_check();
   //TODO: copy result back
   //TODO: ALLES LÖSCHEN!!!!!!!!!!!
+  //copy stats from host to raptor attribute
+  raptor_stats tmp{};
+  for (int i = 0; i<32; ++i) {
+    tmp.n_routing_time_ += mem_->host_.stats_.get()[i].n_routing_time_;
+    tmp.n_footpaths_visited_ += mem_->host_.stats_.get()[i].n_footpaths_visited_;
+    tmp.n_routes_visited_ += mem_->host_.stats_.get()[i].n_routes_visited_;
+    tmp.n_earliest_trip_calls_ += mem_->host_.stats_.get()[i].n_earliest_trip_calls_;
+    tmp.n_earliest_arrival_updated_by_route_ += mem_->host_.stats_.get()[i].n_earliest_arrival_updated_by_route_;
+    tmp.n_earliest_arrival_updated_by_footpath_ += mem_->host_.stats_.get()[i].n_earliest_arrival_updated_by_footpath_;
+    tmp.fp_update_prevented_by_lower_bound_ += mem_->host_.stats_.get()[i].fp_update_prevented_by_lower_bound_;
+    tmp.route_update_prevented_by_lower_bound_ += mem_->host_.stats_.get()[i].route_update_prevented_by_lower_bound_;
+  }
+  stats_ = tmp;
   return mem_->host_.round_times_.get();
 }
   gpu_timetable const* gtt_{nullptr};
