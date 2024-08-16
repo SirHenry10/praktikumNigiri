@@ -1,6 +1,10 @@
+
 cmake_minimum_required(VERSION 3.22)
 project(nigiri)
 
+find_package(CUDAToolkit REQUIRED)
+
+# Nutzen der modernen CUDA-Unterstützung in CMake
 if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
   if(NIGIRI_MIMALLOC)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
@@ -98,6 +102,7 @@ target_compile_features(nigiri PUBLIC cxx_std_23)
 target_compile_options(nigiri PRIVATE ${nigiri-compile-options})
 
 if (NIGIRI_CUDA)
+  include_directories(${CUDAToolkit_INCLUDE_DIRS}) #TODO: maybe weg??
   add_library(gpuraptor SHARED
           src/routing/gpu_timetable.cu
           src/routing/gpu_raptor.cu
