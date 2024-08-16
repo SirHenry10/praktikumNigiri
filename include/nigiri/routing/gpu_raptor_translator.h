@@ -26,7 +26,7 @@ using namespace nigiri::routing;
 template <direction SearchDir, bool Rt>
 struct gpu_raptor_translator {
   static constexpr auto const kInvalid = kInvalidDelta<SearchDir>;
-  using algo_stats_t = raptor_stats;
+  using algo_stats_t = gpu_raptor_state;
   static direction const cpu_direction_ = SearchDir;
   static gpu_direction const gpu_direction_ = *reinterpret_cast<enum gpu_direction const*>(&cpu_direction_);
   gpu_raptor<gpu_direction_,Rt> gpu_r_;

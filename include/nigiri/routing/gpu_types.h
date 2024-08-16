@@ -376,6 +376,40 @@ __host__ __device__ inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base
   return gpu_clamp(
       (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
 }
+__host__ __device__ inline std::pair<gpu_day_idx_t, gpu_minutes_after_midnight_t> gpu_split_day_mam(
+    gpu_day_idx_t const base, gpu_delta_t const x) {
+  assert(x != std::numeric_limits<gpu_delta_t>::min());
+  assert(x != std::numeric_limits<gpu_delta_t>::max());
+  if (x < 0) {
+    auto const t = -x / 1440 + 1;
+    auto const min = x + (t * 1440);
+    return {static_cast<gpu_day_idx_t>(static_cast<int>(gpu_to_idx(base)) - t),
+            gpu_minutes_after_midnight_t{min}};
+  } else {
+    return {static_cast<gpu_day_idx_t>(static_cast<int>(gpu_to_idx(base)) + x / 1440),
+            gpu_minutes_after_midnight_t{x % 1440}};
+  }
+}
+#else
+
+template <typename T>
+inline gpu_delta_t gpu_clamp(T t) {
+#if defined(NIGIRI_TRACING)
+  if (t < std::numeric_limits<gpu_delta_t>::min()) {
+    trace_upd("CLAMP {} TO {}\n", t, std::numeric_limits<gpu_delta_t>::min());
+  }
+  if (t > std::numeric_limits<delta_t>::max()) {
+    trace_upd("CLAMP {} TO {}\n", t, std::numeric_limits<gpu_delta_t>::max());
+  }
+#endif
+  return static_cast<gpu_delta_t>(
+      std::clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
+                 static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
+}
+inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base, gpu_unixtime_t const t) {
+  return gpu_clamp(
+      (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
+}
 #endif
 template <gpu_direction SearchDir>
 inline constexpr auto const kInvalidGpuDelta =

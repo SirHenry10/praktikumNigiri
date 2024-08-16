@@ -6,6 +6,7 @@
 #include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
+#include <cuda_runtime.h>
 extern "C" {
 #define XSTR(s) STR(s)
 #define STR(s) #s
