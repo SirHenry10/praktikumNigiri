@@ -5,7 +5,6 @@
 
 #include "cista/containers/bitset.h"
 #include "cista/containers/ptr.h"
-#include "cista/containers/string.h"
 #include "cista/containers/vector.h"
 #include "cista/reflection/comparable.h"
 #include "cista/reflection/printable.h"
@@ -338,13 +337,6 @@ enum class gpu_direction { kForward, kBackward };
 
 template <typename T>
 using ptr = T*;
-using gpu_string = cista::basic_string<ptr<char const>>;;
-struct gpu_location_id {
-  CISTA_COMPARABLE()
-  CISTA_PRINTABLE(gpu_location_id, "id", "src")
-  gpu_string id_;
-  gpu_source_idx_t src_;
-};
 using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
 using gpu_u8_minutes = std::chrono::duration<std::uint8_t, std::ratio<60>>;
 using gpu_unixtime_t = std::chrono::sys_time<gpu_i32_minutes>;

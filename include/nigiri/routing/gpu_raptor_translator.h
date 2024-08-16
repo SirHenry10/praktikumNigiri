@@ -137,8 +137,8 @@ private:
     }
     auto gpu_bitfields_data_ = reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t,std::uint64_t*>*>(&bitfields_data_);
     gpu_locations locations_ = gpu_locations(*reinterpret_cast<gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*>(&tt.locations_.transfer_time_),
-                                             *reinterpret_cast<gpu_vecvec<gpu_location_idx_t, gpu_footpath>*>(&tt.locations_.footpaths_out_),
-                                             *reinterpret_cast<gpu_vecvec<gpu_location_idx_t, gpu_footpath>*>(&tt.locations_.footpaths_in_));
+                                             reinterpret_cast<gpu_vecvec<gpu_location_idx_t, gpu_footpath>*>(tt.locations_.footpaths_out_.data()),
+                                             reinterpret_cast<gpu_vecvec<gpu_location_idx_t, gpu_footpath>*>(tt.locations_.footpaths_in_.data()));
     auto n_locations = tt.n_locations();
     auto n_routes = tt.n_routes();
     auto gtt = create_gpu_timetable(

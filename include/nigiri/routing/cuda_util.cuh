@@ -1,5 +1,9 @@
-
+#pragma once
 #include <cstdio>
+
+
+#include <cuda.h>
+#include <cuda_runtime_api.h>
 
 extern "C" {
 #define cucheck_dev(call)                                    \

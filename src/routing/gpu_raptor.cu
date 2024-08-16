@@ -1,6 +1,4 @@
 #include "nigiri/routing/gpu_raptor.cuh"
-#include "nigiri/routing/query.h"
-#include "nigiri/routing/query.h"
 #include "cooperative_groups.h"
 
 using namespace cooperative_groups;
@@ -137,7 +135,7 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
     auto const r = gpu_route_idx_t{r_idx};
     if(marked(route_mark_, r_idx)){
       if constexpr (WithClaszFilter){
-        auto const as_mask = static_cast<gpu_clasz_mask_t>(1U << static_cast<std::underlying_type_t<gpu_clasz>>(static_cast<nigiri::clasz>((*gtt_->route_clasz_)[r])));
+        auto const as_mask = static_cast<gpu_clasz_mask_t>(1U << static_cast<std::underlying_type_t<gpu_clasz>>(static_cast<gpu_clasz>((*gtt_->route_clasz_)[r])));
         if(!((*allowed_claszes_ & as_mask)==as_mask)){
           continue;
         }
