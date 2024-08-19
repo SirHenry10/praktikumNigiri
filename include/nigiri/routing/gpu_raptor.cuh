@@ -1,12 +1,14 @@
 #pragma once
 
+#include <cuda_runtime.h>
 #include <cinttypes>
 #include "nigiri/common/linear_lower_bound.h"
-#include "nigiri/routing/gpu_raptor_state.cuh"
+#include "nigiri/routing/gpu_raptor_state.h"
 #include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
-#include <cuda_runtime.h>
+#include "nigiri/routing/raptor/raptor.h"
+#include <variant>
 extern "C" {
 #define XSTR(s) STR(s)
 #define STR(s) #s
@@ -21,10 +23,8 @@ extern "C" {
 #define CUDA_COPY_TO_DEVICE(type, target, source, size)                        \
     CUDA_CALL(cudaMalloc(&target, size * sizeof(type)))                          \
     CUDA_CALL(                                                                   \
-        cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice))
-}//extern "C"
+        cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice))  \
 
-extern "C" {
 void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::vector<std::uint16_t> const& dist_to_dest,
                      gpu_day_idx_t const& base,
@@ -155,8 +155,7 @@ __host__ __device__ auto get_end_it(T const& t) {
 
 template <gpu_direction SearchDir, bool Rt>
 struct gpu_raptor {
-  using algo_stats_t = raptor_stats;
-
+  using algo_stats_t = gpu_raptor_stats;
   static constexpr auto const kMaxTravelTimeTicks = gpu_kMaxTravelTime.count();
   static constexpr bool kUseLowerBounds = true;
   static constexpr auto const kFwd = (SearchDir == gpu_direction::kForward);
@@ -217,6 +216,7 @@ struct gpu_raptor {
   }
 
   void next_start_time() {
+    /*
     std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
     std::vector<gpu_delta_t> tmp_new(mem_->device_.size_tmp_,kInvalid);
     bool copy_array_station[mem_->device_.size_station_mark_];
@@ -228,9 +228,11 @@ struct gpu_raptor {
     cudaMemcpy(mem_->device_.prev_station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.route_mark_, copy_array_route, mem_->device_.size_route_mark_*sizeof(bool), cudaMemcpyHostToDevice);
+     */
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
+    /*
     trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
     std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
     std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
@@ -243,6 +245,7 @@ struct gpu_raptor {
     //TODO: MAYBE noch auf host kopieren weis aber nicht ob notwendig
     cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.station_mark_, copy_array, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
+    */
   }
 
 
@@ -252,13 +255,13 @@ struct gpu_raptor {
              gpu_unixtime_t const worst_time_at_dest,
              gpu_profile_idx_t const prf_idx){
 
-  void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)&this};
+  void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)this};
   launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
   cuda_check();
   //TODO: copy result back
   //TODO: ALLES LÖSCHEN!!!!!!!!!!!
   //copy stats from host to raptor attribute
-  raptor_stats tmp{};
+  gpu_raptor_stats tmp{};
   for (int i = 0; i<32; ++i) {
     tmp.n_routing_time_ += mem_->host_.stats_.get()[i].n_routing_time_;
     tmp.n_footpaths_visited_ += mem_->host_.stats_.get()[i].n_footpaths_visited_;
@@ -281,7 +284,7 @@ struct gpu_raptor {
   uint16_t* lb_;
   gpu_day_idx_t* base_;
   int* n_days_;
-  raptor_stats stats_;
+  gpu_raptor_stats stats_;
   uint32_t n_rt_transports_;
   gpu_clasz_mask_t* allowed_claszes_;
   std::uint16_t* kUnreachable_;

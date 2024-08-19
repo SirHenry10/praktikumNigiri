@@ -6,9 +6,6 @@
 #include "nigiri/rt/rt_timetable.h"
 #include "nigiri/timetable.h"
 
-namespace nigiri::routing {
-
-using algo_stats_t = gpu_raptor_state;
 
 template <direction SearchDir, bool Rt>
 gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
@@ -31,25 +28,49 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
       n_locations_{tt_.n_locations()},
       n_routes_{tt.n_routes()},
       n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
-      allowed_claszes_{allowed_claszes}  {
+      allowed_claszes_{allowed_claszes}{
   auto gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
   auto gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
-  gpu_r_ = gpu_raptor<gpu_direction_, Rt>(translate_tt_in_gtt(tt_), state_, is_dest_, dist_to_dest, lb_, gpu_base, gpu_allowed_claszes);
-}
+  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(translate_tt_in_gtt(tt_), state_, is_dest_, dist_to_dest, lb_, gpu_base, gpu_allowed_claszes);
+  }
 
 template <direction SearchDir, bool Rt>
-algo_stats_t gpu_raptor_translator<SearchDir, Rt>::get_stats() const {
-  return gpu_r_.get_stats();
+gpu_raptor_adapter::algo_stats_t gpu_raptor_translator<SearchDir, Rt>::get_stats() {
+  if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
+    return get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->get_stats();
+  } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
+    return get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,false>>>(gpu_r_)->get_stats();
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == true) {
+    return get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,true>>>(gpu_r_)->get_stats();
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
+    return get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->get_stats();
+  }
 }
 
 template <direction SearchDir, bool Rt>
 void gpu_raptor_translator<SearchDir, Rt>::reset_arrivals() {
-  gpu_r_.reset_arrivals();
+  if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->reset_arrivals();
+  } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,false>>>(gpu_r_)->reset_arrivals();
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == true) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,true>>>(gpu_r_)->reset_arrivals();
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->reset_arrivals();
+  }
 }
 
 template <direction SearchDir, bool Rt>
 void gpu_raptor_translator<SearchDir, Rt>::next_start_time() {
-  gpu_r_.next_start_time();
+  if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->next_start_time();
+  } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,false>>>(gpu_r_)->next_start_time();
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == true) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,true>>>(gpu_r_)->next_start_time();
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->next_start_time();
+  }
 }
 
 template <direction SearchDir, bool Rt>
@@ -57,7 +78,15 @@ void gpu_raptor_translator<SearchDir, Rt>::add_start(location_idx_t const l,
                                                      unixtime_t const t) {
   auto gpu_l = *reinterpret_cast<const gpu_location_idx_t*>(&l);
   auto gpu_t = *reinterpret_cast<const gpu_unixtime_t*>(&t);
-  gpu_r_.add_start(gpu_l, gpu_t);
+  if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->add_start(gpu_l,gpu_t);
+  } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,false>>>(gpu_r_)->add_start(gpu_l,gpu_t);
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == true) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,true>>>(gpu_r_)->add_start(gpu_l,gpu_t);
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->add_start(gpu_l,gpu_t);
+  }
 }
 
 // hier wird Kernel aufgerufen
@@ -72,8 +101,17 @@ void gpu_raptor_translator<SearchDir, Rt>::execute(
   auto gpu_worst_time_at_dest =
       *reinterpret_cast<gpu_unixtime_t const*>(&max_transfers);
   auto gpu_prf_idx = *reinterpret_cast<gpu_profile_idx_t const*>(&prf_idx);
-  auto gpu_round_times = gpu_r_.execute(gpu_start_time, max_transfers,
-                                        gpu_worst_time_at_dest, gpu_prf_idx);
+  gpu_delta_t* gpu_round_times;
+  if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(&gpu_r_)->get()) {
+    gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
+  } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kForward,false>>>(&gpu_r_)->get()) {
+    gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
+  } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kBackward, true>>>(&gpu_r_)->get()) {
+    gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
+  } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(&gpu_r_)->get()) {
+    gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
+  }
+
   // Konstruktion der Ergebnis-Journey
   auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
   for (auto i = 0U; i != n_locations_; ++i) {
@@ -155,4 +193,7 @@ gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(timetab
           &tt.route_clasz_));
   return gtt;
 }
-}//namespace nigiri::routing;
+template <direction SearchDir, bool Rt>
+bool gpu_raptor_translator<SearchDir, Rt>::test(bool hi) {
+  return hi;
+}

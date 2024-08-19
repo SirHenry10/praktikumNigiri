@@ -1,8 +1,10 @@
 #pragma once
+
 #include <cinttypes>
 
 #include "gpu_types.h"
 #include <span>
+
 extern "C" {
 
   struct gpu_timetable {

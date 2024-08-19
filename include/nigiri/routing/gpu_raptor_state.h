@@ -1,5 +1,5 @@
 #pragma once
-#include "nigiri/routing/cuda_util.cuh"
+#include "nigiri/routing/cuda_util.h"
 #include "nigiri/routing/gpu_timetable.h"
 #include <atomic>
 #include <boost/url/grammar/error.hpp>
@@ -13,8 +13,8 @@ namespace std {
 class mutex;
 }
 
-struct raptor_stats {
-  __host__ __device__ raptor_stats(std::uint64_t const& n_routing_time = 0ULL,
+struct gpu_raptor_stats {
+  __host__ __device__ gpu_raptor_stats(std::uint64_t const& n_routing_time = 0ULL,
                std::uint64_t const& n_footpaths_visited = 0ULL,
                std::uint64_t const& n_routes_visited = 0ULL,
                std::uint64_t const &n_earliest_trip_calls = 0ULL,
@@ -82,7 +82,7 @@ struct host_memory {
   void reset(gpu_delta_t invalid) const;
 
   std::unique_ptr<gpu_delta_t> round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
-  std::unique_ptr<raptor_stats> stats_;
+  std::unique_ptr<gpu_raptor_stats> stats_;
   uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
 
@@ -121,7 +121,7 @@ struct device_memory {
   uint32_t* route_mark_{};
   bool* any_station_marked_{};
   uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_route_mark_{};
-  raptor_stats* stats_{};
+  gpu_raptor_stats* stats_{};
 };
 
 struct mem {

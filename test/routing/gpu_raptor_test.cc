@@ -10,6 +10,7 @@
 using namespace date;
 using namespace nigiri;
 using namespace nigiri::loader;
+using namespace nigiri::routing;
 using namespace nigiri::test_data::hrd_timetable;
 
 TEST(routing, gpu_raptor) {
@@ -25,10 +26,11 @@ TEST(routing, gpu_raptor) {
       );
   *///EXPECT_NE(nullptr, gtt);
   //destroy_gpu_timetable(gtt);
-  direction SearchDir = nigiri::direction::kForward;
-  auto gpu_direction2 = *reinterpret_cast<enum gpu_direction*>(&SearchDir);
-  bool tester = gpu_direction2 == gpu_direction::kForward;
-  std::cout<<"" << tester;
+  direction const SearchDir = nigiri::direction::kForward;
+  auto testerin = gpu_raptor_translator<SearchDir,false>::test(true);
+  //auto gpu_direction2 = *reinterpret_cast<enum gpu_direction*>(&SearchDir);
+  //bool tester = gpu_direction2 == gpu_direction::kForward;
+  std::cout<<"" << testerin;
   gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* te = reinterpret_cast<gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t>*>(&tt.location_routes_);
   std::cout<<"erster Wert: " << te->bucket_starts_ <<" \n"<< tt.location_routes_.bucket_starts_ << "\n";
   std::cout<<"";

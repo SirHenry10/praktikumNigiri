@@ -1,6 +1,8 @@
 #pragma once
 
-#include "nigiri/routing/gpu_raptor_state.cuh"
+#include "nigiri/routing/gpu_raptor_state.h"
+
+#include <cuda_runtime.h>
 
 std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
@@ -50,7 +52,7 @@ host_memory::host_memory(uint32_t row_count_round_times,
                          uint32_t column_count_round_times
                          ):row_count_round_times_{row_count_round_times},column_count_round_times_{column_count_round_times},
 round_times_{std::make_unique<gpu_delta_t>(row_count_round_times*column_count_round_times)},
-stats_{std::make_unique<raptor_stats>(32)}{}
+stats_{std::make_unique<gpu_raptor_stats>(32)}{}
 
 void host_memory::destroy() {
   round_times_ = nullptr;
@@ -64,7 +66,7 @@ void host_memory::reset(gpu_delta_t invalid) const {
     }
   }
   auto s = stats_.get();
-  raptor_stats init = {};
+  gpu_raptor_stats init = {};
   for (auto i = 0U; i < 32; ++i) {
     s[i] = init;
   }
@@ -97,7 +99,7 @@ device_memory::device_memory(uint32_t size_tmp,
   cudaMalloc(&prev_station_mark_, size_station_mark_ * sizeof(uint32_t));
   cudaMalloc(&route_mark_, size_route_mark_ * sizeof(uint32_t));
   cudaMalloc(&any_station_marked_, sizeof(bool));
-  cudaMalloc(&stats_,32*sizeof(raptor_stats));
+  cudaMalloc(&stats_,32*sizeof(gpu_raptor_stats));
   invalid_ = invalid;
   cuda_check();
   this->reset_async(nullptr);
@@ -123,9 +125,9 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemsetAsync(prev_station_mark_, 0, size_station_mark_*sizeof(uint32_t), s);
   cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(uint32_t), s);
   cudaMemsetAsync(any_station_marked_, 0, sizeof(bool), s);
-  raptor_stats init_value = {};
+  gpu_raptor_stats init_value = {};
   for (int i = 0; i < 32; ++i) {
-    cudaMemcpyAsync(&stats_[i], &init_value, sizeof(raptor_stats), cudaMemcpyHostToDevice, s);
+    cudaMemcpyAsync(&stats_[i], &init_value, sizeof(gpu_raptor_stats), cudaMemcpyHostToDevice, s);
   }
   //additional_start_count_ = invalid<decltype(additional_start_count_)>;
 }

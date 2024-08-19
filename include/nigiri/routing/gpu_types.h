@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cassert>
+#include <chrono>
 #include <type_traits>
 
 #include "cista/containers/bitset.h"

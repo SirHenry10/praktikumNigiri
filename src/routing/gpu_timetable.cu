@@ -1,4 +1,6 @@
+#pragma once
 
+#include <cuda_runtime.h>
 #include "nigiri/routing/gpu_timetable.h"
 // todo: types.h include nicht möglich erzeugt hashing error
 #include <cstdio>

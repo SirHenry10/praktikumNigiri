@@ -1,6 +1,6 @@
 #include "nigiri/routing/gpu_raptor.cuh"
-#include "cooperative_groups.h"
 
+#include <cooperative_groups.h>
 using namespace cooperative_groups;
 
 __device__ __forceinline__ unsigned int get_block_thread_id() {
@@ -94,7 +94,8 @@ __device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
-                                       gpu_timetable* gtt_, raptor_stats* stats_,
+                                       gpu_timetable* gtt_,
+                                       gpu_raptor_stats* stats_,
                                        uint32_t* prev_station_mark_, gpu_delta_t* best_,
                                        gpu_delta_t* round_times_, uint32_t row_count_round_times_,
                                        gpu_delta_t* tmp_,
@@ -153,7 +154,9 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                 : kInvalidGpuDelta<SearchDir>;
         auto const prev_round_time = round_times_[(k - 1)*row_count_round_times_ + l_idx];
         if(is_better_or_eq<SearchDir, Rt>(prev_round_time, et_time_at_stop)){
-          auto const [day, mam] = gpu_split(prev_round_time); //TODO wir brauchen split_day_mam aus delta_t
+          auto const spliter = gpu_split_day_mam(base_,prev_round_time); //TODO wir brauchen split_day_mam aus delta_t
+          auto const day = spliter.first;
+          auto const mem = spliter.second;
           // Hier sollte abstimmung stattfinden?? -> bestimmen von neuem earliest transport
         }
       }
@@ -166,7 +169,8 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
-                                      gpu_timetable* gtt_, raptor_stats* stats_,
+                                      gpu_timetable* gtt_,
+                                      gpu_raptor_stats* stats_,
                                       uint32_t* prev_station_mark_, gpu_delta_t* best_,
                                       gpu_delta_t* round_times_, uint32_t row_count_round_times_,
                                       gpu_delta_t* tmp_,
@@ -180,7 +184,8 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
 template <gpu_direction SearchDir, bool Rt, bool WithClaszFilter>
 __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
                             gpu_timetable* gtt_, uint32_t* route_mark_,
-                            gpu_clasz_mask_t* allowed_claszes_, raptor_stats* stats_,
+                            gpu_clasz_mask_t* allowed_claszes_,
+                            gpu_raptor_stats* stats_,
                             short* kMaxTravelTimeTicks_, uint32_t* prev_station_mark_,
                             gpu_delta_t* best_,
                             gpu_delta_t* round_times_, uint32_t row_count_round_times_,
@@ -230,7 +235,7 @@ __device__ void update_transfers(unsigned const k, gpu_timetable* gtt_,
                                  gpu_delta_t* best_, gpu_delta_t* time_at_dest_, unsigned short kUnreachable,
                                  uint16_t* lb_, gpu_delta_t* round_times_, uint32_t row_count_round_times_,
                                  uint32_t* station_mark_, uint32_t* prev_station_mark_,
-                                 raptor_stats* stats_){
+                                 gpu_raptor_stats* stats_){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto l_idx = global_t_id;
@@ -267,7 +272,8 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
                                  gpu_timetable* gtt_, gpu_delta_t* tmp_, gpu_delta_t* best_,
                                  uint16_t* lb_, uint32_t* station_mark_, gpu_delta_t* time_at_dest_,
                                  bool* is_dest_, gpu_delta_t* round_times_,
-                                 uint32_t row_count_round_times_, raptor_stats* stats_){
+                                 uint32_t row_count_round_times_,
+                                 gpu_raptor_stats* stats_){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto idx = global_t_id;
@@ -340,7 +346,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_
                                                 gpu_location_idx_t const l,
                                                 int n_days_, gpu_timetable* gtt_,
                                                 gpu_direction search_dir_,
-                                                raptor_stats* stats_, short* kMaxTravelTimeTicks_){
+                                                gpu_raptor_stats* stats_, short* kMaxTravelTimeTicks_){
   ++stats_[l.v_>>5].n_earliest_trip_calls_;
   auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
                                           (SearchDir == gpu_direction::kForward) ?
@@ -390,7 +396,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                              uint32_t column_count_round_times_,
                              uint32_t size_route_mark_, uint32_t size_station_mark_,
                              gpu_location_idx_t* gpu_kIntermodalTarget,
-                             raptor_stats stats_, short* kMaxTravelTimeTicks_){
+                             gpu_raptor_stats stats_, short* kMaxTravelTimeTicks_){
 
   // update_time_at_dest für alle locations
   auto const global_t_id = get_global_thread_id();
