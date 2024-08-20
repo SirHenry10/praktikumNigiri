@@ -565,8 +565,8 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
     CUDA_CALL(cudaMalloc(&target, size * sizeof(type)))                          \
     CUDA_CALL(                                                                   \
         cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice))
-template <gpu_direction SearchDir, bool Rt>
-void gpu_raptor<SearchDir, Rt>::copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
+
+void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::vector<std::uint16_t> const& dist_to_dest,
                      gpu_day_idx_t const& base,
                      std::unique_ptr<bool[]> const& is_dest,

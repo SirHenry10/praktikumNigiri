@@ -9,7 +9,28 @@
 #include "nigiri/routing/raptor/debug.h"
 //selbst sabotiert wegen import
 #include <variant>
-
+extern "C"{
+void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
+                     std::vector<std::uint16_t> const& dist_to_dest,
+                     gpu_day_idx_t const& base,
+                     std::unique_ptr<bool[]> const& is_dest,
+                     std::size_t is_dest_size,
+                     std::vector<std::uint16_t> const& lb,
+                     int const& n_days,
+                     std::uint16_t const& kUnreachable,
+                     short const& kMaxTravelTimeTicks,
+                     unsigned int const& kIntermodalTarget,
+                     gpu_clasz_mask_t*& allowed_claszes_,
+                     std::uint16_t* & dist_to_end_,
+                     std::uint32_t* & dist_to_end_size_,
+                     gpu_day_idx_t* & base_,
+                     bool* & is_dest_,
+                     std::uint16_t* & lb_,
+                     int* & n_days_,
+                     std::uint16_t* & kUnreachable_,
+                     unsigned int* & kIntermodalTarget_,
+                     short* & kMaxTravelTimeTicks_);
+}
 template <typename Kernel>
 void inline launch_kernel(Kernel kernel, void** args,
                           device_context const& device, cudaStream_t s) {
@@ -55,9 +76,9 @@ __host__ __device__ static auto get_best(auto x, auto... y) {
   return x;
 }
 
-__host__ __device__ inline int as_int(gpu_location_idx_t d)  { return static_cast<int>(d.v_); }
+__host__ __device__ inline int as_int(gpu_location_idx_t d) { return static_cast<int>(d.v_); }
 __host__ __device__ inline int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
-__host__ __device__ gpu_sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
+__host__ __device__ inline gpu_sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
   return gtt->gpu_internal_interval_days().from_ + as_int(*base) * gpu_days{1};
 }
 template<gpu_direction SearchDir>
@@ -144,6 +165,7 @@ struct gpu_raptor {
   }
 
   void next_start_time() {
+    /*
     std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
     std::vector<gpu_delta_t> tmp_new(mem_->device_.size_tmp_,kInvalid);
     bool copy_array_station[mem_->device_.size_station_mark_];
@@ -155,9 +177,11 @@ struct gpu_raptor {
     cudaMemcpy(mem_->device_.prev_station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.route_mark_, copy_array_route, mem_->device_.size_route_mark_*sizeof(bool), cudaMemcpyHostToDevice);
+     */
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
+    /*
     trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
     std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
     std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
@@ -170,6 +194,7 @@ struct gpu_raptor {
     //TODO: MAYBE noch auf host kopieren weis aber nicht ob notwendig
     cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.station_mark_, copy_array, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
+     */
   }
 
 
@@ -178,7 +203,7 @@ struct gpu_raptor {
              uint8_t const max_transfers,
              gpu_unixtime_t const worst_time_at_dest,
              gpu_profile_idx_t const prf_idx){
-
+    /*
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)this};
   launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
   cuda_check();
@@ -198,6 +223,8 @@ struct gpu_raptor {
   }
   stats_ = tmp;
   return mem_->host_.round_times_.get();
+     */
+      return 0;
 }
   gpu_timetable const* gtt_{nullptr};
   gpu_raptor_state& state_;
@@ -214,25 +241,4 @@ struct gpu_raptor {
   std::uint16_t* kUnreachable_;
   unsigned int* kIntermodalTarget_;
   short* kMaxTravelTimeTicks_;
-private:
-  void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
-                       std::vector<std::uint16_t> const& dist_to_dest,
-                       gpu_day_idx_t const& base,
-                       std::unique_ptr<bool[]> const& is_dest,
-                       std::size_t is_dest_size,
-                       std::vector<std::uint16_t> const& lb,
-                       int const& n_days,
-                       std::uint16_t const& kUnreachable,
-                       short const& kMaxTravelTimeTicks,
-                       unsigned int const& kIntermodalTarget,
-                       gpu_clasz_mask_t*& allowed_claszes_,
-                       std::uint16_t* & dist_to_end_,
-                       std::uint32_t* & dist_to_end_size_,
-                       gpu_day_idx_t* & base_,
-                       bool* & is_dest_,
-                       std::uint16_t* & lb_,
-                       int* & n_days_,
-                       std::uint16_t* & kUnreachable_,
-                       unsigned int* & kIntermodalTarget_,
-                       short* & kMaxTravelTimeTicks_);
 };

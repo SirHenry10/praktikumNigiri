@@ -19,11 +19,12 @@ struct gpu_raptor;
 template <nigiri::direction SearchDir, bool Rt>
 struct gpu_raptor_translator {
   static constexpr auto const kInvalid = nigiri::kInvalidDelta<SearchDir>;
-  using algo_state_t = gpu_raptor_state; //TODO: maybe zu gpu_raptor_sate ändern und dann auch im Konstruktor
+  static constexpr bool kUseLowerBounds = true;
+  using algo_state_t = nigiri::routing::raptor_state; //TODO: maybe zu gpu_raptor_sate ändern und dann auch im Konstruktor
   using algo_stats_t = gpu_raptor_stats;
   static nigiri::direction const cpu_direction_ = SearchDir;
-  gpu_direction const gpu_direction_ =
-      *reinterpret_cast<enum gpu_direction const*>(&cpu_direction_);
+  static gpu_direction const gpu_direction_ =
+      static_cast<enum gpu_direction const>(cpu_direction_);
   std::variant<
       std::unique_ptr<gpu_raptor<gpu_direction::kForward, true>>,
       std::unique_ptr<gpu_raptor<gpu_direction::kForward, false>>,
@@ -33,7 +34,7 @@ struct gpu_raptor_translator {
 
   gpu_raptor_translator(nigiri::timetable const& tt,
                         nigiri::rt_timetable const* rtt,
-                        nigiri::routing::raptor_state& state,
+                        algo_state_t & state,
                         std::vector<bool>& is_dest,
                         std::vector<std::uint16_t>& dist_to_dest,
                         std::vector<std::uint16_t>& lb,
@@ -59,7 +60,7 @@ struct gpu_raptor_translator {
 
   nigiri::timetable const& tt_;
   nigiri::rt_timetable const* rtt_{nullptr};
-  nigiri::routing::raptor_state& state_;
+  algo_state_t & state_;
   std::vector<bool>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
   std::vector<std::uint16_t>& lb_;
@@ -138,16 +139,17 @@ void gpu_raptor_translator<SearchDir, Rt>::reconstruct(const query& q,
                                                        journey& j){
   reconstruct_journey<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
 }
+inline int translator_as_int(day_idx_t const d)  { return static_cast<int>(d.v_); } //as_int von raptor rüber kopiert da nicht static dort
 template <nigiri::direction SearchDir, bool Rt>
 date::sys_days gpu_raptor_translator<SearchDir, Rt>::base() const{
-  return tt_.internal_interval_days().from_ +raptor<SearchDir, Rt>::as_int(base_) * date::days{1};
+  return tt_.internal_interval_days().from_ +translator_as_int(base_) * date::days{1};
 };
 
 template <nigiri::direction SearchDir, bool Rt>
 gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
     nigiri::timetable const& tt,
     nigiri::rt_timetable const* rtt,
-    nigiri::routing::raptor_state& state,
+    algo_state_t & state,
     std::vector<bool>& is_dest,
     std::vector<std::uint16_t>& dist_to_dest,
     std::vector<std::uint16_t>& lb,
@@ -167,7 +169,8 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
       allowed_claszes_{allowed_claszes}{
   auto gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
   auto gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
-  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(translate_tt_in_gtt(tt_), state_, is_dest_, dist_to_dest, lb_, gpu_base, gpu_allowed_claszes);
+  auto gpu_state_ =  gpu_raptor_state{};
+  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(translate_tt_in_gtt(tt_),gpu_state_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes); //TODO maybe: transalte raptor_state into gpu_raptor_state
 }
 using algo_stats_t = gpu_raptor_stats;
 template <nigiri::direction SearchDir, bool Rt>
@@ -255,7 +258,7 @@ gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(nigiri:
       vector_map<nigiri::bitfield_idx_t, std::uint64_t*>();
   for (nigiri::bitfield_idx_t i = nigiri::bitfield_idx_t{0}; i < tt.bitfields_.size(); ++i) {
     auto t = tt.bitfields_.at(i);
-    bitfields_data_.emplace_back(std::make_pair(i, t.blocks_.data()));
+    bitfields_data_.emplace_back(t.blocks_.data());     //TODO: überprüfen ob es so funktioniert
   }
   auto gpu_bitfields_data_ =
       reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t, std::uint64_t*>*>(

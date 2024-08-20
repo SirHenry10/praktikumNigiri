@@ -3,10 +3,8 @@
 #include "nigiri/loader/hrd/load_timetable.h"
 #include "nigiri/loader/init_finish.h"
 #include "nigiri/routing/gpu_raptor_translator.h"
-#include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/routing/gpu_types.h"
 #include "nigiri/routing/search.h"
-#include "nigiri/rt/rt_timetable.h"
 #include "../loader/hrd/hrd_timetable.h"
 #include "../raptor_search.h"
 
@@ -16,6 +14,7 @@ using namespace nigiri::loader;
 using namespace nigiri::routing;
 using namespace nigiri::test_data::hrd_timetable;
 using namespace std::chrono_literals;
+using nigiri::test::raptor_search;
 
 TEST(routing, gpu_raptor) {
   constexpr auto const src = source_idx_t{0U};
@@ -37,10 +36,11 @@ TEST(routing, gpu_raptor) {
   static auto algo_state = algo_state_t{};
 
   auto const results =
-      nigiri::test::raptor_search<true>(tt, &rtt, "A", "D", sys_days{May / 2 / 2019} +23h);
+      raptor_search(tt, &rtt, "A", "D", sys_days{May / 2 / 2019} +23h,
+                    nigiri::direction::kBackward,true); //TODO: warum funktioniert nicht ohne direction?? siehe rt_test
   //auto gpu_direction2 = *reinterpret_cast<enum gpu_direction*>(&SearchDir);
   //bool tester = gpu_direction2 == gpu_direction::kForward;
-  std::cout<<"" << results.begin()->dest_;
+  std::cout<<"" << results.size();
   gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* te = reinterpret_cast<gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t>*>(&tt.location_routes_);
   std::cout<<"erster Wert: " << te->bucket_starts_ <<" \n"<< tt.location_routes_.bucket_starts_ << "\n";
   std::cout<<"";

@@ -19,16 +19,17 @@ unixtime_t parse_time(std::string_view s, char const* format) {
       date::make_zoned(tz, ls).get_sys_time());
 }
 
-template <direction SearchDir,bool GPU = false>
+template <direction SearchDir>
 pareto_set<routing::journey> raptor_search(timetable const& tt,
                                            rt_timetable const* rtt,
-                                           routing::query q) {
+                                           routing::query q,
+                                           bool gpu = false) {
   using algo_state_t = routing::raptor_state;
   static auto search_state = routing::search_state{};
   static auto algo_state = algo_state_t{};
 
   if (rtt == nullptr) {
-    if(GPU){
+    if(gpu){
       //gpu_raptor without rtt
       using algo_t = gpu_raptor_translator<SearchDir, false>;
       return *(routing::search<SearchDir, algo_t>{tt, rtt, search_state,
@@ -43,7 +44,7 @@ pareto_set<routing::journey> raptor_search(timetable const& tt,
                  .journeys_);
     }
   }else{
-    if(GPU){
+    if(gpu){
       //current state not working
       using algo_t = gpu_raptor_translator<SearchDir, true>;
       return *(routing::search<SearchDir, algo_t>{tt, rtt, search_state,
@@ -60,26 +61,26 @@ pareto_set<routing::journey> raptor_search(timetable const& tt,
   }
 }
 
-template <bool GPU>
 pareto_set<routing::journey> raptor_search(timetable const& tt,
                                            rt_timetable const* rtt,
                                            routing::query q,
-                                           direction const search_dir) {
+                                           direction const search_dir,
+                                           bool gpu) {
   if (search_dir == direction::kForward) {
-    return raptor_search<direction::kForward,GPU>(tt, rtt, std::move(q));
+    return raptor_search<direction::kForward>(tt, rtt, std::move(q),gpu);
   } else {
-    return raptor_search<direction::kBackward,GPU>(tt, rtt, std::move(q));
+    return raptor_search<direction::kBackward>(tt, rtt, std::move(q),gpu);
   }
 }
 
-template <bool GPU>
 pareto_set<routing::journey> raptor_search(timetable const& tt,
                                            rt_timetable const* rtt,
                                            std::string_view from,
                                            std::string_view to,
                                            routing::start_time_t time,
                                            direction const search_dir,
-                                           routing::clasz_mask_t const mask) {
+                                           routing::clasz_mask_t const mask,
+                                           bool gpu) {
   auto const src = source_idx_t{0};
   auto q = routing::query{
       .start_time_ = time,
@@ -89,22 +90,21 @@ pareto_set<routing::journey> raptor_search(timetable const& tt,
                         0_minutes, 0U}},
       .prf_idx_ = 0,
       .allowed_claszes_ = mask};
-  return raptor_search<GPU>(tt, rtt, std::move(q), search_dir);
+  return raptor_search(tt, rtt, std::move(q), search_dir,gpu);
 }
 
-template <bool GPU>
 pareto_set<routing::journey> raptor_search(timetable const& tt,
                                            rt_timetable const* rtt,
                                            std::string_view from,
                                            std::string_view to,
                                            std::string_view time,
                                            direction const search_dir,
-                                           routing::clasz_mask_t mask) {
-  return raptor_search<GPU>(tt, rtt, from, to, parse_time(time, "%Y-%m-%d %H:%M %Z"),
-                       search_dir, mask);
+                                           routing::clasz_mask_t mask,
+                                           bool gpu) {
+  return raptor_search(tt, rtt, from, to, parse_time(time, "%Y-%m-%d %H:%M %Z"),
+                       search_dir, mask,gpu);
 }
 
-template <bool GPU>
 pareto_set<routing::journey> raptor_intermodal_search(
     timetable const& tt,
     rt_timetable const* rtt,
@@ -114,7 +114,8 @@ pareto_set<routing::journey> raptor_intermodal_search(
     direction const search_dir,
     std::uint8_t const min_connection_count,
     bool const extend_interval_earlier,
-    bool const extend_interval_later) {
+    bool const extend_interval_later,
+    bool gpu) {
   auto q = routing::query{
       .start_time_ = interval,
       .start_match_mode_ = routing::location_match_mode::kIntermodal,
@@ -125,7 +126,7 @@ pareto_set<routing::journey> raptor_intermodal_search(
       .extend_interval_earlier_ = extend_interval_earlier,
       .extend_interval_later_ = extend_interval_later,
       .prf_idx_ = 0};
-  return raptor_search<GPU>(tt, rtt, std::move(q), search_dir);
+  return raptor_search(tt, rtt, std::move(q), search_dir,gpu);
 }
 
 }  // namespace nigiri::test
