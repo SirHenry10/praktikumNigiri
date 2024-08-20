@@ -9,6 +9,7 @@ struct rt_timetable;
 
 namespace nigiri::test {
 
+template <bool GPU = false>
 pareto_set<routing::journey> raptor_search(
     timetable const&,
     rt_timetable const*,
@@ -18,6 +19,7 @@ pareto_set<routing::journey> raptor_search(
     direction = direction::kForward,
     routing::clasz_mask_t mask = routing::all_clasz_allowed());
 
+template <bool GPU = false>
 pareto_set<routing::journey> raptor_search(
     timetable const&,
     rt_timetable const*,
@@ -27,11 +29,14 @@ pareto_set<routing::journey> raptor_search(
     direction = direction::kForward,
     routing::clasz_mask_t mask = routing::all_clasz_allowed());
 
+
+template <bool GPU = false>
 pareto_set<routing::journey> raptor_search(timetable const&,
                                            rt_timetable const*,
                                            routing::query,
                                            direction = direction::kForward);
 
+template <bool GPU = false>
 pareto_set<routing::journey> raptor_intermodal_search(
     timetable const&,
     rt_timetable const*,

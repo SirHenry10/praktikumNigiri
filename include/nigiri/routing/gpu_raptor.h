@@ -7,80 +7,8 @@
 #include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
-#include "nigiri/routing/raptor/raptor.h"
+//selbst sabotiert wegen import
 #include <variant>
-extern "C" {
-#define XSTR(s) STR(s)
-#define STR(s) #s
-
-#define CUDA_CALL(call) \
-    if ((code = call) != cudaSuccess) {                     \
-      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
-             cudaGetErrorString(code), __FILE__, __LINE__); \
-      goto fail;                                            \
-    }
-
-#define CUDA_COPY_TO_DEVICE(type, target, source, size)                        \
-    CUDA_CALL(cudaMalloc(&target, size * sizeof(type)))                          \
-    CUDA_CALL(                                                                   \
-        cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice))  \
-
-void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
-                     std::vector<std::uint16_t> const& dist_to_dest,
-                     gpu_day_idx_t const& base,
-                     bool* const& is_dest,
-                     std::size_t is_dest_size,
-                     std::vector<std::uint16_t> const& lb,
-                     int const& n_days,
-                     std::uint16_t const& kUnreachable,
-                     short const& kMaxTravelTimeTicks,
-                     unsigned int const& kIntermodalTarget,
-                     gpu_clasz_mask_t*& allowed_claszes_,
-                     std::uint16_t* & dist_to_end_,
-                     std::uint32_t* & dist_to_end_size_,
-                     gpu_day_idx_t* & base_,
-                     bool* & is_dest_,
-                     std::uint16_t* & lb_,
-                     int* & n_days_,
-                     std::uint16_t* & kUnreachable_,
-                     unsigned int* & kIntermodalTarget_,
-                     short* & kMaxTravelTimeTicks_){
-  cudaError_t code;
-  auto dist_to_end_size = dist_to_dest.size();
-  allowed_claszes_ = nullptr;
-  CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t,allowed_claszes_,&allowed_claszes,1);
-  dist_to_end_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint16_t,dist_to_end_,dist_to_dest.data(),dist_to_dest.size());
-  dist_to_end_size_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint32_t,dist_to_end_size_,&dist_to_end_size_,1);
-  base_ = nullptr;
-  CUDA_COPY_TO_DEVICE(gpu_day_idx_t,base_,&base,1);
-  is_dest_ = nullptr;
-  CUDA_COPY_TO_DEVICE(bool,is_dest_,is_dest,is_dest_size);
-  lb_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint16_t ,lb_,lb.data(),lb.size());
-  n_days_ = nullptr;
-  CUDA_COPY_TO_DEVICE(int,n_days_,&n_days,1);
-  kUnreachable_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint16_t,kUnreachable_,&kUnreachable,1);
-  kIntermodalTarget_ = nullptr;
-  CUDA_COPY_TO_DEVICE(gpu_location_idx_t,kIntermodalTarget_,&kIntermodalTarget,1);
-  kMaxTravelTimeTicks_ = nullptr;
-  CUDA_COPY_TO_DEVICE(short,kMaxTravelTimeTicks_,&kMaxTravelTimeTicks,1);
-fail:
-  cudaFree(allowed_claszes_);
-  cudaFree(dist_to_end_);
-  cudaFree(dist_to_end_size_);
-  cudaFree(base_);
-  cudaFree(is_dest_);
-  cudaFree(lb_);
-  cudaFree(n_days_);
-  cudaFree(kUnreachable_);
-  cudaFree(kIntermodalTarget_);
-  cudaFree(kMaxTravelTimeTicks_);
-};
-}//extern "C"
-
 
 template <typename Kernel>
 void inline launch_kernel(Kernel kernel, void** args,
@@ -127,8 +55,8 @@ __host__ __device__ static auto get_best(auto x, auto... y) {
   return x;
 }
 
-__host__ __device__ int as_int(gpu_location_idx_t d)  { return static_cast<int>(d.v_); }
-__host__ __device__ int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
+__host__ __device__ inline int as_int(gpu_location_idx_t d)  { return static_cast<int>(d.v_); }
+__host__ __device__ inline int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
 __host__ __device__ gpu_sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
   return gtt->gpu_internal_interval_days().from_ + as_int(*base) * gpu_days{1};
 }
@@ -180,7 +108,7 @@ struct gpu_raptor {
     state_.init(*gtt_,kInvalid);
     loaned_mem loan(state_,kInvalid);
     mem_ = loan.mem_;
-    bool copy_array[is_dest.size()];
+    std::unique_ptr<bool[]> copy_array(new bool[is_dest.size()]);
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
     }
@@ -216,7 +144,6 @@ struct gpu_raptor {
   }
 
   void next_start_time() {
-    /*
     std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
     std::vector<gpu_delta_t> tmp_new(mem_->device_.size_tmp_,kInvalid);
     bool copy_array_station[mem_->device_.size_station_mark_];
@@ -228,11 +155,9 @@ struct gpu_raptor {
     cudaMemcpy(mem_->device_.prev_station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.route_mark_, copy_array_route, mem_->device_.size_route_mark_*sizeof(bool), cudaMemcpyHostToDevice);
-     */
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
-    /*
     trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
     std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
     std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
@@ -245,7 +170,6 @@ struct gpu_raptor {
     //TODO: MAYBE noch auf host kopieren weis aber nicht ob notwendig
     cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
     cudaMemcpy(mem_->device_.station_mark_, copy_array, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
-    */
   }
 
 
@@ -290,4 +214,25 @@ struct gpu_raptor {
   std::uint16_t* kUnreachable_;
   unsigned int* kIntermodalTarget_;
   short* kMaxTravelTimeTicks_;
+private:
+  void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
+                       std::vector<std::uint16_t> const& dist_to_dest,
+                       gpu_day_idx_t const& base,
+                       std::unique_ptr<bool[]> const& is_dest,
+                       std::size_t is_dest_size,
+                       std::vector<std::uint16_t> const& lb,
+                       int const& n_days,
+                       std::uint16_t const& kUnreachable,
+                       short const& kMaxTravelTimeTicks,
+                       unsigned int const& kIntermodalTarget,
+                       gpu_clasz_mask_t*& allowed_claszes_,
+                       std::uint16_t* & dist_to_end_,
+                       std::uint32_t* & dist_to_end_size_,
+                       gpu_day_idx_t* & base_,
+                       bool* & is_dest_,
+                       std::uint16_t* & lb_,
+                       int* & n_days_,
+                       std::uint16_t* & kUnreachable_,
+                       unsigned int* & kIntermodalTarget_,
+                       short* & kMaxTravelTimeTicks_);
 };

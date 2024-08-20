@@ -107,7 +107,6 @@ if (NIGIRI_CUDA)
           src/routing/gpu_timetable.cu
           src/routing/gpu_raptor.cu
           src/routing/gpu_raptor_state.cu
-          src/routing/gpu_raptor_translator.cu
   )
   set_target_properties(gpuraptor PROPERTIES
       WINDOWS_EXPORT_ALL_SYMBOLS ON
