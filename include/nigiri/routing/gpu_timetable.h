@@ -62,5 +62,5 @@ extern "C" {
                                              gpu_interval<gpu_sys_days> const* date_range,
                                              gpu_locations const* locations,
                                              gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz);
-  void destroy_gpu_timetable(gpu_timetable* &gtt);
+  void destroy_gpu_timetable(gpu_timetable* gtt);
 }  // extern "C"

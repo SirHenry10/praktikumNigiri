@@ -131,7 +131,17 @@ void device_memory::reset_async(cudaStream_t s) {
   }
   //additional_start_count_ = invalid<decltype(additional_start_count_)>;
 }
-
+void device_memory::next_start_time_async(cudaStream_t s) {
+  cudaMemsetAsync(tmp_,invalid_, size_tmp_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(best_, invalid_, size_best_*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(station_mark_, 0, size_station_mark_*sizeof(uint32_t), s);
+  cudaMemsetAsync(prev_station_mark_, 0, size_station_mark_*sizeof(uint32_t), s);
+  cudaMemsetAsync(route_mark_, 0, size_route_mark_*sizeof(uint32_t), s);
+}
+void device_memory::reset_arrivals_async(cudaStream_t s) {
+  cudaMemsetAsync(time_at_dest_,invalid_, (gpu_kMaxTransfers+1)*sizeof(gpu_delta_t), s);
+  cudaMemsetAsync(round_times_, invalid_, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
+}
 mem::mem(uint32_t size_tmp_, uint32_t size_best_,
          uint32_t row_count_round_times_, uint32_t column_count_round_times_,
          uint32_t size_station_mark_, uint32_t size_route_mark_,gpu_delta_t invalid,
@@ -174,4 +184,12 @@ loaned_mem::~loaned_mem() {
   mem_->device_.reset_async(mem_->context_.proc_stream_);
   mem_->host_.reset(mem_->device_.invalid_);
   cuda_sync_stream(mem_->context_.proc_stream_);
+}
+void mem::reset_arrivals_async(){
+  device_.reset_arrivals_async(context_.proc_stream_);
+  cuda_sync_stream(context_.proc_stream_);
+}
+void mem::next_start_time_async(){
+  device_.next_start_time_async(context_.proc_stream_);
+  cuda_sync_stream(context_.proc_stream_);
 }

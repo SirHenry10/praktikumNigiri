@@ -98,8 +98,8 @@ struct device_memory {
 
   ~device_memory() = default;
 
-  void print(gpu_timetable const& gtt, gpu_days , gpu_delta_t invalid);
-
+  void next_start_time_async(cudaStream_t s);
+  void reset_arrivals_async(cudaStream_t s);
   void destroy();
 
   // vielleicht getter Methoden
@@ -134,6 +134,8 @@ struct mem {
   mem(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_route_mark_,gpu_delta_t invalid,
       device_id device_id);
 
+  void reset_arrivals_async();
+  void next_start_time_async();
   ~mem();
 
   host_memory host_;

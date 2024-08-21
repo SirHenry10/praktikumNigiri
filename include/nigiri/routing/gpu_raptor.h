@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cuda_runtime.h>
 #include <cinttypes>
 #include "nigiri/common/linear_lower_bound.h"
 #include "nigiri/routing/gpu_raptor_state.h"
@@ -30,21 +29,25 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & kUnreachable_,
                      unsigned int* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_);
-}
-template <typename Kernel>
-void inline launch_kernel(Kernel kernel, void** args,
-                          device_context const& device, cudaStream_t s) {
-  cudaSetDevice(device.id_);
 
-  cudaLaunchCooperativeKernel((void*)kernel, device.grid_,  //  NOLINT
-                              device.threads_per_block_, args, 0, s);
-  cuda_check();
+void copy_to_device_destroy(
+    gpu_clasz_mask_t*& allowed_claszes_,
+    std::uint16_t* & dist_to_end_,
+    std::uint32_t* & dist_to_end_size_,
+    gpu_day_idx_t* & base_,
+    bool* & is_dest_,
+    std::uint16_t* & lb_,
+    int* & n_days_,
+    std::uint16_t* & kUnreachable_,
+    unsigned int* & kIntermodalTarget_,
+    short* & kMaxTravelTimeTicks_);
 }
-
+/*
 inline void fetch_arrivals_async(mem* const& mem, cudaStream_t s) {
   //TODO:
   cuda_check();
 }
+ */
 /*
 inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
                                  cudaStream_t s) {
@@ -55,15 +58,12 @@ inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
   cuda_check();
 }
  */
-template <gpu_direction SearchDir, bool Rt>
-struct gpu_raptor;
-
-template <gpu_direction SearchDir, bool Rt>
-__global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
-                                  uint8_t const max_transfers,
-                                  gpu_unixtime_t const worst_time_at_dest,
-                                  gpu_profile_idx_t const prf_idx,
-                                  gpu_raptor<SearchDir,Rt>& gr);
+void execute_gpu(void** args,
+                 device_context const& device,
+                 cudaStream_t s,
+                 gpu_direction const search_dir,
+                 bool const rt);
+void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t* base_,short const kInvalid);
 
 template<gpu_direction SearchDir>
 __host__ __device__ static bool is_better(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a < b : a > b; }
@@ -116,7 +116,7 @@ struct gpu_raptor {
       gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
 
 
-  gpu_raptor(gpu_timetable const* gtt,
+  gpu_raptor(gpu_timetable* gtt,
          gpu_raptor_state& state,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
@@ -126,9 +126,12 @@ struct gpu_raptor {
       : gtt_{gtt},
         state_{state}
         {
-    state_.init(*gtt_,kInvalid);
+    state_.init(*gtt_,kInvalid); //TODO: das im gpu_raptor_translator machen und dann das von raptor_state rüber kopieren und dann mit mem_-> reset_arrival löschen!?
     loaned_mem loan(state_,kInvalid);
     mem_ = loan.mem_;
+    //das darüber sollte in gpu_raptor_translator und von raptor_state die daten rüber kopiert werden... dass raptor_state = gpu_raptor_state ist bei der initialisierung müssen wir danach den
+    //TODO: überlegen: raptor_state mit den werten setzten die gpu_raptor_state hatte...???? also muss nach abschluss wieder raptor_state = gpu_raptor_state sein???
+    mem_->reset_arrivals_async();
     std::unique_ptr<bool[]> copy_array(new bool[is_dest.size()]);
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
@@ -155,46 +158,39 @@ struct gpu_raptor {
                     kMaxTravelTimeTicks_);
   }
   //TODO: BUILD DESTRUKTOR TO DESTORY mallocs
+  ~gpu_raptor(){
+      copy_to_device_destroy(allowed_claszes_,
+                           dist_to_end_,
+                           dist_to_end_size_,
+                           base_,
+                           is_dest_,
+                           lb_,
+                           n_days_,
+                           kUnreachable_,
+                           kIntermodalTarget_,
+                           kMaxTravelTimeTicks_);
+      destroy_gpu_timetable(gtt_);
+      if (mem_ != nullptr) {
+        delete mem_;
+        mem_ = nullptr;
+      }
+
+  }
   algo_stats_t get_stats() const {
     return stats_;
   }
 
   void reset_arrivals() {
-    //TODO: alles reset arrivals
-    mem_->host_.reset(kInvalid);
+    mem_->reset_arrivals_async(); //hier nur reset von time_at_dest und round_times
   }
 
   void next_start_time() {
-    /*
-    std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
-    std::vector<gpu_delta_t> tmp_new(mem_->device_.size_tmp_,kInvalid);
-    bool copy_array_station[mem_->device_.size_station_mark_];
-    std::fill(std::begin(copy_array_station), std::end(copy_array_station), false);
-    bool copy_array_route[mem_->device_.size_route_mark_];
-    std::fill(std::begin(copy_array_route), std::end(copy_array_route), false);
-    cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(mem_->device_.tmp_, tmp_new.data(), mem_->device_.size_tmp_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(mem_->device_.prev_station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
-    cudaMemcpy(mem_->device_.station_mark_, copy_array_station, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
-    cudaMemcpy(mem_->device_.route_mark_, copy_array_route, mem_->device_.size_route_mark_*sizeof(bool), cudaMemcpyHostToDevice);
-     */
+    //hier reset von tmp_,best_,prev_station_mark_,station_mark_,route_mark_ //TODO: why not any_station_marked?
+    mem_->next_start_time_async();
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
-    /*
-    trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
-    std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
-    std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
-    best_new[gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
-    round_times_new[0U*mem_->device_.row_count_round_times_+ gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
-    bool copy_array[mem_->device_.size_station_mark_];
-    std::fill(std::begin(copy_array), std::end(copy_array), false);
-    copy_array[gpu_to_idx(l)] = true;
-    cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-    //TODO: MAYBE noch auf host kopieren weis aber nicht ob notwendig
-    cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-    cudaMemcpy(mem_->device_.station_mark_, copy_array, mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
-     */
+      add_start_gpu(l,t,mem_,gtt_,base_,kInvalid);
   }
 
 
@@ -203,12 +199,11 @@ struct gpu_raptor {
              uint8_t const max_transfers,
              gpu_unixtime_t const worst_time_at_dest,
              gpu_profile_idx_t const prf_idx){
-    /*
+    //TODO: alles bis cuda_check in .cu datei schieben also hilfsmethode schreiben
+    //TODO: wie benutzten wir start_time bzw... muss das noch rüber kopiert werden???? nike fragen...
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)this};
-  launch_kernel(gpu_raptor_kernel<SearchDir,Rt>, kernel_args,mem_->context_,mem_->context_.proc_stream_);
-  cuda_check();
-  //TODO: copy result back
-  //TODO: ALLES LÖSCHEN!!!!!!!!!!!
+  execute_gpu(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
+
   //copy stats from host to raptor attribute
   gpu_raptor_stats tmp{};
   for (int i = 0; i<32; ++i) {
@@ -223,10 +218,8 @@ struct gpu_raptor {
   }
   stats_ = tmp;
   return mem_->host_.round_times_.get();
-     */
-      return 0;
 }
-  gpu_timetable const* gtt_{nullptr};
+  gpu_timetable* gtt_{nullptr};
   gpu_raptor_state& state_;
   mem* mem_;
   bool* is_dest_;
@@ -236,7 +229,6 @@ struct gpu_raptor {
   gpu_day_idx_t* base_;
   int* n_days_;
   gpu_raptor_stats stats_;
-  uint32_t n_rt_transports_;
   gpu_clasz_mask_t* allowed_claszes_;
   std::uint16_t* kUnreachable_;
   unsigned int* kIntermodalTarget_;

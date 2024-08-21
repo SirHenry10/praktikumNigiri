@@ -100,6 +100,7 @@ void gpu_raptor_translator<SearchDir, Rt>::execute(
     nigiri::pareto_set<journey>& results) {
   gpu_delta_t* gpu_round_times = get_gpu_roundtimes(start_time,max_transfers,worst_time_at_dest,prf_idx);
   // Konstruktion der Ergebnis-Journey
+
   auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
   for (auto i = 0U; i != n_locations_; ++i) {
     auto const is_dest = is_dest_[i];
@@ -298,6 +299,7 @@ gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(nigiri:
           &tt.route_clasz_));
   return gtt;
 }
+//TODO: löschen war nur ein test
 template <nigiri::direction SearchDir, bool Rt>
 bool gpu_raptor_translator<SearchDir, Rt>::test(bool hi) {
   return hi;

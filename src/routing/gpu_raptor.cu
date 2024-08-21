@@ -622,3 +622,69 @@ fail:
   cudaFree(kIntermodalTarget_);
   cudaFree(kMaxTravelTimeTicks_);
 };
+void copy_to_device_destroy(
+    gpu_clasz_mask_t*& allowed_claszes_,
+    std::uint16_t* & dist_to_end_,
+    std::uint32_t* & dist_to_end_size_,
+    gpu_day_idx_t* & base_,
+    bool* & is_dest_,
+    std::uint16_t* & lb_,
+    int* & n_days_,
+    std::uint16_t* & kUnreachable_,
+    unsigned int* & kIntermodalTarget_,
+    short* & kMaxTravelTimeTicks_){
+  cudaFree(allowed_claszes_);
+  cudaFree(dist_to_end_);
+  cudaFree(dist_to_end_size_);
+  cudaFree(base_);
+  cudaFree(is_dest_);
+  cudaFree(lb_);
+  cudaFree(n_days_);
+  cudaFree(kUnreachable_);
+  cudaFree(kIntermodalTarget_);
+  cudaFree(kMaxTravelTimeTicks_);
+  cudaDeviceSynchronize();
+  auto const last_error = cudaGetLastError();
+  if (last_error != cudaSuccess) {
+    printf("CUDA error: %s at " STR(last_error) " %s:%d\n",
+           cudaGetErrorString(last_error), __FILE__, __LINE__);
+  }
+};
+
+template <typename Kernel>
+void inline launch_kernel(Kernel kernel, void** args,
+                          device_context const& device, cudaStream_t s) {
+  cudaSetDevice(device.id_);
+
+  cudaLaunchCooperativeKernel((void*)kernel, device.grid_,  //  NOLINT
+                              device.threads_per_block_, args, 0, s);
+  cuda_check();
+}
+/*
+//TODO: wie löse ich problem das ich hier kein template haben kann da dies die h mit der cu verbindet
+void execute_gpu(void** args,
+                 device_context const& device,
+                 cudaStream_t s,
+                 gpu_direction const search_dir,
+                 bool const rt,
+                 gpu_){
+  launch_kernel(gpu_raptor_kernel<search_dir,rt>,args,device,s);
+  cuda_check();
+  //TODO: hier kopieren der ergebnise in host...
+
+}
+*/
+
+void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t* base_,short const kInvalid){
+  trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
+  std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
+  std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
+  best_new[gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
+  round_times_new[0U*mem_->device_.row_count_round_times_+ gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
+  std::unique_ptr<bool[]> copy_array(new bool[mem_->device_.size_station_mark_]);
+  std::fill(copy_array.get(), copy_array.get() + mem_->device_.size_station_mark_, false);
+  copy_array[gpu_to_idx(l)] = true;
+  cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem_->device_.station_mark_, copy_array.get(), mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
+}
