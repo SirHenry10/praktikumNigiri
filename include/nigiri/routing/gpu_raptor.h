@@ -27,7 +27,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & lb_,
                      int* & n_days_,
                      std::uint16_t* & kUnreachable_,
-                     unsigned int* & kIntermodalTarget_,
+                     gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_);
 
 void copy_to_device_destroy(
@@ -39,7 +39,7 @@ void copy_to_device_destroy(
     std::uint16_t* & lb_,
     int* & n_days_,
     std::uint16_t* & kUnreachable_,
-    unsigned int* & kIntermodalTarget_,
+    gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_);
 }
 /*
@@ -58,6 +58,11 @@ inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
   cuda_check();
 }
  */
+void inline launch_kernel(void** args,
+                          device_context const& device,
+                          cudaStream_t s,
+                          gpu_direction search_dir,
+                          bool rt);
 void execute_gpu(void** args,
                  device_context const& device,
                  cudaStream_t s,
@@ -70,9 +75,14 @@ __host__ __device__ static bool is_better(auto a, auto b) { return SearchDir==gp
 __host__ __device__ static auto get_smaller(auto a, auto b) { return a < b ? a : b ;}
 template<gpu_direction SearchDir>
 __host__ __device__ static bool is_better_or_eq(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a <= b : a >= b; }
-__host__ __device__ static auto get_best(auto a, auto b) { return is_better(a, b) ? a : b; }
+
+//TODO: frage nochmal wann wird oben und wann unten genutz 2. hab gefixt das diese kein template haben
+template<gpu_direction SearchDir>
+__host__ __device__ static auto get_best(auto a, auto b) { return is_better<SearchDir>(a, b) ? a : b; }
+
+template<gpu_direction SearchDir>
 __host__ __device__ static auto get_best(auto x, auto... y) {
-  ((x = get_best(x, y)), ...);
+  ((x = get_best<SearchDir>(x, y)), ...);
   return x;
 }
 
@@ -202,7 +212,7 @@ struct gpu_raptor {
     //TODO: alles bis cuda_check in .cu datei schieben also hilfsmethode schreiben
     //TODO: wie benutzten wir start_time bzw... muss das noch rüber kopiert werden???? nike fragen...
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)this};
-  execute_gpu(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
+  launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
 
   //copy stats from host to raptor attribute
   gpu_raptor_stats tmp{};
@@ -231,6 +241,6 @@ struct gpu_raptor {
   gpu_raptor_stats stats_;
   gpu_clasz_mask_t* allowed_claszes_;
   std::uint16_t* kUnreachable_;
-  unsigned int* kIntermodalTarget_;
+  gpu_location_idx_t* kIntermodalTarget_;
   short* kMaxTravelTimeTicks_;
 };

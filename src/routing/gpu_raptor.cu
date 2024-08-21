@@ -45,7 +45,7 @@ __device__ void reset_store(unsigned int* store, int const store_size) {
 template <gpu_direction SearchDir, bool Rt>
 __device__ void update_time_at_dest(unsigned const k, gpu_delta_t const t, gpu_delta_t* time_at_dest_){
   for (auto i = k; i < gpu_kMaxTransfers+1; ++i) {
-    time_at_dest_[i] = get_best<SearchDir, Rt>(time_at_dest_[i], t);
+    time_at_dest_[i] = get_best<SearchDir>(time_at_dest_[i], t);
   }
 }
 
@@ -387,7 +387,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                              uint32_t dist_to_end_size_,
                              bool* is_dest_, uint16_t* lb_, int n_days_,
                              gpu_delta_t* time_at_dest_,
-                             bool any_station_marked_, uint32_t* route_mark_,
+                             bool* any_station_marked_, uint32_t* route_mark_,
                              uint32_t* station_mark_, gpu_delta_t* best_,
                              unsigned short kUnreachable, uint32_t* prev_station_mark_,
                              gpu_delta_t* round_times_, gpu_delta_t* tmp_,
@@ -403,7 +403,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   auto const global_stride = get_global_stride();
   //TODO sicher, dass man über n_locations iterieren muss? -> aufpassen, dass round_times nicht out of range zugegriffen wird
   for(auto idx = global_t_id; idx < *gtt_->n_locations_; idx += global_stride){
-    best_[global_t_id] = get_best<SearchDir, Rt>
+    best_[global_t_id] = get_best<SearchDir>
         (round_times_[k*row_count_round_times_+idx], best_[idx]);
     if(is_dest_[idx]){
       update_time_at_dest<SearchDir, Rt>(k, best_[global_t_id], time_at_dest_);
@@ -413,14 +413,14 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
 
   // für jede location & für jede location_route state_.route_mark_
   if(get_global_thread_id()==0){
-    any_station_marked_ = false;
+    *any_station_marked_ = false;
   }
   convert_station_to_route_marks<SearchDir, Rt>(station_mark_, route_mark_,
                                                   any_station_marked_, gtt_);
   this_grid().sync();
 
   if(get_global_thread_id()==0){
-    if(!any_station_marked_){
+    if(!*any_station_marked_){
       return;
     }
     // swap
@@ -439,7 +439,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
-  any_station_marked_ = (allowed_claszes_ == 0xffff)
+  *any_station_marked_ = (allowed_claszes_ == 0xffff)
                          ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, gtt_, route_mark_, allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, row_count_round_times_, tmp_, lb_, n_days_,
@@ -451,7 +451,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
 
   this_grid().sync();
   if(get_global_thread_id()==0){
-    if(!any_station_marked_){
+    if(!*any_station_marked_){
       return;
     }
     // fill
@@ -527,11 +527,11 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
   // 2. Update Routes
   for (auto k = 1U; k != end_k; ++k) { // diese Schleife bleibt, da alle Threads in jede Runde gehen
 
-    // Resultate aus lezter Runde von device in variable speichern?
+    // Resultate aus lezter Runde von device in variable speichern?  //TODO: typen von kIntermodalTarget und dist_to_end_size falsch???
     raptor_round<SearchDir, Rt>(k, prf_idx, gr.gtt_, *gr.base_, *gr.allowed_claszes_,
-                 gr.dist_to_end_, gr.dist_to_end_size_, gr.is_dest_, gr.lb_, *gr.n_days_,
+                 gr.dist_to_end_, *gr.dist_to_end_size_, gr.is_dest_, gr.lb_, *gr.n_days_,
                  gr.mem_->device_.time_at_dest_,
-                 *gr.mem_->device_.any_station_marked_, gr.mem_->device_.route_mark_,
+                 gr.mem_->device_.any_station_marked_, gr.mem_->device_.route_mark_,
                  gr.mem_->device_.station_mark_, gr.mem_->device_.best_,
                  gr.kUnreachable, gr.mem_->device_.prev_station_mark_,
                  gr.mem_->device_.round_times_, gr.mem_->device_.tmp_,
@@ -540,7 +540,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                  gr.mem_->device_.column_count_round_times_,
                  gr.mem_->device_.size_route_mark_,
                  gr.mem_->device_.size_station_mark_,
-                 gr.kIntermodalTarget, gr.stats_, gr.kMaxTravelTimeTicks_);
+                 gr.kIntermodalTarget_, gr.stats_, gr.kMaxTravelTimeTicks_);
     this_grid().sync();
   }
   this_grid().sync();
@@ -651,24 +651,30 @@ void copy_to_device_destroy(
   }
 };
 
-template <typename Kernel>
-void inline launch_kernel(Kernel kernel, void** args,
-                          device_context const& device, cudaStream_t s) {
+void inline launch_kernel(void** args,
+                          device_context const& device,
+                          cudaStream_t s,
+                          gpu_direction search_dir,
+                          bool rt) {
   cudaSetDevice(device.id_);
-
-  cudaLaunchCooperativeKernel((void*)kernel, device.grid_,  //  NOLINT
+  if(search_dir == gpu_direction::kForward && rt == true){
+  cudaLaunchCooperativeKernel(gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,  //  NOLINT
                               device.threads_per_block_, args, 0, s);
+  } else if(search_dir == gpu_direction::kForward && rt == false){
+    cudaLaunchCooperativeKernel(gpu_raptor_kernel<gpu_direction::kForward,false>, device.grid_,  //  NOLINT
+                                device.threads_per_block_, args, 0, s);
+  } else if(search_dir == gpu_direction::kBackward && rt == true){
+    cudaLaunchCooperativeKernel(gpu_raptor_kernel<gpu_direction::kBackward,true>, device.grid_,  //  NOLINT
+                                device.threads_per_block_, args, 0, s);
+  }else if(search_dir == gpu_direction::kBackward && rt == false){
+    cudaLaunchCooperativeKernel(gpu_raptor_kernel<gpu_direction::kBackward,false>, device.grid_,  //  NOLINT
+                                device.threads_per_block_, args, 0, s);
+  }
   cuda_check();
 }
 /*
 //TODO: wie löse ich problem das ich hier kein template haben kann da dies die h mit der cu verbindet
-void execute_gpu(void** args,
-                 device_context const& device,
-                 cudaStream_t s,
-                 gpu_direction const search_dir,
-                 bool const rt,
-                 gpu_){
-  launch_kernel(gpu_raptor_kernel<search_dir,rt>,args,device,s);
+void execute_gpu_after_launch(){
   cuda_check();
   //TODO: hier kopieren der ergebnise in host...
 
