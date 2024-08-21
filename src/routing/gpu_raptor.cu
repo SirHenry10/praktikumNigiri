@@ -130,16 +130,16 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
       if(et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed_ : stp.in_allowed_)){
         auto const by_transport = time_at_stop<SearchDir, Rt>(
             r, et, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kArr : gpu_event_type::kDep, gtt_, base_);
-        current_best = get_best<SearchDir, Rt>(round_times_[(k - 1)*row_count_round_times_ + l_idx],
+        current_best = get_best<SearchDir>(round_times_[(k - 1)*row_count_round_times_ + l_idx],
                                 tmp_[l_idx], best_[l_idx]);
 
-        if (is_better(by_transport, current_best) &&
-            is_better(by_transport, time_at_dest_[k]) &&
+        if (is_better<SearchDir>(by_transport, current_best) &&
+            is_better<SearchDir>(by_transport, time_at_dest_[k]) &&
             lb_[l_idx] != kUnreachable &&
-            is_better(by_transport + dir<SearchDir, Rt>(lb_[l_idx]), time_at_dest_[k])){
+            is_better<SearchDir>(by_transport + dir<SearchDir>(lb_[l_idx]), time_at_dest_[k])){
           // hier werden gemeinsame Variablen geändert!!
           ++stats_[get_global_thread_id()>>5].n_earliest_arrival_updated_by_route_;
-          tmp_[l_idx] = get_best(by_transport, tmp_[l_idx]);
+          tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
           mark(station_mark_, l_idx);
           current_best = by_transport;
           atomicOr(reinterpret_cast<int*>(any_station_marked_), true); // keine Ahnung ob das hier mit dem cast korrekt funktioniert
@@ -440,8 +440,8 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
   *any_station_marked_ = (allowed_claszes_ == 0xffff)
-                         ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, gtt_, route_mark_, allowed_claszes_,
-                                                             stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
+                         ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, gtt_, route_mark_, &allowed_claszes_,
+                                                             &stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, row_count_round_times_, tmp_, lb_, n_days_,
                                                              time_at_dest_, station_mark_, base_, kUnreachable)
                            : loop_routes<SearchDir, Rt,true>(k, any_station_marked_, gtt_, route_mark_, allowed_claszes_,
