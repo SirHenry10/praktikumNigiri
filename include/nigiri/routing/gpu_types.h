@@ -1488,7 +1488,7 @@ constexpr std::string_view get_gpu_special_station_name(gpu_special_station cons
 }
 struct gpu_stop {
   using value_type = gpu_location_idx_t::value_t;
-#ifdef __CUDA_ARCH__
+#ifdef NIGIRI_CUDA
   __host__ __device__ gpu_stop(gpu_location_idx_t::value_t const val) {
     *reinterpret_cast<value_type*>(this) = val;
   }
@@ -1515,3 +1515,43 @@ struct gpu_stop {
   gpu_location_idx_t::value_t in_allowed_ : 1;
   gpu_location_idx_t::value_t out_allowed_ : 1;
 };
+
+template <typename BeginIt, typename EndIt = BeginIt>
+struct it_range {
+#ifdef NIGIRI_CUDA
+  using value_type =
+      std::remove_reference_t<decltype(*std::declval<BeginIt>())>;
+  using reference_type = std::add_lvalue_reference_t<value_type>;
+  using const_iterator = BeginIt;
+  using iterator = BeginIt;
+  using difference_type =
+      typename std::iterator_traits<iterator>::difference_type;
+
+  template <typename Collection>
+  __host__ __device__ explicit it_range(Collection const& c)
+      : begin_{std::cbegin(c)}, end_{std::cend(c)} {}
+  __host__ __device__ explicit it_range(BeginIt begin, EndIt end)
+      : begin_{std::move(begin)}, end_{std::move(end)} {}
+  __host__ __device__ BeginIt begin() const { return begin_; }
+  __host__ __device__ EndIt end() const { return end_; }
+  __host__ __device__ reference_type operator[](std::size_t const i) const {
+    return *std::next(begin_, static_cast<difference_type>(i));
+  }
+  __host__ __device__ value_type const* data() const { return begin_; }
+  __host__ __device__ friend BeginIt begin(it_range const& r) { return r.begin(); }
+  __host__ __device__ friend EndIt end(it_range const& r) { return r.end(); }
+  __host__ __device__ reference_type front() const { return *begin_; }
+  __host__ __device__ reference_type back() const {
+    return *std::next(begin_, static_cast<difference_type>(size() - 1U));
+  }
+  __host__ __device__ std::size_t size() const {
+    return static_cast<std::size_t>(std::distance(begin_, end_));
+  }
+  __host__ __device__ bool empty() const { return begin_ == end_; }
+#endif
+  BeginIt begin_;
+  EndIt end_;
+};
+
+template <typename BeginIt, typename EndIt>
+it_range(BeginIt, EndIt) -> it_range<BeginIt, EndIt>;
