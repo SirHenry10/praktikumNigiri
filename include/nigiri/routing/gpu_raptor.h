@@ -42,32 +42,21 @@ void copy_to_device_destroy(
     gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_);
 }
-/*
-inline void fetch_arrivals_async(mem* const& mem, cudaStream_t s) {
-  //TODO:
-  cuda_check();
-}
- */
-/*
-inline void fetch_arrivals_async(mem* const& mem, raptor_round const round_k,
-                                 cudaStream_t s) {
-  cudaMemcpyAsync((*dq.mem_->host_.result_)[round_k],
-                  dq.mem_->device_.result_[round_k],
-                  dq.mem_->host_.result_->stop_count_ * sizeof(time),
-                  cudaMemcpyDeviceToHost, s);
-  cuda_check();
-}
- */
 void inline launch_kernel(void** args,
                           device_context const& device,
                           cudaStream_t s,
                           gpu_direction search_dir,
                           bool rt);
-void execute_gpu(void** args,
-                 device_context const& device,
-                 cudaStream_t s,
-                 gpu_direction const search_dir,
-                 bool const rt);
+void copy_back(mem* mem);
+
+mem* gpu_mem(
+    std::vector<gpu_delta_t> tmp,
+    std::vector<gpu_delta_t> best,
+    std::vector<bool> station_mark,
+    std::vector<bool> prev_station_mark,
+    std::vector<bool> route_mark,
+    gpu_direction search_dir,
+    gpu_timetable gtt);
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t* base_,short const kInvalid);
 
 template<gpu_direction SearchDir>
@@ -77,6 +66,7 @@ template<gpu_direction SearchDir>
 __host__ __device__ static bool is_better_or_eq(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a <= b : a >= b; }
 
 //TODO: frage nochmal wann wird oben und wann unten genutz 2. hab gefixt das diese kein template haben
+//TODO: nochmal überlegen ob get_best und etc.. immer nach SearchDir kucken sollte oder nur bei gpu_delta_t???
 template<gpu_direction SearchDir>
 __host__ __device__ static auto get_best(auto a, auto b) { return is_better<SearchDir>(a, b) ? a : b; }
 
@@ -127,18 +117,15 @@ struct gpu_raptor {
 
 
   gpu_raptor(gpu_timetable* gtt,
-         gpu_raptor_state& state,
+         mem* mem,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
          std::vector<std::uint16_t>& lb,
          gpu_day_idx_t const base,
          gpu_clasz_mask_t const allowed_claszes)
       : gtt_{gtt},
-        state_{state}
+        mem_{mem}
         {
-    state_.init(*gtt_,kInvalid); //TODO: das im gpu_raptor_translator machen und dann das von raptor_state rüber kopieren und dann mit mem_-> reset_arrival löschen!?
-    loaned_mem loan(state_,kInvalid);
-    mem_ = loan.mem_;
     //das darüber sollte in gpu_raptor_translator und von raptor_state die daten rüber kopiert werden... dass raptor_state = gpu_raptor_state ist bei der initialisierung müssen wir danach den
     //TODO: überlegen: raptor_state mit den werten setzten die gpu_raptor_state hatte...???? also muss nach abschluss wieder raptor_state = gpu_raptor_state sein???
     mem_->reset_arrivals_async();
@@ -212,6 +199,7 @@ struct gpu_raptor {
     //TODO: wie benutzten wir start_time bzw... muss das noch rüber kopiert werden???? nike fragen...
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)this};
   launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
+  copy_back(mem_);
 
   //copy stats from host to raptor attribute
   gpu_raptor_stats tmp{};
@@ -229,7 +217,6 @@ struct gpu_raptor {
   return mem_->host_.round_times_.get();
 }
   gpu_timetable* gtt_{nullptr};
-  gpu_raptor_state& state_;
   mem* mem_;
   bool* is_dest_;
   uint16_t* dist_to_end_;

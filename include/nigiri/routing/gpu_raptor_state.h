@@ -81,8 +81,8 @@ struct host_memory {
 
   void reset(gpu_delta_t invalid) const;
 
-  std::unique_ptr<gpu_delta_t> round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
-  std::unique_ptr<gpu_raptor_stats> stats_;
+  std::vector<gpu_delta_t> round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  std::vector<gpu_raptor_stats> stats_;
   uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
 

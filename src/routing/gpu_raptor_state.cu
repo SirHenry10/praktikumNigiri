@@ -50,9 +50,10 @@ void device_context::destroy() {
 // Attribute, die von Host benötigt werden
 host_memory::host_memory(uint32_t row_count_round_times,
                          uint32_t column_count_round_times
-                         ):row_count_round_times_{row_count_round_times},column_count_round_times_{column_count_round_times},
-round_times_{std::make_unique<gpu_delta_t>(row_count_round_times*column_count_round_times)},
-stats_{std::make_unique<gpu_raptor_stats>(32)}{}
+                         ):row_count_round_times_{row_count_round_times},
+                             column_count_round_times_{column_count_round_times},
+round_times_{std::vector<gpu_delta_t>(row_count_round_times*column_count_round_times)},
+stats_{std::vector<gpu_raptor_stats>(32)}{}
 
 void host_memory::destroy() {
   round_times_ = nullptr;

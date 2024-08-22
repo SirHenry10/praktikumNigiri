@@ -672,14 +672,25 @@ void inline launch_kernel(void** args,
   }
   cuda_check();
 }
-/*
-//TODO: wie löse ich problem das ich hier kein template haben kann da dies die h mit der cu verbindet
-void execute_gpu_after_launch(){
-  cuda_check();
-  //TODO: hier kopieren der ergebnise in host...
 
+inline void fetch_arrivals_async(mem* mem, cudaStream_t s) {
+  cudaMemcpyAsync(
+      mem->host_.round_times_.data(), mem->device_.round_times_,
+      sizeof(gpu_delta_t)*mem->host_.row_count_round_times_*mem->host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      mem->host_.stats_.data(), mem->device_.stats_,
+      sizeof(gpu_raptor_stats)*32, cudaMemcpyDeviceToHost, s);
+  cuda_check();
 }
-*/
+void copy_back(mem* mem){
+  cuda_check();
+  cuda_sync_stream(mem->context_.proc_stream_);
+  cuda_check();
+  fetch_arrivals_async(mem,mem->context_.transfer_stream_);
+  cuda_check();
+  cuda_sync_stream(mem->context_.transfer_stream_);
+  cuda_check();
+}
 
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t* base_,short const kInvalid){
   trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
@@ -693,4 +704,60 @@ void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,
   cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cudaMemcpy(mem_->device_.station_mark_, copy_array.get(), mem_->device_.size_station_mark_*sizeof(bool), cudaMemcpyHostToDevice);
+}
+
+mem* gpu_mem(
+    std::vector<gpu_delta_t> tmp,
+    std::vector<gpu_delta_t> best,
+    std::vector<bool> station_mark,
+    std::vector<bool> prev_station_mark,
+    std::vector<bool> route_mark,
+    gpu_direction search_dir,
+    gpu_timetable gtt){
+  short kInvalid = 0;
+  if(search_dir == gpu_direction::kForward){
+    kInvalid = kInvalidGpuDelta<gpu_direction::kForward>;
+  } else{
+    kInvalid = kInvalidGpuDelta<gpu_direction::kBackward>;
+  }
+  auto state = gpu_raptor_state{};
+  state.init(*gtt,kInvalid);
+  loaned_mem loan(state,kInvalid);
+  mem* mem = loan.mem_;
+  auto const b_kInvalid = kInvalidGpuDelta<gpu_direction::kBackward>;
+  auto const f_kInvalid = kInvalidGpuDelta<gpu_direction::kForward>;
+  if(search_dir == gpu_direction::kForward) {
+    tmp.resize(*gtt.n_locations_,f_kInvalid);
+    best.resize(*gtt.n_locations_,f_kInvalid);
+  } else{
+    tmp.resize(*gtt.n_locations_,b_kInvalid);
+    best.resize(*gtt.n_locations_,b_kInvalid);
+  }
+  station_mark.resize(*gtt.n_locations_);
+  prev_station_mark.resize(*gtt.n_locations_);
+  route_mark.resize(*gtt.n_routes_);
+  std::unique_ptr<bool[]> copy_array_station_mark(new bool[*gtt.n_locations_]);
+  for (size_t i = 0; i < station_mark.size(); ++i) {
+    copy_array_station_mark[i] = station_mark[i];
+  }
+  std::unique_ptr<bool[]> copy_array_prev_station_mark(new bool[*gtt.n_locations_]);
+  for (size_t i = 0; i < prev_station_mark.size(); ++i) {
+    copy_array_prev_station_mark[i] = prev_station_mark[i];
+  }
+  std::unique_ptr<bool[]> copy_array_route_mark(new bool[*gtt.n_routes_]);
+  for (size_t i = 0; i < route_mark.size(); ++i) {
+    copy_array_route_mark[i] = route_mark[i];
+  }
+  //TODO: Maybe tmp und best entfernen da eh überschieben???
+  cudaMemcpy(mem->device_.tmp_, tmp.data(), (*gtt.n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cuda_check();
+  cudaMemcpy(mem->device_.best_, best.data(), (*gtt.n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cuda_check();
+  cudaMemcpy(mem->device_.station_mark_, copy_array_station_mark.get(), (*gtt.n_locations_) * sizeof(bool), cudaMemcpyHostToDevice);
+  cuda_check();
+  cudaMemcpy(mem->device_.prev_station_mark_, copy_array_prev_station_mark.get(), (*gtt.n_locations_) * sizeof(bool), cudaMemcpyHostToDevice);
+  cuda_check();
+  cudaMemcpy(mem->device_.route_mark_, copy_array_route_mark.get(), (*gtt.n_routes_) * sizeof(bool), cudaMemcpyHostToDevice);
+  cuda_check();
+  return mem;
 }

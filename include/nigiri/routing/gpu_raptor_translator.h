@@ -24,7 +24,7 @@ struct gpu_raptor_translator {
   using algo_stats_t = gpu_raptor_stats;
   static nigiri::direction const cpu_direction_ = SearchDir;
   static gpu_direction const gpu_direction_ =
-      static_cast<enum gpu_direction const>(cpu_direction_);
+      static_cast<enum gpu_direction const>(cpu_direction_); //TODO: reinterprate cast maybe weiß nicht ob static geht
   std::variant<
       std::unique_ptr<gpu_raptor<gpu_direction::kForward, true>>,
       std::unique_ptr<gpu_raptor<gpu_direction::kForward, false>>,
@@ -77,6 +77,7 @@ private:
                                   uint8_t const max_transfers,
                                   nigiri::unixtime_t const worst_time_at_dest,
                                   nigiri::profile_idx_t const prf_idx);
+  mem* get_gpu_mem(gpu_timetable gtt);
 };
 #pragma once
 
@@ -170,8 +171,8 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
       allowed_claszes_{allowed_claszes}{
   auto gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
   auto gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
-  auto gpu_state_ =  gpu_raptor_state{};
-  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(translate_tt_in_gtt(tt_),gpu_state_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes); //TODO maybe: transalte raptor_state into gpu_raptor_state
+  auto gtt = translate_tt_in_gtt(tt_);
+  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt, get_gpu_mem(gtt), is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes); //TODO maybe: transalte raptor_state into gpu_raptor_state
 }
 using algo_stats_t = gpu_raptor_stats;
 template <nigiri::direction SearchDir, bool Rt>
@@ -303,4 +304,11 @@ gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(nigiri:
 template <nigiri::direction SearchDir, bool Rt>
 bool gpu_raptor_translator<SearchDir, Rt>::test(bool hi) {
   return hi;
+}
+
+template <nigiri::direction SearchDir, bool Rt>
+mem* gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable gtt) {
+  auto tmp = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.tmp_);
+  auto best = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.best_);
+  return gpu_mem(tmp,best,state_.station_mark_,state_.prev_station_mark_,state_.route_mark_,gpu_direction_,gtt);
 }
