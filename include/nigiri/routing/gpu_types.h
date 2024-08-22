@@ -1488,7 +1488,7 @@ constexpr std::string_view get_gpu_special_station_name(gpu_special_station cons
 }
 struct gpu_stop {
   using value_type = gpu_location_idx_t::value_t;
-#ifdef NIGIRI_CUDA
+#ifdef __CUDA_ARCH__
   __host__ __device__ gpu_stop(gpu_location_idx_t::value_t const val) {
     *reinterpret_cast<value_type*>(this) = val;
   }
