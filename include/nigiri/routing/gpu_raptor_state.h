@@ -73,16 +73,18 @@ struct host_memory {
   host_memory(host_memory const&&) = delete;
   host_memory operator=(host_memory const&) = delete;
   host_memory operator=(host_memory const&&) = delete;
-  explicit host_memory(uint32_t row_count_round_times_, uint32_t column_count_round_times_);
+  explicit host_memory(uint32_t row_count_round_times, uint32_t column_count_round_times,uint32_t n_locations,uint32_t n_routes);
 
   ~host_memory() = default;
 
-  void destroy();
-
-  void reset(gpu_delta_t invalid) const;
 
   std::vector<gpu_delta_t> round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
   std::vector<gpu_raptor_stats> stats_;
+  std::vector<gpu_delta_t> tmp_;
+  std::vector<gpu_delta_t> best_;
+  std::vector<uint32_t> station_mark_;
+  std::vector<uint32_t> prev_station_mark_;
+  std::vector<uint32_t> route_mark_;
   uint32_t row_count_round_times_{}, column_count_round_times_{};
 };
 
@@ -94,7 +96,7 @@ struct device_memory {
   device_memory(device_memory const&&) = delete;
   device_memory operator=(device_memory const&) = delete;
   device_memory operator=(device_memory const&&) = delete;
-  device_memory(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_route_mark_,gpu_delta_t invalid);
+  device_memory(uint32_t n_locations, uint32_t n_routes, uint32_t row_count_round_times_, uint32_t column_count_round_times_,gpu_delta_t invalid);
 
   ~device_memory() = default;
 
@@ -120,7 +122,7 @@ struct device_memory {
   uint32_t* prev_station_mark_{};
   uint32_t* route_mark_{};
   bool* any_station_marked_{};
-  uint32_t size_tmp_{}, size_best_{}, row_count_round_times_{}, column_count_round_times_{}, size_station_mark_{}, size_route_mark_{};
+  uint32_t n_locations_{}, n_routes_{}, row_count_round_times_{}, column_count_round_times_{};
   gpu_raptor_stats* stats_{};
 };
 
@@ -131,7 +133,7 @@ struct mem {
   mem operator=(mem const&) = delete;
   mem operator=(mem const&&) = delete;
 
-  mem(uint32_t size_tmp_, uint32_t size_best_, uint32_t row_count_round_times_, uint32_t column_count_round_times_, uint32_t size_station_mark_, uint32_t size_route_mark_,gpu_delta_t invalid,
+  mem(uint32_t n_locations, uint32_t n_routes, uint32_t row_count_round_times_, uint32_t column_count_round_times_,gpu_delta_t invalid,
       device_id device_id);
 
   void reset_arrivals_async();

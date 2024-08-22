@@ -31,6 +31,7 @@ struct gpu_raptor_translator {
       std::unique_ptr<gpu_raptor<gpu_direction::kBackward, true>>,
       std::unique_ptr<gpu_raptor<gpu_direction::kBackward, false>>
       > gpu_r_;
+  mem* mem_;
 
   gpu_raptor_translator(nigiri::timetable const& tt,
                         nigiri::rt_timetable const* rtt,
@@ -78,6 +79,7 @@ private:
                                   nigiri::unixtime_t const worst_time_at_dest,
                                   nigiri::profile_idx_t const prf_idx);
   mem* get_gpu_mem(gpu_timetable gtt);
+  void gpu_covert_to_r_state();
 };
 #pragma once
 
@@ -172,7 +174,8 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
   auto gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
   auto gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
   auto gtt = translate_tt_in_gtt(tt_);
-  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt, get_gpu_mem(gtt), is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes); //TODO maybe: transalte raptor_state into gpu_raptor_state
+  mem_ = get_gpu_mem(gtt);
+  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt,mem_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes); //TODO maybe: transalte raptor_state into gpu_raptor_state
 }
 using algo_stats_t = gpu_raptor_stats;
 template <nigiri::direction SearchDir, bool Rt>
@@ -251,6 +254,7 @@ gpu_delta_t* gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
   } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(&gpu_r_)->get()) {
     gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
   }
+  gpu_covert_to_r_state();
   return gpu_round_times;
 }
 
@@ -308,7 +312,43 @@ bool gpu_raptor_translator<SearchDir, Rt>::test(bool hi) {
 
 template <nigiri::direction SearchDir, bool Rt>
 mem* gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable gtt) {
+  state_.resize(*gtt.n_locations_,*gtt.n_routes_,0); //TODO: wenn man RT benutzen will 0 mit n_rt... ersetzen
   auto tmp = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.tmp_);
   auto best = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.best_);
   return gpu_mem(tmp,best,state_.station_mark_,state_.prev_station_mark_,state_.route_mark_,gpu_direction_,gtt);
+}
+
+template <nigiri::direction SearchDir, bool Rt>
+void gpu_raptor_translator<SearchDir, Rt>::gpu_covert_to_r_state() {
+  auto gpu_tmp = mem_->host_.tmp_;
+  auto gpu_best = mem_->host_.best_;
+  auto gpu_round_times = mem_->host_.round_times_;
+  auto gpu_columns = mem_->device_.column_count_round_times_;
+  auto gpu_rows = mem_->device_.row_count_round_times_;
+  auto gpu_station_mark = mem_->host_.station_mark_;
+  auto gpu_prev_station_mark = mem_->host_.prev_station_mark_;
+  auto gpu_route_mark = mem_->host_.route_mark_;
+  vector<gpu_delta_t> vec(gpu_round_times.data(), gpu_round_times.data() + gpu_rows * gpu_columns);
+  cista::raw::flat_matrix<delta_t> matrix;
+  matrix.resize(gpu_rows,gpu_columns);
+  matrix.entries_ = std::move(vec);
+  std::vector<bool> station_mark(mem_->device_.n_locations_);
+  for (int i = 0; i < station_mark.size(); ++i) {
+    station_mark[i] = gpu_station_mark[i] == 0 ? false : true;
+  }
+  std::vector<bool> prev_station_mark(mem_->device_.n_locations_);
+  for (int i = 0; i < prev_station_mark.size(); ++i) {
+    prev_station_mark[i] = gpu_prev_station_mark[i] == 0 ? false : true;
+  }
+  std::vector<bool> route_mark(mem_->device_.n_routes_);
+  for (int i = 0; i < route_mark.size(); ++i) {
+    route_mark[i] = gpu_route_mark[i] == 0 ? false : true;
+  }
+
+  state_.tmp_ = gpu_tmp;
+  state_.best_ = gpu_best;
+  state_.round_times_ = matrix;
+  state_.station_mark_ = station_mark;
+  state_.prev_station_mark_ = prev_station_mark;
+  state_.route_mark_ = route_mark;
 }
