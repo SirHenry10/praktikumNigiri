@@ -2,7 +2,6 @@
 
 #include <cuda_runtime.h>
 #include "nigiri/routing/gpu_timetable.h"
-// todo: types.h include nicht möglich erzeugt hashing error
 #include <cstdio>
 
 extern "C" {
@@ -23,7 +22,6 @@ extern "C" {
         cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice)) \
     device_bytes += size * sizeof(type);
 
-// TODO: const machen alles?
 struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            std::uint32_t  n_route_stop_times,
                                            gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq,

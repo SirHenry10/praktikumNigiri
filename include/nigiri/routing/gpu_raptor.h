@@ -126,8 +126,6 @@ struct gpu_raptor {
       : gtt_{gtt},
         mem_{mem}
         {
-    //das darüber sollte in gpu_raptor_translator und von raptor_state die daten rüber kopiert werden... dass raptor_state = gpu_raptor_state ist bei der initialisierung müssen wir danach den
-    //TODO: überlegen: raptor_state mit den werten setzten die gpu_raptor_state hatte...???? also muss nach abschluss wieder raptor_state = gpu_raptor_state sein???
     mem_->reset_arrivals_async();
     std::unique_ptr<bool[]> copy_array(new bool[is_dest.size()]);
     for (int i = 0; i<is_dest.size();i++){
@@ -154,7 +152,6 @@ struct gpu_raptor {
                     kIntermodalTarget_,
                     kMaxTravelTimeTicks_);
   }
-  //TODO: BUILD DESTRUKTOR TO DESTORY mallocs
   ~gpu_raptor(){
       copy_to_device_destroy(allowed_claszes_,
                            dist_to_end_,
@@ -197,13 +194,19 @@ struct gpu_raptor {
              gpu_unixtime_t const worst_time_at_dest,
              gpu_profile_idx_t const prf_idx){
     //TODO: wie benutzten wir start_time bzw... muss das noch rüber kopiert werden???? nike fragen...
+    //TODO: überlegen ob kernel_args kopiert werden müssen
+    //start_time muss rüber das bei trace,max_transfers muss nicht malloced werden, worst_time_at_Dest muss rüber kopiert werden, prf_idx muss kopiert werden
+    void copy_to_gpu_args(gpu_unixtime_t* const start_time,
+                          uint8_t* const max_transfers,
+                          gpu_unixtime_t* const worst_time_at_dest,
+                          gpu_profile_idx_t* const prf_idx);
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)this};
-  //launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
+  launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
   copy_back(mem_);
 
   //copy stats from host to raptor attribute
   gpu_raptor_stats tmp{};
-  for (int i = 0; i<32; ++i) {
+  for (int i = 0; i<*gtt_->n_locations_; ++i) {
     tmp.n_routing_time_ += mem_->host_.stats_[i].n_routing_time_;
     tmp.n_footpaths_visited_ += mem_->host_.stats_[i].n_footpaths_visited_;
     tmp.n_routes_visited_ += mem_->host_.stats_[i].n_routes_visited_;

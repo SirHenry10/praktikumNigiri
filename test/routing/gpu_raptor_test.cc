@@ -40,14 +40,14 @@ TEST(routing, gpu_raptor) {
   auto test12_cpu = tt.location_routes_.bucket_starts_[1];
   ASSERT_EQ(test12_cpu,test12_gpu);
   //testen ob raptor geht
-  /*
+
   auto const results =
       raptor_search(tt, &rtt, "A", "D", sys_days{May / 2 / 2019} +23h,
-                    nigiri::direction::kBackward,true); //TODO: warum funktioniert nicht ohne direction?? siehe rt_test
-  */
-   //auto gpu_direction2 = *reinterpret_cast<enum gpu_direction*>(&SearchDir);
+                    direction::kForward,true);
+
+  //auto gpu_direction2 = *reinterpret_cast<enum gpu_direction*>(&SearchDir);
   //bool tester = gpu_direction2 == gpu_direction::kForward;
-  //std::cout<<"" << results.size();
+  std::cout<<"" << results.size();
   gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* te = reinterpret_cast<gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t>*>(&tt.location_routes_);
   std::cout<<"erster Wert: " << te->bucket_starts_ <<" \n"<< tt.location_routes_.bucket_starts_ << "\n";
   std::cout<<"";

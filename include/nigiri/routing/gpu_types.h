@@ -1555,3 +1555,4 @@ struct gpu_it_range {
 
 template <typename BeginIt, typename EndIt>
 gpu_it_range(BeginIt, EndIt) -> gpu_it_range<BeginIt, EndIt>;
+

@@ -20,7 +20,7 @@ template <nigiri::direction SearchDir, bool Rt>
 struct gpu_raptor_translator {
   static constexpr auto const kInvalid = nigiri::kInvalidDelta<SearchDir>;
   static constexpr bool kUseLowerBounds = true;
-  using algo_state_t = nigiri::routing::raptor_state; //TODO: maybe zu gpu_raptor_sate ändern und dann auch im Konstruktor
+  using algo_state_t = nigiri::routing::raptor_state;
   using algo_stats_t = gpu_raptor_stats;
   static nigiri::direction const cpu_direction_ = SearchDir;
   static gpu_direction const gpu_direction_ =
@@ -175,7 +175,7 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
   auto gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
   auto gtt = translate_tt_in_gtt(tt_);
   mem_ = get_gpu_mem(gtt);
-  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt,mem_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes); //TODO maybe: transalte raptor_state into gpu_raptor_state
+  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt,mem_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes);
 }
 using algo_stats_t = gpu_raptor_stats;
 template <nigiri::direction SearchDir, bool Rt>
@@ -304,12 +304,6 @@ gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(nigiri:
           &tt.route_clasz_));
   return gtt;
 }
-//TODO: löschen war nur ein test
-template <nigiri::direction SearchDir, bool Rt>
-bool gpu_raptor_translator<SearchDir, Rt>::test(bool hi) {
-  return hi;
-}
-
 template <nigiri::direction SearchDir, bool Rt>
 mem* gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable* gtt) {
   state_.resize(n_locations_,n_routes_,n_rt_transports_);
