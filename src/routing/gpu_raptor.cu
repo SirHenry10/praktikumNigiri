@@ -263,7 +263,34 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         // jeder thread, dessen station nach der von leader liegt,
         // kann jetzt seine jeweilige trip arrival time versuchen zu aktualisieren
         if (t_id > leader && t_id < active_stop_count){
+          if (et.is_valid() || marked(prev_station_mark_, l_idx)) {
+            auto current_best = kInvalidGpuDelta<SearchDir>;
+            if(et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed_ : stp.in_allowed_)){
+              auto const by_transport = time_at_stop<SearchDir, Rt>(
+                  r, et, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kArr : gpu_event_type::kDep, gtt_, base_);
+              current_best = get_best<SearchDir>(round_times_[(k - 1)*row_count_round_times_ + l_idx],
+                                                 tmp_[l_idx], best_[l_idx]);
 
+              if (is_better<SearchDir>(by_transport, current_best) &&
+                  is_better<SearchDir>(by_transport, time_at_dest_[k]) &&
+                  lb_[l_idx] != kUnreachable &&
+                  is_better<SearchDir>(by_transport + dir<SearchDir>(lb_[l_idx]), time_at_dest_[k])){
+                ++stats_[get_global_thread_id()>>5].n_earliest_arrival_updated_by_route_;
+                tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
+                mark(station_mark_, l_idx);
+                current_best = by_transport;
+                atomicOr(reinterpret_cast<int*>(any_station_marked_), true); // keine Ahnung, ob das hier mit dem cast korrekt funktioniert
+              }
+            }
+            if(!is_last && ((SearchDir == gpu_direction::kForward) ? (stp.in_allowed_!=0U) : (stp.out_allowed_!=0U)) && marked(prev_station_mark_, l_idx)){ //wieder umgekehrte Bedingung
+              if(lb_[l_idx] == kUnreachable) {
+                return any_station_marked_;
+              }
+              if(is_better_or_eq<SearchDir, Rt>(prev_round_time, et_time_at_stop)){
+
+              }
+            }
+          }
         }
 
 
@@ -273,40 +300,6 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         leader = NO_LEADER;
       }
     }
-    // Ende von get_earliest_transport Methode
-
-
-    // bedingung umkehren, da thread, der sie nicht erfüllt alles einfach überspringen sollte
-    if (et.is_valid() || marked(prev_station_mark_, l_idx)) {
-      auto current_best = kInvalidGpuDelta<SearchDir>;
-      if(et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed_ : stp.in_allowed_)){
-        auto const by_transport = time_at_stop<SearchDir, Rt>(
-            r, et, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kArr : gpu_event_type::kDep, gtt_, base_);
-        current_best = get_best<SearchDir>(round_times_[(k - 1)*row_count_round_times_ + l_idx],
-                                tmp_[l_idx], best_[l_idx]);
-
-        if (is_better<SearchDir>(by_transport, current_best) &&
-            is_better<SearchDir>(by_transport, time_at_dest_[k]) &&
-            lb_[l_idx] != kUnreachable &&
-            is_better<SearchDir>(by_transport + dir<SearchDir>(lb_[l_idx]), time_at_dest_[k])){
-          // hier werden gemeinsame Variablen geändert!!
-          ++stats_[get_global_thread_id()>>5].n_earliest_arrival_updated_by_route_;
-          tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
-          mark(station_mark_, l_idx);
-          current_best = by_transport;
-          atomicOr(reinterpret_cast<int*>(any_station_marked_), true); // keine Ahnung, ob das hier mit dem cast korrekt funktioniert
-        }
-      }
-      if(!is_last && ((SearchDir == gpu_direction::kForward) ? (stp.in_allowed_!=0U) : (stp.out_allowed_!=0U)) && marked(prev_station_mark_, l_idx)){ //wieder umgekehrte Bedingung
-        if(lb_[l_idx] == kUnreachable) {
-          return any_station_marked_;
-        }
-        if(is_better_or_eq<SearchDir, Rt>(prev_round_time, et_time_at_stop)){
-
-        }
-      }
-    }
-
   }
 
   return any_station_marked_;
@@ -498,10 +491,8 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                              uint32_t* station_mark_, gpu_delta_t* best_,
                              unsigned short kUnreachable, uint32_t* prev_station_mark_,
                              gpu_delta_t* round_times_, gpu_delta_t* tmp_,
-                             uint32_t size_best_, uint32_t size_tmp_,
                              uint32_t row_count_round_times_,
                              uint32_t column_count_round_times_,
-                             uint32_t size_route_mark_, uint32_t size_station_mark_,
                              gpu_location_idx_t* gpu_kIntermodalTarget,
                              gpu_raptor_stats stats_, short* kMaxTravelTimeTicks_){
 
@@ -531,15 +522,15 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       return;
     }
     // swap
-    uint32_t const size = size_station_mark_;
+    uint32_t const size = *gtt_->n_locations_;
     uint32_t dummy_marks[size];
-    for(int i=0; i<size_station_mark_; i++){
+    for(int i=0; i < *gtt_->n_locations_; i++){
       dummy_marks[i] = station_mark_[i];
       station_mark_[i] = prev_station_mark_[i];
       prev_station_mark_[i] = station_mark_[i];
     }
     // fill
-    for(int j = 0; j < size_station_mark_; j++){
+    for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF;
     }
   }
@@ -562,19 +553,19 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       return;
     }
     // fill
-    for(int i = 0; i<size_route_mark_; i++){
+    for(int i = 0; reinterpret_cast<uint32_t*>(i) < gtt_->n_routes_; i++){
       route_mark_[i] = 0xFFFF;
     }
     // swap
-    uint32_t const size = size_station_mark_;
+    uint32_t const size = *gtt_->n_locations_;
     uint32_t dummy_marks[size];
-    for(int i=0; i<size_station_mark_; i++){
+    for(int i=0; i < *gtt_->n_locations_; i++){
       dummy_marks[i] = station_mark_[i];
       station_mark_[i] = prev_station_mark_[i];
       prev_station_mark_[i] = station_mark_[i];
     }
     // fill
-    for(int j = 0; j < size_station_mark_; j++){
+    for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF; // soll es auf false setzen
     }
   }
@@ -642,11 +633,8 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
                  gr.mem_->device_.station_mark_, gr.mem_->device_.best_,
                  gr.kUnreachable, gr.mem_->device_.prev_station_mark_,
                  gr.mem_->device_.round_times_, gr.mem_->device_.tmp_,
-                 gr.mem_->device_.size_best_, gr.mem_->device_.size_tmp_,
                  gr.mem_->device_.row_count_round_times_,
                  gr.mem_->device_.column_count_round_times_,
-                 gr.mem_->device_.size_route_mark_,
-                 gr.mem_->device_.size_station_mark_,
                  gr.kIntermodalTarget_, gr.stats_, gr.kMaxTravelTimeTicks_);
     this_grid().sync();
   }
