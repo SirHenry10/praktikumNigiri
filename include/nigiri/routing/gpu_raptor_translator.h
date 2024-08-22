@@ -78,7 +78,7 @@ private:
                                   uint8_t const max_transfers,
                                   nigiri::unixtime_t const worst_time_at_dest,
                                   nigiri::profile_idx_t const prf_idx);
-  mem* get_gpu_mem(gpu_timetable gtt);
+  mem* get_gpu_mem(gpu_timetable* gtt);
   void gpu_covert_to_r_state();
 };
 #pragma once
@@ -311,8 +311,8 @@ bool gpu_raptor_translator<SearchDir, Rt>::test(bool hi) {
 }
 
 template <nigiri::direction SearchDir, bool Rt>
-mem* gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable gtt) {
-  state_.resize(*gtt.n_locations_,*gtt.n_routes_,0); //TODO: wenn man RT benutzen will 0 mit n_rt... ersetzen
+mem* gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable* gtt) {
+  state_.resize(n_locations_,n_routes_,n_rt_transports_);
   auto tmp = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.tmp_);
   auto best = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.best_);
   return gpu_mem(tmp,best,state_.station_mark_,state_.prev_station_mark_,state_.route_mark_,gpu_direction_,gtt);

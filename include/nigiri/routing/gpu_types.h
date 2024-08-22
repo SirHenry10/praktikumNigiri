@@ -1517,7 +1517,7 @@ struct gpu_stop {
 };
 
 template <typename BeginIt, typename EndIt = BeginIt>
-struct it_range {
+struct gpu_it_range {
 #ifdef NIGIRI_CUDA
   using value_type =
       std::remove_reference_t<decltype(*std::declval<BeginIt>())>;
@@ -1528,9 +1528,9 @@ struct it_range {
       typename std::iterator_traits<iterator>::difference_type;
 
   template <typename Collection>
-  __host__ __device__ explicit it_range(Collection const& c)
+  __host__ __device__ explicit gpu_it_range(Collection const& c)
       : begin_{std::cbegin(c)}, end_{std::cend(c)} {}
-  __host__ __device__ explicit it_range(BeginIt begin, EndIt end)
+  __host__ __device__ explicit gpu_it_range(BeginIt begin, EndIt end)
       : begin_{std::move(begin)}, end_{std::move(end)} {}
   __host__ __device__ BeginIt begin() const { return begin_; }
   __host__ __device__ EndIt end() const { return end_; }
@@ -1538,8 +1538,8 @@ struct it_range {
     return *std::next(begin_, static_cast<difference_type>(i));
   }
   __host__ __device__ value_type const* data() const { return begin_; }
-  __host__ __device__ friend BeginIt begin(it_range const& r) { return r.begin(); }
-  __host__ __device__ friend EndIt end(it_range const& r) { return r.end(); }
+  __host__ __device__ friend BeginIt begin(gpu_it_range const& r) { return r.begin(); }
+  __host__ __device__ friend EndIt end(gpu_it_range const& r) { return r.end(); }
   __host__ __device__ reference_type front() const { return *begin_; }
   __host__ __device__ reference_type back() const {
     return *std::next(begin_, static_cast<difference_type>(size() - 1U));
@@ -1554,4 +1554,4 @@ struct it_range {
 };
 
 template <typename BeginIt, typename EndIt>
-it_range(BeginIt, EndIt) -> it_range<BeginIt, EndIt>;
+gpu_it_range(BeginIt, EndIt) -> gpu_it_range<BeginIt, EndIt>;

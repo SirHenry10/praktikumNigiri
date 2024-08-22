@@ -898,7 +898,7 @@ mem* gpu_mem(
     std::vector<bool> prev_station_mark,
     std::vector<bool> route_mark,
     gpu_direction search_dir,
-    gpu_timetable gtt){
+    gpu_timetable* gtt){
   short kInvalid = 0;
   if(search_dir == gpu_direction::kForward){
     kInvalid = kInvalidGpuDelta<gpu_direction::kForward>;
@@ -909,15 +909,15 @@ mem* gpu_mem(
   state.init(*gtt,kInvalid);
   loaned_mem loan(state,kInvalid);
   mem* mem = loan.mem_;
-  std::vector<uint32_t> gpu_station_mark(*gtt.n_locations_);
+  std::vector<uint32_t> gpu_station_mark(*gtt->n_locations_);
   for (size_t i = 0; i < station_mark.size(); ++i) {
     gpu_station_mark[i] = station_mark[i];
   }
-  std::vector<uint32_t> gpu_prev_station_mark(*gtt.n_locations_);
+  std::vector<uint32_t> gpu_prev_station_mark(*gtt->n_locations_);
   for (size_t i = 0; i < prev_station_mark.size(); ++i) {
     gpu_prev_station_mark[i] = prev_station_mark[i];
   }
-  std::vector<uint32_t> gpu_route_mark(*gtt.n_locations_);
+  std::vector<uint32_t> gpu_route_mark(*gtt->n_locations_);
   for (size_t i = 0; i < route_mark.size(); ++i) {
     gpu_route_mark[i] = route_mark[i];
   }
