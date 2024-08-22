@@ -1,4 +1,4 @@
-#include "nigiri/common/it_range.h"
+
 #include "nigiri/routing/gpu_raptor.h"
 
 #include <cooperative_groups.h>
@@ -161,60 +161,6 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t,
   return (block & (std::uint64_t{1U} << bit)) != 0U;
 }
 
-template <gpu_direction SearchDir, bool Rt>
-__device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_t const r,
-                                                gpu_stop_idx_t const stop_idx,
-                                                gpu_day_idx_t const day_at_stop,
-                                                gpu_minutes_after_midnight_t const mam_at_stop,
-                                                gpu_location_idx_t const l,
-                                                int n_days_, gpu_timetable* gtt_,
-                                                gpu_delta_t* time_at_dest_,
-                                                uint16_t* lb_,
-                                                gpu_raptor_stats* stats_, short const* kMaxTravelTimeTicks_){
-  ++stats_[l.v_>>5].n_earliest_trip_calls_;
-  auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
-                                          (SearchDir == gpu_direction::kForward) ?
-                                           n_days_ - as_int(day_at_stop) : as_int(day_at_stop)+1);
-  auto const event_times =
-      gtt_->event_times_at_stop(r, stop_idx, (SearchDir == gpu_direction::kForward) ?
-                                              gpu_event_type::kDep : gpu_event_type::kArr);
-  auto const seek_first_day = [&]() {
-    return linear_lb(get_begin_it<decltype(event_times), SearchDir>(event_times),
-                     get_end_it<std::span<gpu_delta>, SearchDir>(event_times), mam_at_stop,
-                     [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
-                       return is_better<SearchDir, Rt>(a.mam_, b.count());
-                     });
-  };
-
-  for(auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i){
-    auto const ev_time_range = nigiri::it_range{i==0U ? seek_first_day() : get_begin_it<SearchDir>(event_times), get_end_it<SearchDir>(event_times)};
-    if(ev_time_range.emmpty()){
-      continue;
-    }
-    auto const day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
-    for(auto it = begin(ev_time_range); it != end(ev_time_range); ++i){
-      auto const t_offset = static_cast<std::size_t>(&*it - event_times.data());
-      auto const ev = *it;
-      auto const ev_mam = ev.mam();
-      if(is_better_or_equal<SearchDir>(time_at_dest_[k], unix_to_gpu_delta(day, ev_mam)+dir<SearchDir>(lb_[gpu_to_idx(l)]))){
-        return {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
-      }
-      auto const t = (*gtt_->route_transport_ranges_)[r][t_offset];
-      if(i == 0U && !is_better_or_eq(mam_at_stop.count(), ev_mam)){
-        continue;
-      }
-      auto const ev_day_offset = ev.days();
-      auto const start_day = static_cast<std::size_t>(as_int(day) - ev_day_offset);
-      if(!is_transport_active<SearchDir, Rt>(t, start_day, gtt_)){
-        continue;
-      }
-      return {t, static_cast<gpu_day_idx_t>(as_int(day) - ev_day_offset)};
-    }
-  }
-  return {};
-}
-
-
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
@@ -277,7 +223,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     };
 
     for(auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i){
-      auto const ev_time_range = nigiri::it_range{i==0U ? seek_first_day() : get_begin_it<SearchDir>(event_times), get_end_it<SearchDir>(event_times)};
+      auto const ev_time_range = gpu_it_range{i==0U ? seek_first_day() : get_begin_it<SearchDir>(event_times), get_end_it<SearchDir>(event_times)};
       if(ev_time_range.emmpty()){
         continue;
       }
@@ -352,18 +298,11 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         }
       }
       if(!is_last && ((SearchDir == gpu_direction::kForward) ? (stp.in_allowed_!=0U) : (stp.out_allowed_!=0U)) && marked(prev_station_mark_, l_idx)){ //wieder umgekehrte Bedingung
-        if(lb_[l_idx] == kUnreachable){
+        if(lb_[l_idx] == kUnreachable) {
           return any_station_marked_;
         }
-        auto const et_time_at_stop = et.is_valid()
-                ? time_at_stop<SearchDir, Rt>(r, et, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr)
-                : kInvalidGpuDelta<SearchDir>;
-        auto const prev_round_time = round_times_[(k - 1)*row_count_round_times_ + l_idx];
         if(is_better_or_eq<SearchDir, Rt>(prev_round_time, et_time_at_stop)){
-          auto const splitter = gpu_split_day_mam(base_,prev_round_time);
-          auto const day = splitter.first;
-          auto const mem = splitter.second;
-          // Hier sollte abstimmung stattfinden?? -> bestimmen von neuem earliest transport
+
         }
       }
     }
@@ -462,9 +401,11 @@ __device__ void update_transfers(unsigned const k, gpu_timetable* gtt_,
         continue;
       }
       ++stats_[l_idx>>5].n_earliest_arrival_updated_by_footpath_;
-      update_arrival(round_times_, l_idx, fp_target_time);
+      bool updated = update_arrival(round_times_, l_idx, fp_target_time);
       best_[l_idx] = fp_target_time;
-      mark(station_mark_, l_idx);
+      if(updated){
+        mark(station_mark_, l_idx);
+      }
       if(is_dest){
         update_time_at_dest<SearchDir, Rt>(k, fp_target_time, time_at_dest_);
       }
@@ -507,9 +448,11 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
         }
       }
       ++stats_[idx>>5].n_earliest_arrival_updated_by_footpath_;
-      update_arrival(round_times_, gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
+      bool updated = update_arrival(round_times_, gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
       best_[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
-      mark(station_mark_, gpu_to_idx(gpu_location_idx_t{fp.target_}));
+      if(updated){
+        mark(station_mark_, gpu_to_idx(gpu_location_idx_t{fp.target_}));
+      }
       if(is_dest_[gpu_to_idx(gpu_location_idx_t{fp.target_})]){
         update_time_at_dest(k, fp_target_time, time_at_dest_);
       }
@@ -535,7 +478,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_timetable* gtt
     if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
       auto const end_time = clamp(get_best<SearchDir, Rt>(best_[idx], tmp_[idx]) + dir<SearchDir, Rt>(dist_to_end_[idx]));
       if(is_better(end_time, (*best_)[gpu_kIntermodalTarget])){
-        update_arrival(round_times_, gpu_kIntermodalTarget->v_, end_time);
+        bool updated = update_arrival(round_times_, gpu_kIntermodalTarget->v_, end_time);
         (*best_)[gpu_kIntermodalTarget] = end_time;
         update_time_at_dest(k, end_time, time_at_dest_);
       }
@@ -879,14 +822,14 @@ void copy_back(mem* mem){
 
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t* base_,short const kInvalid){
   trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
-  std::vector<gpu_delta_t> best_new(mem_->device_.size_best_,kInvalid);
+  std::vector<gpu_delta_t> best_new(mem_->device_.n_locations_,kInvalid);
   std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
   best_new[gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
   round_times_new[0U*mem_->device_.row_count_round_times_+ gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
   //TODO: fix station_mark ist kein bool!
   std::vector<uint32_t> gpu_station_mark(mem_->device_.n_locations_,0);
   gpu_station_mark[gpu_to_idx(l)] = 1;
-  cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.size_best_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.n_locations_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cudaMemcpy(mem_->device_.station_mark_, gpu_station_mark.data(), mem_->device_.n_locations_*sizeof(uint32_t), cudaMemcpyHostToDevice);
 }
@@ -906,7 +849,7 @@ mem* gpu_mem(
     kInvalid = kInvalidGpuDelta<gpu_direction::kBackward>;
   }
   auto state = gpu_raptor_state{};
-  state.init(*gtt,kInvalid);
+  state.init(*gtt, kInvalid);
   loaned_mem loan(state,kInvalid);
   mem* mem = loan.mem_;
   std::vector<uint32_t> gpu_station_mark(*gtt->n_locations_);
@@ -923,15 +866,15 @@ mem* gpu_mem(
   }
 
   //TODO: Maybe tmp und best entfernen da eh überschieben???
-  cudaMemcpy(mem->device_.tmp_, tmp.data(), (*gtt.n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.tmp_, tmp.data(), (*gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.best_, best.data(), (*gtt.n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.best_, best.data(), (*gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.station_mark_, gpu_station_mark.data(), (*gtt.n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.station_mark_, gpu_station_mark.data(), (*gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.prev_station_mark_, gpu_prev_station_mark.data(), (*gtt.n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.prev_station_mark_, gpu_prev_station_mark.data(), (*gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.route_mark_, gpu_route_mark.data(), (*gtt.n_routes_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.route_mark_, gpu_route_mark.data(), (*gtt->n_routes_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
   return mem;
 }
