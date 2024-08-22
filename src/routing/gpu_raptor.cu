@@ -1,7 +1,13 @@
+#include "nigiri/common/it_range.h"
 #include "nigiri/routing/gpu_raptor.h"
 
 #include <cooperative_groups.h>
 using namespace cooperative_groups;
+
+// leader type must be unsigned 32bit
+// no leader is a zero ballot vote (all 0) minus 1 => with underflow all 1's
+constexpr unsigned int FULL_MASK = 0xFFFFffff;
+constexpr unsigned int NO_LEADER = FULL_MASK;
 
 __device__ __forceinline__ unsigned int get_block_thread_id() {
   return threadIdx.x + (blockDim.x * threadIdx.y);
@@ -91,6 +97,84 @@ __device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const
                                              (gpu_to_idx(t.day_) - gpu_to_idx(range[r].from_))].count());
 }
 
+template <typename It, typename End, typename Key, typename Cmp>
+__device__ It linear_lb(It from, End to, Key&& key, Cmp&& cmp) {
+  for (auto it = from; it != to; ++it) {
+    if (!cmp(*it, key)) {
+      return it;
+    }
+  }
+  return to;
+}
+
+template <gpu_direction SearchDir, bool Rt>
+__device__ bool is_transport_active(gpu_transport_idx_t const t,
+                                    std::size_t const day , gpu_timetable* gtt_)  {
+  const auto traffic_day = (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]];
+  // test(i=day) methode
+  if (day >= traffic_day.size()) {
+    return false;
+  }
+  const auto bitfields_data = (*gtt_->bitfields_data_)[(*gtt_->transport_traffic_days_)[t]];
+  auto const block = bitfields_data[day / traffic_day.bits_per_block];
+  auto const bit = (day % traffic_day.bits_per_block);
+  return (block & (std::uint64_t{1U} << bit)) != 0U;
+}
+
+template <gpu_direction SearchDir, bool Rt>
+__device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_t const r,
+                                                gpu_stop_idx_t const stop_idx,
+                                                gpu_day_idx_t const day_at_stop,
+                                                gpu_minutes_after_midnight_t const mam_at_stop,
+                                                gpu_location_idx_t const l,
+                                                int n_days_, gpu_timetable* gtt_,
+                                                gpu_delta_t* time_at_dest_,
+                                                uint16_t* lb_,
+                                                gpu_raptor_stats* stats_, short const* kMaxTravelTimeTicks_){
+  ++stats_[l.v_>>5].n_earliest_trip_calls_;
+  auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
+                                          (SearchDir == gpu_direction::kForward) ?
+                                           n_days_ - as_int(day_at_stop) : as_int(day_at_stop)+1);
+  auto const event_times =
+      gtt_->event_times_at_stop(r, stop_idx, (SearchDir == gpu_direction::kForward) ?
+                                              gpu_event_type::kDep : gpu_event_type::kArr);
+  auto const seek_first_day = [&]() {
+    return linear_lb(get_begin_it<decltype(event_times), SearchDir>(event_times),
+                     get_end_it<std::span<gpu_delta>, SearchDir>(event_times), mam_at_stop,
+                     [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
+                       return is_better<SearchDir, Rt>(a.mam_, b.count());
+                     });
+  };
+
+  for(auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i){
+    auto const ev_time_range = nigiri::it_range{i==0U ? seek_first_day() : get_begin_it<SearchDir>(event_times), get_end_it<SearchDir>(event_times)};
+    if(ev_time_range.emmpty()){
+      continue;
+    }
+    auto const day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
+    for(auto it = begin(ev_time_range); it != end(ev_time_range); ++i){
+      auto const t_offset = static_cast<std::size_t>(&*it - event_times.data());
+      auto const ev = *it;
+      auto const ev_mam = ev.mam();
+      if(is_better_or_equal<SearchDir>(time_at_dest_[k], unix_to_gpu_delta(day, ev_mam)+dir<SearchDir>(lb_[gpu_to_idx(l)]))){
+        return {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
+      }
+      auto const t = (*gtt_->route_transport_ranges_)[r][t_offset];
+      if(i == 0U && !is_better_or_eq(mam_at_stop.count(), ev_mam)){
+        continue;
+      }
+      auto const ev_day_offset = ev.days();
+      auto const start_day = static_cast<std::size_t>(as_int(day) - ev_day_offset);
+      if(!is_transport_active<SearchDir, Rt>(t, start_day, gtt_)){
+        continue;
+      }
+      return {t, static_cast<gpu_day_idx_t>(as_int(day) - ev_day_offset)};
+    }
+  }
+  return {};
+}
+
+
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
@@ -98,31 +182,87 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                                        gpu_raptor_stats* stats_,
                                        uint32_t* prev_station_mark_, gpu_delta_t* best_,
                                        gpu_delta_t* round_times_, uint32_t row_count_round_times_,
-                                       gpu_delta_t* tmp_,
+                                       gpu_delta_t* tmp_, short* kMaxTravelTimeTicks_,
                                        uint16_t* lb_, int n_days_,
                                        gpu_delta_t* time_at_dest_,
                                        uint32_t* station_mark_, gpu_strong<uint16_t, _day_idx> base_,
                                        unsigned short kUnreachable, bool any_station_marked_){
   auto const t_id = threadIdx.x;
   auto const stop_seq = gtt_->route_location_seq_->operator[](r);
-  auto et = gpu_transport{};
+  auto stop_idx = -1;
+  gpu_stop stp{};
+  unsigned int l_idx;
+  bool is_last;
+  gpu_delta_t prev_round_time;
   if(t_id == 0){
     any_station_marked_= false;
   }
- /* gpu_stop_idx_t stop_id = 0xffff;
-  uint16_t prev_arrival = 0xffff;
-  uint16_t stop_arrival = 0xffff;
-  uint16_t stop_departure = 0xffff;
 
-  unsigned leader = (*gtt_).route_location_seq_->size();
-  unsigned int active_stop_count = ;*/
+  if(t_id < stop_seq.size()) {  // wir gehen durch alle Stops der Route r
+    stop_idx = static_cast<gpu_stop_idx_t>(
+        (SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
+    stp = gpu_stop{stop_seq[stop_idx]};
+    l_idx = gpu_to_idx(gpu_location_idx_t{stp.location_});
+    is_last = t_id == stop_seq.size() - 1U;
+    // ist äquivalent zu prev_arrival
+    prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
+  }
+  if (!__any_sync(FULL_MASK, prev_round_time!=std::numeric_limits<gpu_delta_t>::max())) {
+    return any_station_marked_;
+  }
 
-  if(t_id < stop_seq.size()){ // wir gehen durch alle Stops der Route r
-    auto const stop_idx =
-        static_cast<gpu_stop_idx_t>((SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
-    auto const stp = gpu_stop{stop_seq[stop_idx]};
-    auto const l_idx = gpu_to_idx(gpu_location_idx_t{stp.location_});
-    auto const is_last = t_id == stop_seq.size() - 1U;
+  if(t_id < stop_seq.size()) {
+    //zuerst müssen wir earliest transport für jede station/thread berechnen
+    auto const splitter = gpu_split_day_mam(base_, prev_round_time);
+    auto const day_at_stop = splitter.first;
+    auto const mam = splitter.second;
+    auto et = gpu_transport{};
+
+    // Anfang get_earliest_transport Methode
+    ++stats_[l_idx>>5].n_earliest_trip_calls_;
+    auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
+                                               (SearchDir == gpu_direction::kForward) ?
+                                                                                      n_days_ - as_int(day_at_stop) : as_int(day_at_stop)+1);
+    auto const event_times =
+        gtt_->event_times_at_stop(r, stop_idx, (SearchDir == gpu_direction::kForward) ?
+                                                                                      gpu_event_type::kDep : gpu_event_type::kArr);
+    auto const seek_first_day = [&]() {
+      return linear_lb(get_begin_it<decltype(event_times), SearchDir>(event_times),
+                       get_end_it<std::span<gpu_delta>, SearchDir>(event_times), mam,
+                       [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
+                         return is_better<SearchDir, Rt>(a.mam_, b.count());
+                       });
+    };
+
+    for(auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i){
+      auto const ev_time_range = nigiri::it_range{i==0U ? seek_first_day() : get_begin_it<SearchDir>(event_times), get_end_it<SearchDir>(event_times)};
+      if(ev_time_range.emmpty()){
+        continue;
+      }
+      auto const day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
+      for(auto it = begin(ev_time_range); it != end(ev_time_range); ++i){ // hier werden alle trips/transports durchgangen
+        auto const t_offset = static_cast<std::size_t>(&*it - event_times.data());
+        auto const ev = *it;
+        auto const ev_mam = ev.mam();
+        if(is_better_or_equal<SearchDir>(time_at_dest_[k], unix_to_gpu_delta(day, ev_mam)+dir<SearchDir>(lb_[l_idx]))){
+          et = {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
+        }
+        auto const t = (*gtt_->route_transport_ranges_)[r][t_offset];
+        if(i == 0U && !is_better_or_eq(mam.count(), ev_mam)){
+          continue;
+        }
+        auto const ev_day_offset = ev.days();
+        auto const start_day = static_cast<std::size_t>(as_int(day) - ev_day_offset);
+        if(!is_transport_active<SearchDir, Rt>(t, start_day, gtt_)){
+          continue;
+        }
+        et = {t, static_cast<gpu_day_idx_t>(as_int(day) - ev_day_offset)};
+
+        // hier leader election? -> jeder thread hat zu diesem Punkt sein et von diesem trip/transport bekommen
+      }
+    }
+    // Ende von get_earliest_transport Methode
+
 
     // bedingung umkehren, da thread, der sie nicht erfüllt alles einfach überspringen sollte
     if (et.is_valid() || marked(prev_station_mark_, l_idx)) {
@@ -142,7 +282,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
           tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
           mark(station_mark_, l_idx);
           current_best = by_transport;
-          atomicOr(reinterpret_cast<int*>(any_station_marked_), true); // keine Ahnung ob das hier mit dem cast korrekt funktioniert
+          atomicOr(reinterpret_cast<int*>(any_station_marked_), true); // keine Ahnung, ob das hier mit dem cast korrekt funktioniert
         }
       }
       if(!is_last && ((SearchDir == gpu_direction::kForward) ? (stp.in_allowed_!=0U) : (stp.out_allowed_!=0U)) && marked(prev_station_mark_, l_idx)){ //wieder umgekehrte Bedingung
@@ -154,9 +294,9 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                 : kInvalidGpuDelta<SearchDir>;
         auto const prev_round_time = round_times_[(k - 1)*row_count_round_times_ + l_idx];
         if(is_better_or_eq<SearchDir, Rt>(prev_round_time, et_time_at_stop)){
-          auto const spliter = gpu_split_day_mam(base_,prev_round_time); //TODO wir brauchen split_day_mam aus delta_t
-          auto const day = spliter.first;
-          auto const mem = spliter.second;
+          auto const splitter = gpu_split_day_mam(base_,prev_round_time);
+          auto const day = splitter.first;
+          auto const mem = splitter.second;
           // Hier sollte abstimmung stattfinden?? -> bestimmen von neuem earliest transport
         }
       }
@@ -173,7 +313,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
                                       gpu_raptor_stats* stats_,
                                       uint32_t* prev_station_mark_, gpu_delta_t* best_,
                                       gpu_delta_t* round_times_, uint32_t row_count_round_times_,
-                                      gpu_delta_t* tmp_,
+                                      gpu_delta_t* tmp_, short* kMaxTravelTimeTicks_,
                                       uint16_t* lb_, int n_days_,
                                       gpu_delta_t* time_at_dest_,
                                       uint32_t* station_mark_, gpu_strong<uint16_t, _day_idx> base_,
@@ -217,11 +357,11 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
       // parameter stimmen noch nicht
       if((*gtt_).route_location_seq_[r_idx].size() <= 32){ // die Route hat <= 32 stops
         any_station_marked_ |= update_route_smaller32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
-                                                      round_times_, row_count_round_times_, tmp_, lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
+                                                      round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_, lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
       }
       else{ // diese Route hat > 32 Stops
         any_station_marked_ |= update_route_bigger32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
-                                                     round_times_, row_count_round_times_, tmp_, lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
+                                                     round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_, lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
       }
 
     }
@@ -337,48 +477,6 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_timetable* gtt
   }
 }
 
-/*
-template <gpu_direction SearchDir, bool Rt>
-__device__ gpu_transport get_earliest_transport(unsigned const k, gpu_route_idx_t const r,
-                                                gpu_stop_idx_t const stop_idx,
-                                                gpu_day_idx_t const day_at_stop,
-                                                gpu_minutes_after_midnight_t const mam_at_stop,
-                                                gpu_location_idx_t const l,
-                                                int n_days_, gpu_timetable* gtt_,
-                                                gpu_direction search_dir_,
-                                                gpu_raptor_stats* stats_, short* kMaxTravelTimeTicks_){
-  ++stats_[l.v_>>5].n_earliest_trip_calls_;
-  auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
-                                          (SearchDir == gpu_direction::kForward) ?
-                                           n_days_ - as_int(day_at_stop) : as_int(day_at_stop)+1);
-  auto const event_times =
-      gtt_->event_times_at_stop(r, stop_idx, (SearchDir == gpu_direction::kForward) ?
-                                              gpu_event_type::kDep : gpu_event_type::kArr);
-  auto const seek_first_day = [&]() {
-    return linear_lb(get_begin_it<decltype(event_times), SearchDir>(event_times),
-                     get_end_it<std::span<gpu_delta>, SearchDir>(event_times), mam_at_stop,
-                     [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
-                       return is_better<SearchDir, Rt>(a.mam_, b.count()); // anders mit gpu_delta umgehen
-                     });
-  };
-
-  // for Schleife über n_days_to_iterate
-}
- */
-
-template <gpu_direction SearchDir, bool Rt, std::size_t Size>
-__device__ bool is_transport_active(gpu_transport_idx_t const t,
-                                    std::size_t const day , gpu_timetable* gtt_)  {
-  const auto traffic_day = (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]];
-  // test(i=day) methode
-  if (day >= traffic_day.size()) {
-    return false;
-  }
-  const auto bitfields_data = (*gtt_->bitfields_data_)[(*gtt_->transport_traffic_days_)[t]];
-  auto const block = bitfields_data[day / traffic_day.bits_per_block];
-  auto const bit = (day % traffic_day.bits_per_block);
-  return (block & (std::uint64_t{1U} << bit)) != 0U;
-}
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,

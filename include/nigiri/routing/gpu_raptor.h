@@ -198,7 +198,7 @@ struct gpu_raptor {
              gpu_profile_idx_t const prf_idx){
     //TODO: wie benutzten wir start_time bzw... muss das noch rüber kopiert werden???? nike fragen...
   void* kernel_args[] = {(void*)&start_time, (void*)&max_transfers, (void*)&worst_time_at_dest, (void*)&prf_idx, (void*)this};
-  launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
+  //launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
   copy_back(mem_);
 
   //copy stats from host to raptor attribute
