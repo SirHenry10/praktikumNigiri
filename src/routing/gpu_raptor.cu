@@ -114,9 +114,9 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
       if (!*any_station_marked) {
         *any_station_marked = true;
       }
-      auto const& location_routes = gtt_->location_routes_[gpu_location_idx_t{idx}.v_];
+      auto const& location_routes = (*gtt_->location_routes_)[gpu_location_idx_t{idx}];
       for (unsigned int i = 0; i != location_routes.size(); ++i) {
-        auto const& r = location_routes[gpu_location_idx_t{i}];
+        auto const& r = location_routes[i];
         mark(route_marks, gpu_to_idx(r));
       }
     }
@@ -247,7 +247,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         auto const t = (*gtt_->route_transport_ranges_)[r][t_offset];
         auto const ev_day_offset = ev.days_;
         auto const start_day = static_cast<std::size_t>(as_int(day) - ev_day_offset);
-        if(is_better_or_equal<SearchDir>(time_at_dest_[k], to_gpu_delta(day, ev_mam, base_)+dir<SearchDir>(lb_[l_idx]))){
+        if(is_better_or_eq<SearchDir>(time_at_dest_[k], to_gpu_delta(day, ev_mam, base_)+dir<SearchDir>(lb_[l_idx]))){
           et = {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
         }
         else if(i == 0U && !is_better_or_eq<SearchDir>(mam.count(), ev_mam)){
