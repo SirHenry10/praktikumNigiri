@@ -93,6 +93,10 @@ __host__ __device__ inline gpu_sys_days base(gpu_timetable const* gtt, gpu_day_i
 template<gpu_direction SearchDir>
 __host__ __device__ static auto dir(auto a) { return (SearchDir==gpu_direction::kForward ? 1 : -1) * a; }
 
+__host__ __device__ gpu_delta_t to_gpu_delta(gpu_day_idx_t const day, std::int16_t const mam,gpu_day_idx_t* base_) {
+  return gpu_clamp((as_int(day) - as_int(*base_)) * 1440 + mam);
+}
+
 template <gpu_direction SearchDir, typename T>
 __host__ __device__ auto gpu_get_begin_it(T const& t) {
   if constexpr (SearchDir == gpu_direction::kForward) {

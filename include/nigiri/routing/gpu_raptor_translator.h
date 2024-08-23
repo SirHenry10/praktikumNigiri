@@ -103,7 +103,7 @@ void gpu_raptor_translator<SearchDir, Rt>::execute(
     nigiri::pareto_set<journey>& results) {
   gpu_delta_t* gpu_round_times = get_gpu_roundtimes(start_time,max_transfers,worst_time_at_dest,prf_idx);
   // Konstruktion der Ergebnis-Journey
-
+  //TODO: kann wieder die normale round_times aus dem raptor_state verwenden da ich ja zurück übersetzen
   auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
   for (auto i = 0U; i != n_locations_; ++i) {
     auto const is_dest = is_dest_[i];
