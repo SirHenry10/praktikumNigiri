@@ -866,3 +866,39 @@ mem* gpu_mem(
   cuda_check();
   return mem;
 }
+
+#define CUDA_CALL_ARGS(call) \
+    if ((code = call) != cudaSuccess) {                     \
+      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
+             cudaGetErrorString(code), __FILE__, __LINE__); \
+      goto fail_args;                                            \
+    }
+
+#define CUDA_COPY_TO_DEVICE_ARGS(type, target, source, size)                        \
+    CUDA_CALL_ARGS(cudaMalloc(&target, size * sizeof(type)))                          \
+    CUDA_CALL_ARGS(                                                                   \
+        cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice))
+
+void copy_to_gpu_args(gpu_unixtime_t const* start_time,
+                      gpu_unixtime_t const* worst_time_at_dest,
+                      gpu_profile_idx_t const* prf_idx,
+                      gpu_unixtime_t* start_time_ptr,
+                      gpu_unixtime_t* worst_time_at_dest_ptr,
+                      gpu_profile_idx_t* prf_idx_ptr){
+  cudaError_t code;
+  CUDA_COPY_TO_DEVICE_ARGS(gpu_unixtime_t,start_time_ptr,start_time,1);
+  CUDA_COPY_TO_DEVICE_ARGS(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
+  CUDA_COPY_TO_DEVICE_ARGS(gpu_profile_idx_t ,prf_idx_ptr,prf_idx,1);
+  fail_args:
+    cudaFree(start_time_ptr);
+    cudaFree(worst_time_at_dest_ptr);
+    cudaFree(prf_idx_ptr);
+}
+void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
+                              gpu_unixtime_t* worst_time_at_dest_ptr,
+                              gpu_profile_idx_t* prf_idx_ptr){
+  cudaFree(start_time_ptr);
+  cudaFree(worst_time_at_dest_ptr);
+  cudaFree(prf_idx_ptr);
+  cuda_check();
+}

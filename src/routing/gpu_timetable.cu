@@ -4,8 +4,6 @@
 #include "nigiri/routing/gpu_timetable.h"
 #include <cstdio>
 
-extern "C" {
-
 #define XSTR(s) STR(s)
 #define STR(s) #s
 
@@ -21,6 +19,42 @@ extern "C" {
     CUDA_CALL(                                                                   \
         cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice)) \
     device_bytes += size * sizeof(type);
+#define CUDA_CALL_VECVEC(call)                                   \
+    if ((code = call) != cudaSuccess) {                     \
+      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
+             cudaGetErrorString(code), __FILE__, __LINE__); \
+      goto fail_vecvec;                                            \
+    }
+
+template <typename KeyType, typename ValueType>
+gpu_vecvec<KeyType, ValueType>* copy_gpu_vecvec_to_device(gpu_vecvec<KeyType, ValueType> const* host_vecvec, size_t& device_bytes, cudaError_t& code) {
+  gpu_vecvec<KeyType, ValueType>* device_vecvec = nullptr;
+  ValueType* device_data = nullptr;
+  KeyType* device_bucket_starts = nullptr;
+
+  CUDA_CALL_VECVEC(cudaMalloc(&device_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>)));
+  CUDA_CALL_VECVEC(cudaMemcpy(device_vecvec, host_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>), cudaMemcpyHostToDevice));
+  device_bytes += sizeof(gpu_vecvec<KeyType, ValueType>);
+
+  CUDA_CALL_VECVEC(cudaMalloc(&device_data, host_vecvec->data_.size() * sizeof(ValueType)));
+  CUDA_CALL_VECVEC(cudaMemcpy(device_data, host_vecvec->data_.data(), host_vecvec->data_.size() * sizeof(ValueType), cudaMemcpyHostToDevice));
+  device_bytes += host_vecvec->data_.size() * sizeof(ValueType);
+
+  CUDA_CALL_VECVEC(cudaMalloc(&device_bucket_starts, host_vecvec->bucket_starts_.size() * sizeof(KeyType)));
+  CUDA_CALL_VECVEC(cudaMemcpy(device_bucket_starts, host_vecvec->bucket_starts_.data(), host_vecvec->bucket_starts_.size() * sizeof(KeyType), cudaMemcpyHostToDevice));
+  device_bytes += host_vecvec->bucket_starts_.size() * sizeof(KeyType);
+
+  CUDA_CALL_VECVEC(cudaMemcpy(&(device_vecvec->data_), &device_data, sizeof(ValueType*), cudaMemcpyHostToDevice));
+  CUDA_CALL_VECVEC(cudaMemcpy(&(device_vecvec->bucket_starts_), &device_bucket_starts, sizeof(KeyType*), cudaMemcpyHostToDevice));
+
+  return device_vecvec;
+
+fail_vecvec:
+  if (device_data) cudaFree(device_data);
+  if (device_bucket_starts) cudaFree(device_bucket_starts);
+  if (device_vecvec) cudaFree(device_vecvec);
+  return nullptr;
+}
 
 struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            std::uint32_t  n_route_stop_times,
@@ -50,14 +84,11 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   CUDA_COPY_TO_DEVICE(gpu_delta, gtt->route_stop_times_, route_stop_times,
                       n_route_stop_times);
   //route_location_seq
-  gtt->route_location_seq_ = nullptr;
-  using gpu_vecvec_route_value = gpu_vecvec<gpu_route_idx_t,gpu_value_type>;
-  CUDA_COPY_TO_DEVICE(gpu_vecvec_route_value , gtt->route_location_seq_,
-                      route_location_seq, 1);
+  gtt->route_location_seq_ = copy_gpu_vecvec_to_device(route_location_seq,device_bytes,code);
+  if (gtt->route_location_seq_ == nullptr) goto fail;
   //location_routes_
-  gtt->location_routes_ = nullptr;
-  using gpu_vecvec_location_route = gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t>;
-  CUDA_COPY_TO_DEVICE(gpu_vecvec_location_route, gtt->location_routes_, location_routes,1);
+  gtt->location_routes_ = copy_gpu_vecvec_to_device(location_routes, device_bytes, code);
+  if (gtt->location_routes_ == nullptr) goto fail;
   //n_locations_
   gtt->n_locations_ = nullptr;
   CUDA_COPY_TO_DEVICE(uint32_t , gtt->n_locations_, n_locations,1);
@@ -117,6 +148,8 @@ fail:
 }
 void destroy_gpu_timetable(gpu_timetable* gtt) {
   cudaFree(gtt->route_stop_times_);
+  cudaFree(gtt->route_location_seq_->data_.data());
+  cudaFree(gtt->route_location_seq_->bucket_starts_.data());
   cudaFree(gtt->route_location_seq_);
   cudaFree(gtt->location_routes_);
   cudaFree(gtt->n_locations_);
@@ -138,4 +171,3 @@ void destroy_gpu_timetable(gpu_timetable* gtt) {
            cudaGetErrorString(last_error), __FILE__, __LINE__);
   }
 }
-}  // extern "C"

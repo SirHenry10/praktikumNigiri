@@ -54,9 +54,13 @@ host_memory::host_memory(uint32_t row_count_round_times,
                          uint32_t n_routes
                          ):row_count_round_times_{row_count_round_times},
                              column_count_round_times_{column_count_round_times},
-round_times_{std::vector<gpu_delta_t>(row_count_round_times*column_count_round_times)},
-stats_{std::vector<gpu_raptor_stats>(n_locations)},tmp_{std::vector<gpu_delta_t>(n_locations)},best_{std::vector<gpu_delta_t>(n_locations)},station_mark_{std::vector<uint32_t>(n_locations)},
-      prev_station_mark_{std::vector<uint32_t>(n_locations)},route_mark_{std::vector<uint32_t>(n_routes)}{}
+                             round_times_{std::vector<gpu_delta_t>(row_count_round_times*column_count_round_times)},
+                             stats_{std::vector<gpu_raptor_stats>(32)},
+                             tmp_{std::vector<gpu_delta_t>(n_locations)},
+                             best_{std::vector<gpu_delta_t>(n_locations)},
+                             station_mark_{std::vector<uint32_t>(n_locations)},
+                             prev_station_mark_{std::vector<uint32_t>(n_locations)},
+                             route_mark_{std::vector<uint32_t>(n_routes)}{}
 
 // Zuweisung von Speicherplatz an Attribute, die in devices verwendet werden
 device_memory::device_memory(uint32_t n_locations,
