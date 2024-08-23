@@ -115,8 +115,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
         *any_station_marked = true;
       }
       auto const& location_routes = (*gtt_->location_routes_)[gpu_location_idx_t{idx}];
-      for (unsigned int i = 0; i != location_routes.size(); ++i) {
-        auto const& r = location_routes[i];
+      for (auto r : location_routes) {
         mark(route_marks, gpu_to_idx(r));
       }
     }
@@ -180,7 +179,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   gpu_stop stp{};
   unsigned int l_idx;
   bool is_last;
-  gpu_delta_t prev_round_time;
+  gpu_delta_t prev_round_time = std::numeric_limits<gpu_delta_t>::max();
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
   if(t_id == 0){
@@ -207,7 +206,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     auto const mam = splitter.second;
     auto et = gpu_transport{};
 
-    // Anfang get_earliest_transport Methode
+    //Anfang get_earliest_transport Methode
     ++stats_[l_idx>>5].n_earliest_trip_calls_;
     auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
                                                (SearchDir == gpu_direction::kForward) ?
@@ -383,7 +382,7 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ void update_transfers(unsigned const k, gpu_timetable* gtt_,
-                                 bool* is_dest_, uint16_t* dist_to_end_, uint32_t dist_to_end_size_, gpu_delta_t* tmp_,
+                                 bool const * is_dest_, uint16_t* dist_to_end_, uint32_t dist_to_end_size_, gpu_delta_t* tmp_,
                                  gpu_delta_t* best_, gpu_delta_t* time_at_dest_, unsigned short kUnreachable,
                                  uint16_t* lb_, gpu_delta_t* round_times_, uint32_t row_count_round_times_,
                                  uint32_t* station_mark_, uint32_t* prev_station_mark_,
@@ -398,7 +397,7 @@ __device__ void update_transfers(unsigned const k, gpu_timetable* gtt_,
     auto const is_dest = is_dest_[l_idx];
     auto const transfer_time = (dist_to_end_size_==0 && is_dest)
         ? 0 : dir<SearchDir>((*gtt_->locations_->transfer_time_)[gpu_location_idx_t{l_idx}]).count();
-    const short fp_target_time =
+    const auto fp_target_time =
         static_cast<gpu_delta_t>(tmp_[l_idx] + transfer_time);
     if(is_better<SearchDir>(fp_target_time, best_[l_idx])
         && is_better<SearchDir>(fp_target_time, time_at_dest_[k])){
@@ -424,8 +423,8 @@ template <gpu_direction SearchDir, bool Rt>
 __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_idx, unsigned short kUnreachable,
                                  uint32_t* prev_station_mark_,
                                  gpu_timetable* gtt_, gpu_delta_t* tmp_, gpu_delta_t* best_,
-                                 uint16_t* lb_, uint32_t* station_mark_, gpu_delta_t* time_at_dest_,
-                                 bool* is_dest_, gpu_delta_t* round_times_,
+                                 uint16_t const* lb_, uint32_t* station_mark_, gpu_delta_t* time_at_dest_,
+                                 bool const* is_dest_, gpu_delta_t* round_times_,
                                  uint32_t row_count_round_times_,
                                  gpu_raptor_stats* stats_){
   auto const global_t_id = get_global_thread_id();
@@ -484,9 +483,9 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_timetable* gtt
        idx <= *gtt_->n_locations_; idx += global_stride){
     if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
       auto const end_time = gpu_clamp(get_best<SearchDir>(best_[idx], tmp_[idx]) + dir<SearchDir>(dist_to_end_[idx]));
-      if(is_better<SearchDir>(end_time, (*best_)[gpu_kIntermodalTarget].v_)){
+      if(is_better<SearchDir>(end_time, gpu_kIntermodalTarget[(*best_)].v_)){
         bool updated = update_arrival(round_times_, gpu_kIntermodalTarget->v_, end_time);
-        (*best_)[gpu_kIntermodalTarget].v_ = end_time;
+        gpu_kIntermodalTarget[(*best_)].v_ = end_time;
         update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
       }
     }
@@ -664,16 +663,16 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
 #define STR(s) #s
 
 #define CUDA_CALL(call) \
-    if ((code = call) != cudaSuccess) {                     \
+    if ((code = (call)) != cudaSuccess) {                     \
       printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
              cudaGetErrorString(code), __FILE__, __LINE__); \
       goto fail;                                            \
     }
 
 #define CUDA_COPY_TO_DEVICE(type, target, source, size)                        \
-    CUDA_CALL(cudaMalloc(&target, size * sizeof(type)))                          \
+    CUDA_CALL(cudaMalloc(&(target), (size) * sizeof(type)))                          \
     CUDA_CALL(                                                                   \
-        cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice))
+        cudaMemcpy(target, source, (size) * sizeof(type), cudaMemcpyHostToDevice))
 
 void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::vector<std::uint16_t> const& dist_to_dest,
@@ -882,16 +881,16 @@ mem* gpu_mem(
 }
 
 #define CUDA_CALL_ARGS(call) \
-    if ((code = call) != cudaSuccess) {                     \
+    if ((code = (call)) != cudaSuccess) {                     \
       printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
              cudaGetErrorString(code), __FILE__, __LINE__); \
       goto fail_args;                                            \
     }
 
 #define CUDA_COPY_TO_DEVICE_ARGS(type, target, source, size)                        \
-    CUDA_CALL_ARGS(cudaMalloc(&target, size * sizeof(type)))                          \
+    CUDA_CALL_ARGS(cudaMalloc(&(target), (size) * sizeof(type)))                          \
     CUDA_CALL_ARGS(                                                                   \
-        cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice))
+        cudaMemcpy(target, source, (size) * sizeof(type), cudaMemcpyHostToDevice))
 
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
