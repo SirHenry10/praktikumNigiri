@@ -48,19 +48,19 @@ void device_context::destroy() {
 }
 
 // Attribute, die von Host benötigt werden
-host_memory::host_memory(uint32_t row_count_round_times,
-                         uint32_t column_count_round_times,
-                         uint32_t n_locations,
-                         uint32_t n_routes
+host_memory::host_memory(uint32_t n_locations,
+                         uint32_t n_routes,
+                         uint32_t row_count_round_times,
+                         uint32_t column_count_round_times
                          ):row_count_round_times_{row_count_round_times},
                              column_count_round_times_{column_count_round_times},
-                             round_times_{std::vector<gpu_delta_t>(row_count_round_times*column_count_round_times)},
-                             stats_{std::vector<gpu_raptor_stats>(32)},
-                             tmp_{std::vector<gpu_delta_t>(n_locations)},
-                             best_{std::vector<gpu_delta_t>(n_locations)},
-                             station_mark_{std::vector<uint32_t>(n_locations)},
-                             prev_station_mark_{std::vector<uint32_t>(n_locations)},
-                             route_mark_{std::vector<uint32_t>(n_routes)}{}
+                             round_times_(row_count_round_times*column_count_round_times),
+                             stats_(32),
+                             tmp_(n_locations),
+                             best_(n_locations),
+                             station_mark_(n_locations),
+                             prev_station_mark_(n_locations),
+                             route_mark_(n_routes){}
 
 // Zuweisung von Speicherplatz an Attribute, die in devices verwendet werden
 device_memory::device_memory(uint32_t n_locations,
@@ -125,10 +125,13 @@ void device_memory::reset_arrivals_async(cudaStream_t s) {
   cudaMemsetAsync(time_at_dest_,invalid_, (gpu_kMaxTransfers+1)*sizeof(gpu_delta_t), s);
   cudaMemsetAsync(round_times_, invalid_, column_count_round_times_*row_count_round_times_*sizeof(gpu_delta_t), s);
 }
-mem::mem(uint32_t n_locations, uint32_t n_routes,
-         uint32_t row_count_round_times_, uint32_t column_count_round_times_,gpu_delta_t invalid,
+mem::mem(uint32_t n_locations,
+         uint32_t n_routes,
+         uint32_t row_count_round_times_,
+         uint32_t column_count_round_times_,
+         gpu_delta_t invalid,
          device_id const device_id)
-    : host_{row_count_round_times_, column_count_round_times_,n_locations,n_routes},
+    : host_{n_locations,n_routes, row_count_round_times_, column_count_round_times_},
       device_{n_locations, n_routes, row_count_round_times_, column_count_round_times_, invalid},
       context_{device_id} {}
 

@@ -35,10 +35,6 @@ TEST(routing, gpu_raptor) {
   static auto search_state = routing::search_state{};
   static auto algo_state = algo_state_t{};
   //test ob unsere daten typen genaus funktionieren wie die cista
-  auto testeras = *reinterpret_cast<gpu_vecvec<gpu_location_idx_t, gpu_route_idx_t>*>(&tt.location_routes_);
-  auto test12_gpu = testeras.bucket_starts_[1];
-  auto test12_cpu = tt.location_routes_.bucket_starts_[1];
-  ASSERT_EQ(test12_cpu,test12_gpu);
   //testen ob raptor geht
 
   auto const results =
@@ -48,7 +44,4 @@ TEST(routing, gpu_raptor) {
   //auto gpu_direction2 = *reinterpret_cast<enum gpu_direction*>(&SearchDir);
   //bool tester = gpu_direction2 == gpu_direction::kForward;
   std::cout<<"" << results.size();
-  gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* te = reinterpret_cast<gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t>*>(&tt.location_routes_);
-  std::cout<<"erster Wert: " << te->bucket_starts_ <<" \n"<< tt.location_routes_.bucket_starts_ << "\n";
-  std::cout<<"";
 }

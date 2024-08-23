@@ -270,7 +270,7 @@ gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(nigiri:
       reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t, std::uint64_t*>*>(
           &bitfields_data_);
   gpu_locations locations_ = gpu_locations(
-      *reinterpret_cast<gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*>(
+      reinterpret_cast<gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*>(
           &tt.locations_.transfer_time_),
       reinterpret_cast<gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*>(
           tt.locations_.footpaths_out_.data()),

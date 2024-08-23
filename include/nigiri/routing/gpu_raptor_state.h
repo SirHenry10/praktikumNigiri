@@ -85,7 +85,8 @@ struct host_memory {
   std::vector<uint32_t> station_mark_;
   std::vector<uint32_t> prev_station_mark_;
   std::vector<uint32_t> route_mark_;
-  uint32_t row_count_round_times_{}, column_count_round_times_{};
+  uint32_t row_count_round_times_;
+  uint32_t column_count_round_times_;
 };
 
 
@@ -122,7 +123,10 @@ struct device_memory {
   uint32_t* prev_station_mark_{};
   uint32_t* route_mark_{};
   bool* any_station_marked_{};
-  uint32_t n_locations_{}, n_routes_{}, row_count_round_times_{}, column_count_round_times_{};
+  uint32_t n_locations_{};
+  uint32_t n_routes_{};
+  uint32_t row_count_round_times_{}
+  ;uint32_t column_count_round_times_{};
   gpu_raptor_stats* stats_{};
 };
 
