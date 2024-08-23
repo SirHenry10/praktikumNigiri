@@ -25,9 +25,16 @@
              cudaGetErrorString(code), __FILE__, __LINE__); \
       goto fail_vecvec;                                            \
     }
+#define CUDA_CALL_VECMAP(call)                                   \
+    if ((code = call) != cudaSuccess) {                     \
+      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
+             cudaGetErrorString(code), __FILE__, __LINE__); \
+      goto fail_vecmap;                                            \
+    }
 
 template <typename KeyType, typename ValueType>
 gpu_vecvec<KeyType, ValueType>* copy_gpu_vecvec_to_device(gpu_vecvec<KeyType, ValueType> const* host_vecvec, size_t& device_bytes, cudaError_t& code) {
+  //TODO: maybe fix das vecvecs auch wieder aus basic_gpu_vectoren besteht und diese auch allkokiert werden müssen
   gpu_vecvec<KeyType, ValueType>* device_vecvec = nullptr;
   ValueType* device_data = nullptr;
   KeyType* device_bucket_starts = nullptr;
@@ -55,6 +62,37 @@ fail_vecvec:
   if (device_vecvec) cudaFree(device_vecvec);
   return nullptr;
 }
+
+template <typename KeyType, typename ValueType>
+void copy_gpu_vector_map_to_device(gpu_vector_map<KeyType, ValueType> const* host_map,
+                               gpu_vector_map<KeyType, ValueType>** device_map_ptr,size_t& device_bytes, cudaError_t& code) {
+  //TODO:muss die alocated _size_type auch rüber?
+
+  auto host_elements = host_map->el_;
+  auto num_elements = host_map->size();
+
+  ValueType* device_elements = nullptr;
+
+  gpu_vector_map<KeyType, ValueType> tmp_map;
+  tmp_map.el_ = device_elements;
+  tmp_map.used_size_ = host_map->used_size_;
+  tmp_map.allocated_size_ = host_map->allocated_size_;
+  tmp_map.self_allocated_ = true;
+
+  CUDA_CALL_VECMAP(cudaMalloc(&device_elements, num_elements * sizeof(ValueType)));
+  CUDA_CALL_VECMAP(cudaMemcpy(device_elements, host_elements, num_elements * sizeof(ValueType), cudaMemcpyHostToDevice));
+  device_bytes +=num_elements * sizeof(ValueType);
+
+  CUDA_CALL_VECMAP(cudaMalloc(device_map_ptr, sizeof(gpu_vector_map<KeyType, ValueType>)));
+  CUDA_CALL_VECMAP(cudaMemcpy(*device_map_ptr, &tmp_map, sizeof(gpu_vector_map<KeyType, ValueType>), cudaMemcpyHostToDevice));
+  device_bytes += sizeof(gpu_vector_map<KeyType, ValueType>);
+
+
+  fail_vecmap:
+    cudaFree(device_elements);
+    cudaFree(*device_map_ptr);
+}
+
 
 struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            std::uint32_t  n_route_stop_times,
@@ -85,10 +123,8 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                       n_route_stop_times);
   //route_location_seq
   gtt->route_location_seq_ = copy_gpu_vecvec_to_device(route_location_seq,device_bytes,code);
-  if (gtt->route_location_seq_ == nullptr) goto fail;
   //location_routes_
   gtt->location_routes_ = copy_gpu_vecvec_to_device(location_routes, device_bytes, code);
-  if (gtt->location_routes_ == nullptr) goto fail;
   //n_locations_
   gtt->n_locations_ = nullptr;
   CUDA_COPY_TO_DEVICE(uint32_t , gtt->n_locations_, n_locations,1);
@@ -97,24 +133,19 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   CUDA_COPY_TO_DEVICE(uint32_t , gtt->n_routes_, n_routes,1);
   //route_stop_time_ranges_
   gtt->route_stop_time_ranges_ = nullptr;
-  using gpu_vecmap_stop_time_ranges = gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>>;
-  CUDA_COPY_TO_DEVICE(gpu_vecmap_stop_time_ranges , gtt->route_stop_time_ranges_, route_stop_time_ranges,1);
+  copy_gpu_vector_map_to_device(route_stop_time_ranges,&gtt->route_stop_time_ranges_,device_bytes,code);
   //route_transport_ranges_
   gtt->route_transport_ranges_ = nullptr;
-  using gpu_vecmap_route_transport_ranges = gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >>;
-  CUDA_COPY_TO_DEVICE(gpu_vecmap_route_transport_ranges , gtt->route_transport_ranges_, route_transport_ranges,1);
+  copy_gpu_vector_map_to_device(route_transport_ranges,&gtt->route_transport_ranges_,device_bytes,code);
   //bitfields_
   gtt->bitfields_ = nullptr;
-  using gpu_vecmap_bitfields = gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>;
-  CUDA_COPY_TO_DEVICE(gpu_vecmap_bitfields, gtt->bitfields_, bitfields,1);
+  copy_gpu_vector_map_to_device(bitfields,&gtt->bitfields_,device_bytes,code);
   //bitfields_data_
   gtt->bitfields_data_ = nullptr;
-  using gpu_vecmap_bitfields_data = gpu_vector_map<gpu_bitfield_idx_t, std::uint64_t*>;
-  CUDA_COPY_TO_DEVICE(gpu_vecmap_bitfields_data, gtt->bitfields_data_, bitfields_data,1);
+  copy_gpu_vector_map_to_device(bitfields_data,&gtt->bitfields_data_,device_bytes,code);
   //transport_traffic_days_
   gtt->transport_traffic_days_ = nullptr;
-  using gpu_vecmap_transport_traffic_days = gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>;
-  CUDA_COPY_TO_DEVICE(gpu_vecmap_transport_traffic_days, gtt->transport_traffic_days_, transport_traffic_days,1);
+  copy_gpu_vector_map_to_device(transport_traffic_days,&gtt->transport_traffic_days_,device_bytes,code);
   //date_range_
   gtt->date_range_ = nullptr;
   using gpu_date_range = gpu_interval<gpu_sys_days>;
@@ -122,29 +153,20 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   //locations_
   gtt->locations_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_locations , gtt->locations_, locations,1);
+  copy_gpu_vector_map_to_device(locations->transfer_time_,&gtt->locations_->transfer_time_,device_bytes,code);
+  gtt->locations_->gpu_footpaths_in_ = copy_gpu_vecvec_to_device(locations->gpu_footpaths_in_,device_bytes,code);
+  gtt->locations_->gpu_footpaths_out_ = copy_gpu_vecvec_to_device(locations->gpu_footpaths_out_,device_bytes,code);
+
   //route_clasz_
   gtt->route_clasz_ = nullptr;
-  using gpu_vector_map_clasz = gpu_vector_map<gpu_route_idx_t, gpu_clasz>;
-  CUDA_COPY_TO_DEVICE(gpu_vector_map_clasz, gtt->route_clasz_, route_clasz,1);
+  copy_gpu_vector_map_to_device(route_clasz,&gtt->route_clasz_,device_bytes,code);
+  cudaDeviceSynchronize();
   return gtt;
 
 
 fail:
-  cudaFree(gtt->route_stop_times_);
-  cudaFree(gtt->route_location_seq_);
-  cudaFree(gtt->location_routes_);
-  cudaFree(gtt->n_locations_);
-  cudaFree(gtt->n_routes_);
-  cudaFree(gtt->route_stop_time_ranges_);
-  cudaFree(gtt->route_transport_ranges_);
-  cudaFree(gtt->bitfields_);
-  cudaFree(gtt->bitfields_data_);
-  cudaFree(gtt->transport_traffic_days_);
-  cudaFree(gtt->date_range_);
-  cudaFree(gtt->locations_);
-  cudaFree(gtt->route_clasz_);
-  free(gtt);
-  return nullptr;
+  destroy_gpu_timetable(gtt);
+  return gtt;
 }
 void destroy_gpu_timetable(gpu_timetable* gtt) {
   cudaFree(gtt->route_stop_times_);
@@ -156,13 +178,27 @@ void destroy_gpu_timetable(gpu_timetable* gtt) {
   cudaFree(gtt->location_routes_);
   cudaFree(gtt->n_locations_);
   cudaFree(gtt->n_routes_);
+  cudaFree(gtt->route_stop_time_ranges_->data());
   cudaFree(gtt->route_stop_time_ranges_);
+  cudaFree(gtt->route_transport_ranges_->data());
   cudaFree(gtt->route_transport_ranges_);
+  cudaFree(gtt->bitfields_->data());
   cudaFree(gtt->bitfields_);
+  cudaFree(gtt->bitfields_data_->data());
   cudaFree(gtt->bitfields_data_);
+  cudaFree(gtt->transport_traffic_days_->data());
   cudaFree(gtt->transport_traffic_days_);
   cudaFree(gtt->date_range_);
+  cudaFree(gtt->locations_->transfer_time_->data());
+  cudaFree(gtt->locations_->transfer_time_);
+  cudaFree(gtt->locations_->gpu_footpaths_in_->data_.data());
+  cudaFree(gtt->locations_->gpu_footpaths_in_->bucket_starts_.data());
+  cudaFree(gtt->locations_->gpu_footpaths_in_);
+  cudaFree(gtt->locations_->gpu_footpaths_out_->data_.data());
+  cudaFree(gtt->locations_->gpu_footpaths_out_->bucket_starts_.data());
+  cudaFree(gtt->locations_->gpu_footpaths_out_);
   cudaFree(gtt->locations_);
+  cudaFree(gtt->route_clasz_->data());
   cudaFree(gtt->route_clasz_);
   free(gtt);
   gtt = nullptr;
