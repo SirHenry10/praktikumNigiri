@@ -100,18 +100,18 @@ __host__ __device__ gpu_delta_t to_gpu_delta(gpu_day_idx_t const day, std::int16
 template <gpu_direction SearchDir, typename T>
 __host__ __device__ auto gpu_get_begin_it(T const& t) {
   if constexpr (SearchDir == gpu_direction::kForward) {
-    return t.begin();
+    return t.data();
   } else {
-    return t.rbegin();
+    return t.data() + t.size() - 1;
   }
 }
 
 template <gpu_direction SearchDir, typename T>
 __host__ __device__ auto gpu_get_end_it(T const& t) {
   if constexpr ((SearchDir == gpu_direction::kForward)) {
-    return t.end();
+    return t.data() + t.size();;
   } else {
-    return t.rend();
+    return t.data() - 1;
   }
 }
 
