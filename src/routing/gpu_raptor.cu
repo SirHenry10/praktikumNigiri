@@ -175,7 +175,9 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                                        uint32_t* station_mark_, gpu_strong<uint16_t, _day_idx> base_,
                                        unsigned short kUnreachable, bool any_station_marked_){
   auto const t_id = threadIdx.x;
-  auto const stop_seq = gtt_->route_location_seq_[r];
+  auto test = gtt_->route_location_seq_;
+  auto test2 = *test;
+  auto const stop_seq = test2[r];
   auto stop_idx = -1;
   gpu_stop stp{};
   unsigned int l_idx;

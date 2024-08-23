@@ -151,6 +151,8 @@ void destroy_gpu_timetable(gpu_timetable* gtt) {
   cudaFree(gtt->route_location_seq_->data_.data());
   cudaFree(gtt->route_location_seq_->bucket_starts_.data());
   cudaFree(gtt->route_location_seq_);
+  cudaFree(gtt->location_routes_->data_.data());
+  cudaFree(gtt->location_routes_->bucket_starts_.data());
   cudaFree(gtt->location_routes_);
   cudaFree(gtt->n_locations_);
   cudaFree(gtt->n_routes_);

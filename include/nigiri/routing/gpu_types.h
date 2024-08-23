@@ -275,9 +275,12 @@ using gpu_base_t = typename gpu_base_type<T>::type;
 
 #ifdef NIGIRI_CUDA
 template <typename T, typename Tag>
-__host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
-    gpu_strong<T, Tag> const& s) {
+__host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(const gpu_strong<T, Tag>& s) {
   return s.v_;
+}
+template <typename T>
+__host__ __device__ T gpu_to_idx(T const& t) {
+  return t;
 }
 #else
 template <typename T, typename Tag>
@@ -438,7 +441,7 @@ struct basic_gpu_vecvec {
     using reference = bucket;
 
     __host__ __device__ bucket(basic_gpu_vecvec* map, index_value_type const i)
-        : map_{map}, i_{to_idx(i)} {}
+        : map_{map}, i_{gpu_to_idx(i)} {}
 
     __host__ __device__ friend data_value_type* data(bucket b) { return &b[0]; }
     __host__ __device__ friend index_value_type size(bucket b) {
@@ -478,13 +481,13 @@ struct basic_gpu_vecvec {
 
     __host__ __device__ value_type& operator[](std::size_t const i) {
       assert(is_inside_bucket(i));
-      return map_->data_[to_idx(map_->bucket_starts_[i_] + i)];
+      return map_->data_[gpu_to_idx(map_->bucket_starts_[i_] + i)];
     }
 
     __host__ __device__ value_type const& operator[](
         std::size_t const i) const {
       assert(is_inside_bucket(i));
-      return map_->data_[to_idx(map_->bucket_starts_[i_] + i)];
+      return map_->data_[gpu_to_idx(map_->bucket_starts_[i_] + i)];
     }
 
     __host__ __device__ value_type const& at(std::size_t const i) const {
@@ -564,10 +567,10 @@ struct basic_gpu_vecvec {
 
   private:
     __host__ __device__ index_value_type bucket_begin_idx() const {
-      return to_idx(map_->bucket_starts_[i_]);
+      return gpu_to_idx(map_->bucket_starts_[i_]);
     }
     __host__ __device__ index_value_type bucket_end_idx() const {
-      return to_idx(map_->bucket_starts_[i_ + 1U]);
+      return gpu_to_idx(map_->bucket_starts_[i_ + 1U]);
     }
     __host__ __device__ bool is_inside_bucket(std::size_t const i) const {
       return bucket_begin_idx() + i < bucket_end_idx();
@@ -589,7 +592,7 @@ struct basic_gpu_vecvec {
 
     __host__ __device__ const_bucket(basic_gpu_vecvec const* map,
                                      index_value_type const i)
-        : map_{map}, i_{to_idx(i)} {}
+        : map_{map}, i_{gpu_to_idx(i)} {}
 
     __host__ __device__ friend data_value_type const* data(const_bucket b) {
       return b.data();
@@ -692,10 +695,10 @@ struct basic_gpu_vecvec {
 
   private:
     __host__ __device__ std::size_t bucket_begin_idx() const {
-      return to_idx(map_->bucket_starts_[i_]);
+      return gpu_to_idx(map_->bucket_starts_[i_]);
     }
     __host__ __device__ std::size_t bucket_end_idx() const {
-      return to_idx(map_->bucket_starts_[i_ + 1]);
+      return gpu_to_idx(map_->bucket_starts_[i_ + 1]);
     }
     __host__ __device__ bool is_inside_bucket(std::size_t const i) const {
       return bucket_begin_idx() + i < bucket_end_idx();
@@ -710,22 +713,22 @@ struct basic_gpu_vecvec {
   using const_iterator = const_bucket;
 
   __host__ __device__ bucket operator[](Key const i) {
-    return {this, to_idx(i)};
+    return {this, gpu_to_idx(i)};
   }
   __host__ __device__ const_bucket operator[](Key const i) const {
-    return {this, to_idx(i)};
+    return {this, gpu_to_idx(i)};
   }
 
   __host__ __device__ const_bucket at(Key const i) const {
-    verify(to_idx(i) < bucket_starts_.size(),
+    verify(gpu_to_idx(i) < bucket_starts_.size(),
            "basic_gpu_vecvec::at: index out of range");
-    return {this, to_idx(i)};
+    return {this, gpu_to_idx(i)};
   }
 
   __host__ __device__ bucket at(Key const i) {
-    verify(to_idx(i) < bucket_starts_.size(),
+    verify(gpu_to_idx(i) < bucket_starts_.size(),
            "basic_gpu_vecvec::at: index out of range");
-    return {this, to_idx(i)};
+    return {this, gpu_to_idx(i)};
   }
 
   __host__ __device__ bucket front() { return at(Key{0}); }
@@ -814,10 +817,6 @@ struct basic_gpu_vecvec {
   DataVec data_;
   IndexVec bucket_starts_;
 };
-namespace raw {
-template <typename K, typename V, typename SizeType = cista::base_t<K>>
-using gpu_vecvec = basic_gpu_vecvec<K, vector<V>, vector<SizeType>>;
-}  // namespace raw
 
 } //namespace cista
 
@@ -1175,6 +1174,12 @@ struct gpu_basic_vector {
 
 namespace raw {
 
+
+template <typename T>
+using gpu_vector = gpu_basic_vector<T, ptr>;
+template <typename K, typename V, typename SizeType = cista::base_t<K>>
+using gpu_vecvec = basic_gpu_vecvec<K, gpu_vector<V>, gpu_vector<SizeType>>;
+
 template <typename Key, typename Value>
 using gpu_vector_map = gpu_basic_vector<Value, ptr, false, Key>;
 
@@ -1218,8 +1223,8 @@ struct gpu_interval {
     __host__ __device__ iterator operator+(difference_type const x) const { return *this += x; }
     __host__ __device__ iterator operator-(difference_type const x) const { return *this -= x; }
     __host__ __device__ friend difference_type operator-(iterator const& a, iterator const& b) {
-      return static_cast<difference_type>(cista::to_idx(a.t_) -
-                                          cista::to_idx(b.t_));
+      return static_cast<difference_type>(gpu_to_idx(a.t_) -
+                                          gpu_to_idx(b.t_));
     }
     T t_;
   };
