@@ -93,8 +93,8 @@ __host__ __device__ inline gpu_sys_days base(gpu_timetable const* gtt, gpu_day_i
 template<gpu_direction SearchDir>
 __host__ __device__ static auto dir(auto a) { return (SearchDir==gpu_direction::kForward ? 1 : -1) * a; }
 
-template <typename T, gpu_direction SearchDir>
-__host__ __device__ auto get_begin_it(T const& t) {
+template <gpu_direction SearchDir, typename T>
+__host__ __device__ auto gpu_get_begin_it(T const& t) {
   if constexpr (SearchDir == gpu_direction::kForward) {
     return t.begin();
   } else {
@@ -102,8 +102,8 @@ __host__ __device__ auto get_begin_it(T const& t) {
   }
 }
 
-template <typename T, gpu_direction SearchDir>
-__host__ __device__ auto get_end_it(T const& t) {
+template <gpu_direction SearchDir, typename T>
+__host__ __device__ auto gpu_get_end_it(T const& t) {
   if constexpr ((SearchDir == gpu_direction::kForward)) {
     return t.end();
   } else {
