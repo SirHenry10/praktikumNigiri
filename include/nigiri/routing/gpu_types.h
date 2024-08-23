@@ -1175,10 +1175,9 @@ struct gpu_basic_vector {
 
 namespace raw {
 
-
 template <typename T>
 using gpu_vector = gpu_basic_vector<T, ptr>;
-template <typename K, typename V, typename SizeType = cista::base_t<K>>
+template <typename K, typename V, typename SizeType = gpu_base_t<K>>
 using gpu_vecvec = basic_gpu_vecvec<K, gpu_vector<V>, gpu_vector<SizeType>>;
 
 template <typename Key, typename Value>
@@ -1188,6 +1187,9 @@ using gpu_vector_map = gpu_basic_vector<Value, ptr, false, Key>;
 #undef CISTA_TO_VEC
 
 }  // namespace cista
+
+template <typename T>
+using gpu_vector = cista::gpu_basic_vector<T, cista::raw::ptr>;
 
 template <typename K, typename V>
 using gpu_vector_map = cista::raw::gpu_vector_map<K, V>;

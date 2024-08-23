@@ -22,31 +22,65 @@
 
 template <typename KeyType, typename ValueType>
 gpu_vecvec<KeyType, ValueType>* copy_gpu_vecvec_to_device(gpu_vecvec<KeyType, ValueType> const* host_vecvec, size_t& device_bytes, cudaError_t& code) {
-  //TODO: maybe fix das vecvecs auch wieder aus basic_gpu_vectoren besteht und diese auch allkokiert werden müssen
   gpu_vecvec<KeyType, ValueType>* device_vecvec = nullptr;
-  ValueType* device_data = nullptr;
-  KeyType* device_bucket_starts = nullptr;
 
+
+  // Datenstruktur für bucket_starts_
+  const gpu_vector<gpu_base_t<KeyType>>* host_bucket_starts_vec = &host_vecvec->bucket_starts_;
+  gpu_vector<gpu_base_t<KeyType>>* device_bucket_starts_vec = nullptr;
+
+  const gpu_vector<ValueType>* host_data_vec = &host_vecvec->data_;
+  gpu_vector<ValueType>* device_data_vec = nullptr;
+
+  ValueType* device_data = nullptr;
+
+  gpu_base_t<KeyType>* device_bucket_starts = nullptr;
+
+
+  // Allokiere Speicher für die gpu_vecvec Struktur selbst
   CUDA_CALL(cudaMalloc(&device_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>)));
   CUDA_CALL(cudaMemcpy(device_vecvec, host_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>), cudaMemcpyHostToDevice));
   device_bytes += sizeof(gpu_vecvec<KeyType, ValueType>);
 
-  CUDA_CALL(cudaMalloc(&device_data, host_vecvec->data_.size() * sizeof(ValueType)));
-  CUDA_CALL(cudaMemcpy(device_data, host_vecvec->data_.data(), host_vecvec->data_.size() * sizeof(ValueType), cudaMemcpyHostToDevice));
-  device_bytes += host_vecvec->data_.size() * sizeof(ValueType);
 
-  CUDA_CALL(cudaMalloc(&device_bucket_starts, host_vecvec->bucket_starts_.size() * sizeof(KeyType)));
-  CUDA_CALL(cudaMemcpy(device_bucket_starts, host_vecvec->bucket_starts_.data(), host_vecvec->bucket_starts_.size() * sizeof(KeyType), cudaMemcpyHostToDevice));
-  device_bytes += host_vecvec->bucket_starts_.size() * sizeof(KeyType);
+  // Allokiere gpu_basic_vector für data_
+  CUDA_CALL(cudaMalloc(&device_data_vec, sizeof(gpu_vector<ValueType>)));
+  CUDA_CALL(cudaMemcpy(device_data_vec, host_data_vec, sizeof(gpu_vector<ValueType>), cudaMemcpyHostToDevice));
+  device_bytes += sizeof(gpu_vector<ValueType>);
 
-  CUDA_CALL(cudaMemcpy(&(device_vecvec->data_), &device_data, sizeof(ValueType*), cudaMemcpyHostToDevice));
-  CUDA_CALL(cudaMemcpy(&(device_vecvec->bucket_starts_), &device_bucket_starts, sizeof(KeyType*), cudaMemcpyHostToDevice));
+  // Allokiere und kopiere Daten in data_ (el_)
+  CUDA_CALL(cudaMalloc(&device_data, host_vecvec->size()* sizeof(ValueType)));
+  CUDA_CALL(cudaMemcpy(device_data, host_data_vec->el_, host_data_vec->size() * sizeof(ValueType), cudaMemcpyHostToDevice));
+  device_bytes += host_vecvec->size() * sizeof(ValueType);
+
+  // Setze den Zeiger auf el_ in device_data_vec
+  CUDA_CALL(cudaMemcpy(&(device_data_vec->el_), &device_data, sizeof(ValueType*), cudaMemcpyHostToDevice));
+
+
+  // Allokiere gpu_basic_vector für bucket_starts_
+  CUDA_CALL(cudaMalloc(&device_bucket_starts_vec, sizeof(gpu_vector<KeyType>)));
+  CUDA_CALL(cudaMemcpy(device_bucket_starts_vec, host_bucket_starts_vec, sizeof(gpu_vector<KeyType>), cudaMemcpyHostToDevice));
+  device_bytes += sizeof(gpu_vector<gpu_base_t<KeyType>>);
+
+  // Allokiere und kopiere Daten in bucket_starts_ (el_)
+  CUDA_CALL(cudaMalloc(&device_bucket_starts, host_vecvec->size() * sizeof(gpu_base_t<KeyType>)));
+  CUDA_CALL(cudaMemcpy(device_bucket_starts, host_bucket_starts_vec->el_, host_vecvec->size() * sizeof(gpu_base_t<KeyType>), cudaMemcpyHostToDevice));
+  device_bytes += host_vecvec->size() * sizeof(gpu_base_t<KeyType>);
+
+  // Setze den Zeiger auf el_ in device_bucket_starts_vec
+  CUDA_CALL(cudaMemcpy(&(device_bucket_starts_vec->el_), &device_bucket_starts, sizeof(gpu_base_t<KeyType>*), cudaMemcpyHostToDevice));
+
+  // Setze die Zeiger in der gpu_vecvec-Struktur auf die allokierten gpu_basic_vector-Strukturen
+  CUDA_CALL(cudaMemcpy(&(device_vecvec->data_), &device_data_vec, sizeof(gpu_vector<ValueType>*), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(device_vecvec->bucket_starts_), &device_bucket_starts_vec, sizeof(gpu_vector<gpu_base_t<KeyType>>*), cudaMemcpyHostToDevice));
 
   return device_vecvec;
 
-  fail:
+fail:
   if (device_data) cudaFree(device_data);
   if (device_bucket_starts) cudaFree(device_bucket_starts);
+  if (device_data_vec) cudaFree(device_data_vec);
+  if (device_bucket_starts_vec) cudaFree(device_bucket_starts_vec);
   if (device_vecvec) cudaFree(device_vecvec);
   return nullptr;
 }
@@ -54,18 +88,18 @@ gpu_vecvec<KeyType, ValueType>* copy_gpu_vecvec_to_device(gpu_vecvec<KeyType, Va
 template <typename KeyType, typename ValueType>
 void copy_gpu_vector_map_to_device(gpu_vector_map<KeyType, ValueType> const* host_map,
                                gpu_vector_map<KeyType, ValueType>** device_map_ptr,size_t& device_bytes, cudaError_t& code) {
-  //TODO:muss die alocated _size_type auch rüber?
-
+  //TODO:muss Keys auch noch rüber? aber wo sind die??
   auto host_elements = host_map->el_;
   auto num_elements = host_map->size();
 
   ValueType* device_elements = nullptr;
 
+  gpu_vector_map<KeyType, ValueType> tmp_map;
+
   CUDA_CALL(cudaMalloc(&device_elements, num_elements * sizeof(ValueType)));
   CUDA_CALL(cudaMemcpy(device_elements, host_elements, num_elements * sizeof(ValueType), cudaMemcpyHostToDevice));
   device_bytes +=num_elements * sizeof(ValueType);
 
-  gpu_vector_map<KeyType, ValueType> tmp_map;
   tmp_map.el_ = device_elements;
   tmp_map.used_size_ = host_map->used_size_;
   tmp_map.allocated_size_ = host_map->allocated_size_;
@@ -164,12 +198,16 @@ void destroy_gpu_timetable(gpu_timetable* gtt) {
   if (gtt->route_stop_times_) cudaFree(gtt->route_stop_times_);
 
   if (gtt->route_location_seq_) {
+    if (gtt->route_location_seq_->data_.el_) cudaFree(gtt->route_location_seq_->data_.el_);
+    if (gtt->route_location_seq_->bucket_starts_.el_) cudaFree(gtt->route_location_seq_->bucket_starts_.el_);
     if (gtt->route_location_seq_->data_.data()) cudaFree(gtt->route_location_seq_->data_.data());
     if (gtt->route_location_seq_->bucket_starts_.data()) cudaFree(gtt->route_location_seq_->bucket_starts_.data());
     cudaFree(gtt->route_location_seq_);
   }
 
   if (gtt->location_routes_) {
+    if (gtt->location_routes_->data_.el_) cudaFree(gtt->location_routes_->data_.el_);
+    if (gtt->location_routes_->bucket_starts_.el_) cudaFree(gtt->location_routes_->bucket_starts_.el_);
     if (gtt->location_routes_->data_.data()) cudaFree(gtt->location_routes_->data_.data());
     if (gtt->location_routes_->bucket_starts_.data()) cudaFree(gtt->location_routes_->bucket_starts_.data());
     cudaFree(gtt->location_routes_);
@@ -211,11 +249,15 @@ void destroy_gpu_timetable(gpu_timetable* gtt) {
       cudaFree(gtt->locations_->transfer_time_);
     }
     if (gtt->locations_->gpu_footpaths_in_) {
+      if (gtt->locations_->gpu_footpaths_in_->data_.el_) cudaFree(gtt->locations_->gpu_footpaths_in_->data_.el_);
+      if (gtt->locations_->gpu_footpaths_in_->bucket_starts_.el_) cudaFree(gtt->locations_->gpu_footpaths_in_->bucket_starts_.el_);
       if (gtt->locations_->gpu_footpaths_in_->data_.data()) cudaFree(gtt->locations_->gpu_footpaths_in_->data_.data());
       if (gtt->locations_->gpu_footpaths_in_->bucket_starts_.data()) cudaFree(gtt->locations_->gpu_footpaths_in_->bucket_starts_.data());
       cudaFree(gtt->locations_->gpu_footpaths_in_);
     }
     if (gtt->locations_->gpu_footpaths_out_) {
+      if (gtt->locations_->gpu_footpaths_out_->data_.el_) cudaFree(gtt->locations_->gpu_footpaths_out_->data_.el_);
+      if (gtt->locations_->gpu_footpaths_out_->bucket_starts_.el_) cudaFree(gtt->locations_->gpu_footpaths_out_->bucket_starts_.el_);
       if (gtt->locations_->gpu_footpaths_out_->data_.data()) cudaFree(gtt->locations_->gpu_footpaths_out_->data_.data());
       if (gtt->locations_->gpu_footpaths_out_->bucket_starts_.data()) cudaFree(gtt->locations_->gpu_footpaths_out_->bucket_starts_.data());
       cudaFree(gtt->locations_->gpu_footpaths_out_);

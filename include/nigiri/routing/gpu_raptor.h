@@ -206,8 +206,6 @@ struct gpu_raptor {
              uint8_t const max_transfers,
              gpu_unixtime_t const worst_time_at_dest,
              gpu_profile_idx_t const prf_idx){
-    //TODO: wie benutzten wir start_time bzw... muss das noch rüber kopiert werden???? nike fragen...
-    //TODO: überlegen ob kernel_args kopiert werden müssen
     //start_time muss rüber das bei trace,max_transfers muss nicht malloced werden, worst_time_at_Dest muss rüber kopiert werden, prf_idx muss kopiert werden
     gpu_unixtime_t* start_time_ptr = nullptr;
     gpu_unixtime_t* worst_time_at_dest_ptr = nullptr;
