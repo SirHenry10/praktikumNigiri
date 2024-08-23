@@ -282,6 +282,7 @@ template <typename T>
 __host__ __device__ T gpu_to_idx(T const& t) {
   return t;
 }
+
 #else
 template <typename T, typename Tag>
 inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(

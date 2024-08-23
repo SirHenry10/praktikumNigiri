@@ -115,8 +115,8 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
         *any_station_marked = true;
       }
       auto const& location_routes = gtt_->location_routes_[gpu_location_idx_t{idx}.v_];
-      for (auto i = 0; i != location_routes.size(); ++i) {
-        auto const& r = location_routes[i];
+      for (unsigned int i = 0; i != location_routes.size(); ++i) {
+        auto const& r = location_routes[gpu_location_idx_t{i}];
         mark(route_marks, gpu_to_idx(r));
       }
     }

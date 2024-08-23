@@ -19,18 +19,6 @@
     CUDA_CALL(                                                                   \
         cudaMemcpy(target, source, size * sizeof(type), cudaMemcpyHostToDevice)) \
     device_bytes += size * sizeof(type);
-#define CUDA_CALL_VECVEC(call)                                   \
-    if ((code = call) != cudaSuccess) {                     \
-      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
-             cudaGetErrorString(code), __FILE__, __LINE__); \
-      goto fail_vecvec;                                            \
-    }
-#define CUDA_CALL_VECMAP(call)                                   \
-    if ((code = call) != cudaSuccess) {                     \
-      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
-             cudaGetErrorString(code), __FILE__, __LINE__); \
-      goto fail_vecmap;                                            \
-    }
 
 template <typename KeyType, typename ValueType>
 gpu_vecvec<KeyType, ValueType>* copy_gpu_vecvec_to_device(gpu_vecvec<KeyType, ValueType> const* host_vecvec, size_t& device_bytes, cudaError_t& code) {
@@ -39,24 +27,24 @@ gpu_vecvec<KeyType, ValueType>* copy_gpu_vecvec_to_device(gpu_vecvec<KeyType, Va
   ValueType* device_data = nullptr;
   KeyType* device_bucket_starts = nullptr;
 
-  CUDA_CALL_VECVEC(cudaMalloc(&device_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>)));
-  CUDA_CALL_VECVEC(cudaMemcpy(device_vecvec, host_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMalloc(&device_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>)));
+  CUDA_CALL(cudaMemcpy(device_vecvec, host_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>), cudaMemcpyHostToDevice));
   device_bytes += sizeof(gpu_vecvec<KeyType, ValueType>);
 
-  CUDA_CALL_VECVEC(cudaMalloc(&device_data, host_vecvec->data_.size() * sizeof(ValueType)));
-  CUDA_CALL_VECVEC(cudaMemcpy(device_data, host_vecvec->data_.data(), host_vecvec->data_.size() * sizeof(ValueType), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMalloc(&device_data, host_vecvec->data_.size() * sizeof(ValueType)));
+  CUDA_CALL(cudaMemcpy(device_data, host_vecvec->data_.data(), host_vecvec->data_.size() * sizeof(ValueType), cudaMemcpyHostToDevice));
   device_bytes += host_vecvec->data_.size() * sizeof(ValueType);
 
-  CUDA_CALL_VECVEC(cudaMalloc(&device_bucket_starts, host_vecvec->bucket_starts_.size() * sizeof(KeyType)));
-  CUDA_CALL_VECVEC(cudaMemcpy(device_bucket_starts, host_vecvec->bucket_starts_.data(), host_vecvec->bucket_starts_.size() * sizeof(KeyType), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMalloc(&device_bucket_starts, host_vecvec->bucket_starts_.size() * sizeof(KeyType)));
+  CUDA_CALL(cudaMemcpy(device_bucket_starts, host_vecvec->bucket_starts_.data(), host_vecvec->bucket_starts_.size() * sizeof(KeyType), cudaMemcpyHostToDevice));
   device_bytes += host_vecvec->bucket_starts_.size() * sizeof(KeyType);
 
-  CUDA_CALL_VECVEC(cudaMemcpy(&(device_vecvec->data_), &device_data, sizeof(ValueType*), cudaMemcpyHostToDevice));
-  CUDA_CALL_VECVEC(cudaMemcpy(&(device_vecvec->bucket_starts_), &device_bucket_starts, sizeof(KeyType*), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(device_vecvec->data_), &device_data, sizeof(ValueType*), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(device_vecvec->bucket_starts_), &device_bucket_starts, sizeof(KeyType*), cudaMemcpyHostToDevice));
 
   return device_vecvec;
 
-fail_vecvec:
+  fail:
   if (device_data) cudaFree(device_data);
   if (device_bucket_starts) cudaFree(device_bucket_starts);
   if (device_vecvec) cudaFree(device_vecvec);
@@ -73,24 +61,25 @@ void copy_gpu_vector_map_to_device(gpu_vector_map<KeyType, ValueType> const* hos
 
   ValueType* device_elements = nullptr;
 
+  CUDA_CALL(cudaMalloc(&device_elements, num_elements * sizeof(ValueType)));
+  CUDA_CALL(cudaMemcpy(device_elements, host_elements, num_elements * sizeof(ValueType), cudaMemcpyHostToDevice));
+  device_bytes +=num_elements * sizeof(ValueType);
+
   gpu_vector_map<KeyType, ValueType> tmp_map;
   tmp_map.el_ = device_elements;
   tmp_map.used_size_ = host_map->used_size_;
   tmp_map.allocated_size_ = host_map->allocated_size_;
   tmp_map.self_allocated_ = true;
 
-  CUDA_CALL_VECMAP(cudaMalloc(&device_elements, num_elements * sizeof(ValueType)));
-  CUDA_CALL_VECMAP(cudaMemcpy(device_elements, host_elements, num_elements * sizeof(ValueType), cudaMemcpyHostToDevice));
-  device_bytes +=num_elements * sizeof(ValueType);
-
-  CUDA_CALL_VECMAP(cudaMalloc(device_map_ptr, sizeof(gpu_vector_map<KeyType, ValueType>)));
-  CUDA_CALL_VECMAP(cudaMemcpy(*device_map_ptr, &tmp_map, sizeof(gpu_vector_map<KeyType, ValueType>), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMalloc(device_map_ptr, sizeof(gpu_vector_map<KeyType, ValueType>)));
+  CUDA_CALL(cudaMemcpy(*device_map_ptr, &tmp_map, sizeof(gpu_vector_map<KeyType, ValueType>), cudaMemcpyHostToDevice));
   device_bytes += sizeof(gpu_vector_map<KeyType, ValueType>);
 
+  return;
 
-  fail_vecmap:
-    cudaFree(device_elements);
-    cudaFree(*device_map_ptr);
+  fail:
+    if (device_elements) cudaFree(device_elements);
+    if (*device_map_ptr) cudaFree(*device_map_ptr);
 }
 
 
@@ -160,6 +149,7 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   //route_clasz_
   gtt->route_clasz_ = nullptr;
   copy_gpu_vector_map_to_device(route_clasz,&gtt->route_clasz_,device_bytes,code);
+
   cudaDeviceSynchronize();
   return gtt;
 
@@ -169,37 +159,74 @@ fail:
   return gtt;
 }
 void destroy_gpu_timetable(gpu_timetable* gtt) {
-  cudaFree(gtt->route_stop_times_);
-  cudaFree(gtt->route_location_seq_->data_.data());
-  cudaFree(gtt->route_location_seq_->bucket_starts_.data());
-  cudaFree(gtt->route_location_seq_);
-  cudaFree(gtt->location_routes_->data_.data());
-  cudaFree(gtt->location_routes_->bucket_starts_.data());
-  cudaFree(gtt->location_routes_);
-  cudaFree(gtt->n_locations_);
-  cudaFree(gtt->n_routes_);
-  cudaFree(gtt->route_stop_time_ranges_->data());
-  cudaFree(gtt->route_stop_time_ranges_);
-  cudaFree(gtt->route_transport_ranges_->data());
-  cudaFree(gtt->route_transport_ranges_);
-  cudaFree(gtt->bitfields_->data());
-  cudaFree(gtt->bitfields_);
-  cudaFree(gtt->bitfields_data_->data());
-  cudaFree(gtt->bitfields_data_);
-  cudaFree(gtt->transport_traffic_days_->data());
-  cudaFree(gtt->transport_traffic_days_);
-  cudaFree(gtt->date_range_);
-  cudaFree(gtt->locations_->transfer_time_->data());
-  cudaFree(gtt->locations_->transfer_time_);
-  cudaFree(gtt->locations_->gpu_footpaths_in_->data_.data());
-  cudaFree(gtt->locations_->gpu_footpaths_in_->bucket_starts_.data());
-  cudaFree(gtt->locations_->gpu_footpaths_in_);
-  cudaFree(gtt->locations_->gpu_footpaths_out_->data_.data());
-  cudaFree(gtt->locations_->gpu_footpaths_out_->bucket_starts_.data());
-  cudaFree(gtt->locations_->gpu_footpaths_out_);
-  cudaFree(gtt->locations_);
-  cudaFree(gtt->route_clasz_->data());
-  cudaFree(gtt->route_clasz_);
+  if (!gtt) return;
+
+  if (gtt->route_stop_times_) cudaFree(gtt->route_stop_times_);
+
+  if (gtt->route_location_seq_) {
+    if (gtt->route_location_seq_->data_.data()) cudaFree(gtt->route_location_seq_->data_.data());
+    if (gtt->route_location_seq_->bucket_starts_.data()) cudaFree(gtt->route_location_seq_->bucket_starts_.data());
+    cudaFree(gtt->route_location_seq_);
+  }
+
+  if (gtt->location_routes_) {
+    if (gtt->location_routes_->data_.data()) cudaFree(gtt->location_routes_->data_.data());
+    if (gtt->location_routes_->bucket_starts_.data()) cudaFree(gtt->location_routes_->bucket_starts_.data());
+    cudaFree(gtt->location_routes_);
+  }
+
+  if (gtt->n_locations_) cudaFree(gtt->n_locations_);
+  if (gtt->n_routes_) cudaFree(gtt->n_routes_);
+
+  if (gtt->route_stop_time_ranges_) {
+    if (gtt->route_stop_time_ranges_->data()) cudaFree(gtt->route_stop_time_ranges_->data());
+    cudaFree(gtt->route_stop_time_ranges_);
+  }
+
+  if (gtt->route_transport_ranges_) {
+    if (gtt->route_transport_ranges_->data()) cudaFree(gtt->route_transport_ranges_->data());
+    cudaFree(gtt->route_transport_ranges_);
+  }
+
+  if (gtt->bitfields_) {
+    if (gtt->bitfields_->data()) cudaFree(gtt->bitfields_->data());
+    cudaFree(gtt->bitfields_);
+  }
+
+  if (gtt->bitfields_data_) {
+    if (gtt->bitfields_data_->data()) cudaFree(gtt->bitfields_data_->data());
+    cudaFree(gtt->bitfields_data_);
+  }
+
+  if (gtt->transport_traffic_days_) {
+    if (gtt->transport_traffic_days_->data()) cudaFree(gtt->transport_traffic_days_->data());
+    cudaFree(gtt->transport_traffic_days_);
+  }
+
+  if (gtt->date_range_) cudaFree(gtt->date_range_);
+
+  if (gtt->locations_) {
+    if (gtt->locations_->transfer_time_) {
+      if (gtt->locations_->transfer_time_->data()) cudaFree(gtt->locations_->transfer_time_->data());
+      cudaFree(gtt->locations_->transfer_time_);
+    }
+    if (gtt->locations_->gpu_footpaths_in_) {
+      if (gtt->locations_->gpu_footpaths_in_->data_.data()) cudaFree(gtt->locations_->gpu_footpaths_in_->data_.data());
+      if (gtt->locations_->gpu_footpaths_in_->bucket_starts_.data()) cudaFree(gtt->locations_->gpu_footpaths_in_->bucket_starts_.data());
+      cudaFree(gtt->locations_->gpu_footpaths_in_);
+    }
+    if (gtt->locations_->gpu_footpaths_out_) {
+      if (gtt->locations_->gpu_footpaths_out_->data_.data()) cudaFree(gtt->locations_->gpu_footpaths_out_->data_.data());
+      if (gtt->locations_->gpu_footpaths_out_->bucket_starts_.data()) cudaFree(gtt->locations_->gpu_footpaths_out_->bucket_starts_.data());
+      cudaFree(gtt->locations_->gpu_footpaths_out_);
+    }
+    cudaFree(gtt->locations_);
+  }
+
+  if (gtt->route_clasz_) {
+    if (gtt->route_clasz_->data()) cudaFree(gtt->route_clasz_->data());
+    cudaFree(gtt->route_clasz_);
+  }
   free(gtt);
   gtt = nullptr;
   cudaDeviceSynchronize();
