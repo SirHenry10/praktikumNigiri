@@ -1,12 +1,10 @@
 #pragma once
 
+#include <cuda/std/span>
+#include <cuda_runtime.h>
 #include <cinttypes>
-
 #include "gpu_types.h"
-#include <span>
-
-extern "C" {
-
+extern "C"{
   struct gpu_timetable {
     gpu_delta* route_stop_times_{nullptr};
     gpu_vecvec<gpu_route_idx_t,gpu_value_type,unsigned int>* route_location_seq_ {nullptr};
@@ -22,7 +20,7 @@ extern "C" {
     gpu_locations* locations_{nullptr};
     gpu_vector_map<gpu_route_idx_t, gpu_clasz>* route_clasz_{nullptr};
 #ifdef NIGIRI_CUDA
-    __host__ __device__ std::span<gpu_delta const> event_times_at_stop(gpu_route_idx_t const r,
+    __host__ __device__ cuda::std::span<gpu_delta const> event_times_at_stop(gpu_route_idx_t const r,
                                                gpu_stop_idx_t const stop_idx,
                                                gpu_event_type const ev_type) const {
       auto rtr = *route_transport_ranges_;
@@ -31,7 +29,7 @@ extern "C" {
       auto const idx = static_cast<unsigned>(
           rtr[r].from_ +
           n_transports * (stop_idx * 2 - (ev_type == gpu_event_type::kArr ? 1 : 0)));
-      return std::span<gpu_delta const>{&route_stop_times_[idx], n_transports};
+      return  cuda::std::span<gpu_delta const>{&route_stop_times_[idx], n_transports};
     }
     __host__ __device__ gpu_interval<gpu_sys_days> gpu_internal_interval_days() const {
       auto date_range = *date_range_;
@@ -63,4 +61,4 @@ extern "C" {
                                              gpu_locations const* locations,
                                              gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz);
   void destroy_gpu_timetable(gpu_timetable* gtt);
-}  // extern "C"
+  } //extern "C"

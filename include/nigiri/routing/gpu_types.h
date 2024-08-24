@@ -3,6 +3,8 @@
 #include <cassert>
 #include <chrono>
 #include <type_traits>
+#include <cuda/std/chrono>
+#include <cuda/std/utility>
 
 #include "cista/containers/bitset.h"
 #include "cista/containers/ptr.h"
@@ -313,7 +315,7 @@ using gpu_timezone_idx_t = gpu_strong<std::uint16_t, struct _timezone_idx>;
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_profile_idx_t = std::uint8_t;
 using gpu_stop_idx_t = std::uint16_t;
-using i16_minutes = std::chrono::duration<std::int16_t, std::ratio<60>>;
+using i16_minutes = cuda::std::chrono::duration<std::int16_t, cuda::std::ratio<60>>;
 using gpu_duration_t = i16_minutes;
 using gpu_minutes_after_midnight_t = gpu_duration_t;
 
@@ -335,19 +337,24 @@ enum class gpu_clasz : std::uint8_t {
 };
 
 template <typename R1, typename R2>
-using gpu_ratio_multiply = decltype(std::ratio_multiply<R1, R2>{});
-using gpu_days = std::chrono::duration<int, gpu_ratio_multiply<std::ratio<24>, std::chrono::hours::period>>;
+using gpu_ratio_multiply = decltype(cuda::std::ratio_multiply<R1, R2>{});
+using gpu_days = cuda::std::chrono::duration<int, gpu_ratio_multiply<cuda::std::ratio<24>, cuda::std::chrono::hours::period>>;
 enum class gpu_event_type { kArr, kDep };
 enum class gpu_direction { kForward, kBackward };
 
 template <typename T>
 using ptr = T*;
-using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
-using gpu_u8_minutes = std::chrono::duration<std::uint8_t, std::ratio<60>>;
-using gpu_unixtime_t = std::chrono::sys_time<gpu_i32_minutes>;
-template <class Duration>
-using gpu_sys_time = std::chrono::time_point<std::chrono::system_clock, Duration>;
+using gpu_i32_minutes = cuda::std::chrono::duration<int32_t, cuda::std::ratio<60>>;
+using gpu_u8_minutes = cuda::std::chrono::duration<std::uint8_t, cuda::std::ratio<60>>;
+auto test = cuda::std::chrono::system_clock();
+
+template <typename D>
+using gpu_sys_time = cuda::std::chrono::time_point<cuda::std::chrono::system_clock, D>;
+using gpu_unixtime_t = gpu_sys_time<gpu_i32_minutes>;
 using gpu_sys_days    = gpu_sys_time<gpu_days>;
+std::ostream& operator<<(std::ostream& out, const gpu_duration_t& duration) {
+  return out << duration.count() << " minute(s)";
+}
 struct gpu_delta{
   std::uint16_t days_ : 5;
   std::uint16_t mam_ : 11;
@@ -373,15 +380,15 @@ __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
   }
 #endif
   return static_cast<gpu_delta_t>(
-      std::clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
-                 static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
+      std::clamp(t, static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::min()),
+                 static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::max())));
 }
 
 __host__ __device__ inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base, gpu_unixtime_t const t) {
   return gpu_clamp(
-      (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
+      (t - cuda::std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
 }
-__host__ __device__ inline std::pair<gpu_day_idx_t, gpu_minutes_after_midnight_t> gpu_split_day_mam(
+__host__ __device__ inline cuda::std::pair<gpu_day_idx_t, gpu_minutes_after_midnight_t> gpu_split_day_mam(
     gpu_day_idx_t const base, gpu_delta_t const x) {
   assert(x != std::numeric_limits<gpu_delta_t>::min());
   assert(x != std::numeric_limits<gpu_delta_t>::max());
@@ -413,7 +420,7 @@ inline gpu_delta_t gpu_clamp(T t) {
 }
 inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base, gpu_unixtime_t const t) {
   return gpu_clamp(
-      (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
+      (t - cuda::std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
 }
 #endif
 template <gpu_direction SearchDir>
@@ -421,7 +428,7 @@ inline constexpr auto const kInvalidGpuDelta =
     SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::min()
                                          : std::numeric_limits<gpu_delta_t>::max();
 inline gpu_unixtime_t gpu_delta_to_unix(gpu_sys_days const base, gpu_delta_t const d) {
-  return std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
+  return cuda::std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
          d * gpu_unixtime_t::duration{1};
 }
 
@@ -459,7 +466,7 @@ struct basic_gpu_vecvec {
       return std::string_view{begin(), size()};
     }
 
-    __host__ __device__ value_type& front() {
+    __host__ __device__ const value_type& front() const{
       assert(!empty());
       return operator[](0);
     }
@@ -1402,7 +1409,7 @@ struct gpu_footpath {
   static constexpr auto const kTargetBits = 22U;
   static constexpr auto const kDurationBits = kTotalBits - kTargetBits;
   static constexpr auto const kMaxDuration = gpu_duration_t{
-      std::numeric_limits<gpu_location_idx_t::value_t>::max() >> kTargetBits};
+      cuda::std::numeric_limits<gpu_location_idx_t::value_t>::max()>> kTargetBits};
   
   gpu_footpath() = default;
 
@@ -1422,7 +1429,6 @@ struct gpu_footpath {
   gpu_location_idx_t::value_t value() const {
     return *reinterpret_cast<gpu_location_idx_t::value_t const*>(this);
   }
-
   friend std::ostream& operator<<(std::ostream& out, gpu_footpath const& fp) {
     return out << "(" << fp.target() << ", " << fp.duration() << ")";
   }
@@ -1453,7 +1459,7 @@ struct gpu_locations_device {
 }//namespace: nigiri
 using gpu_locations = nigiri::gpu_locations_device;
 
-constexpr gpu_duration_t operator""_gpu_days(unsigned long long n) {
+gpu_duration_t constexpr operator""_gpu_days(unsigned long long n) {
   return gpu_duration_t{n * 1440U};
 }
 static constexpr auto const gpu_kMaxTransfers = std::uint8_t{7U};
@@ -1496,7 +1502,7 @@ constexpr std::string_view get_gpu_special_station_name(gpu_special_station cons
 }
 struct gpu_stop {
   using value_type = gpu_location_idx_t::value_t;
-#ifdef __CUDA_ARCH__
+#ifdef NIGIRI_CUDA
   __host__ __device__ gpu_stop(gpu_location_idx_t::value_t const val) {
     *reinterpret_cast<value_type*>(this) = val;
   }
@@ -1519,6 +1525,7 @@ struct gpu_stop {
 
   __host__ __device__ friend auto operator<=>(gpu_stop const&, gpu_stop const&) = default;
 #endif
+  gpu_stop() = default;
   gpu_location_idx_t::value_t location_ : 30;
   gpu_location_idx_t::value_t in_allowed_ : 1;
   gpu_location_idx_t::value_t out_allowed_ : 1;

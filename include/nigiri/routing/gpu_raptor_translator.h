@@ -240,19 +240,30 @@ gpu_delta_t* gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
     uint8_t const max_transfers,
     nigiri::unixtime_t const worst_time_at_dest,
     nigiri::profile_idx_t const prf_idx) {
-  auto gpu_start_time = *reinterpret_cast<gpu_unixtime_t const*>(&start_time);
-  auto gpu_worst_time_at_dest =
-      *reinterpret_cast<gpu_unixtime_t const*>(&max_transfers);
+
+  // Konvertierung von start_time
+  auto start_duration_since_epoch = start_time.time_since_epoch();
+  auto start_minutes_since_epoch = std::chrono::duration_cast<std::chrono::minutes>(start_duration_since_epoch);
+  auto gpu_start_duration_since_epoch = cuda::std::chrono::duration<int32_t, cuda::std::ratio<60>>(start_minutes_since_epoch.count());
+  gpu_unixtime_t gpu_start_time(gpu_start_duration_since_epoch);
+
+  // Konvertierung von worst_time_at_dest
+  auto worst_duration_since_epoch = worst_time_at_dest.time_since_epoch();
+  auto worst_minutes_since_epoch = std::chrono::duration_cast<std::chrono::minutes>(worst_duration_since_epoch);
+  auto gpu_worst_duration_since_epoch = cuda::std::chrono::duration<int32_t, cuda::std::ratio<60>>(worst_minutes_since_epoch.count());
+  gpu_unixtime_t gpu_worst_time_at_dest(gpu_worst_duration_since_epoch);
+  //TODO: überprüfen ob die konvertierung stimmt
+
   auto gpu_prf_idx = *reinterpret_cast<gpu_profile_idx_t const*>(&prf_idx);
   gpu_delta_t* gpu_round_times;
   if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(&gpu_r_)->get()) {
-    gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
+    gpu_round_times = gpu_r->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
   } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kForward,false>>>(&gpu_r_)->get()) {
-    gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
+    gpu_round_times = gpu_r->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
   } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kBackward, true>>>(&gpu_r_)->get()) {
-    gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
+    gpu_round_times = gpu_r->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
   } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(&gpu_r_)->get()) {
-    gpu_round_times = gpu_r->execute(start_time,max_transfers,worst_time_at_dest,prf_idx);
+    gpu_round_times = gpu_r->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
   }
   gpu_covert_to_r_state();
   return gpu_round_times;

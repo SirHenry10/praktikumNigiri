@@ -3,7 +3,6 @@
 
 #include <cooperative_groups.h>
 using namespace cooperative_groups;
-
 // leader type must be unsigned 32bit
 // no leader is a zero ballot vote (all 0) minus 1 => with underflow all 1's
 constexpr unsigned int FULL_MASK = 0xFFFFffff;
@@ -179,7 +178,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   gpu_stop stp{};
   unsigned int l_idx;
   bool is_last;
-  gpu_delta_t prev_round_time = std::numeric_limits<gpu_delta_t>::max();
+  gpu_delta_t prev_round_time = cuda::std::numeric_limits<gpu_delta_t>::max();
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
   if(t_id == 0){
@@ -195,7 +194,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     // ist äquivalent zu prev_arrival
     prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
   }
-  if (!__any_sync(FULL_MASK, prev_round_time!=std::numeric_limits<gpu_delta_t>::max())) {
+  if (!__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())) {
     return any_station_marked_;
   }
 
@@ -267,8 +266,8 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         // & also works as a barrier, d.h. we have to wait for all threads to cast their vote
         // predicate is true if it is possible to enter current trip at station
         unsigned ballot = __ballot_sync(
-            FULL_MASK, (t_id < active_stop_count) && prev_round_time!=std::numeric_limits<gpu_delta_t>::max() &&
-                        et_time_at_stop!=std::numeric_limits<gpu_delta_t>::max() &&
+            FULL_MASK, (t_id < active_stop_count) && prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max() &&
+                        et_time_at_stop!=cuda::std::numeric_limits<gpu_delta_t>::max() &&
                         (prev_round_time <= et_time_at_stop));
         leader = __ffs(ballot) - 1; // returns smallest thread, for which predicate is true
         // jeder thread, dessen station nach der von leader liegt,
