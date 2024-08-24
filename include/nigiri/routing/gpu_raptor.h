@@ -42,7 +42,7 @@ void copy_to_device_destroy(
     gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_);
 }
-void inline launch_kernel(void** args,
+void launch_kernel(void** args,
                           device_context const& device,
                           cudaStream_t s,
                           gpu_direction search_dir,

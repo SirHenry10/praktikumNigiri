@@ -189,7 +189,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     stop_idx = static_cast<gpu_stop_idx_t>(
         (SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
     stp = gpu_stop{stop_seq[stop_idx]};
-    l_idx = gpu_to_idx(gpu_location_idx_t{stp.location_});
+    l_idx = gpu_to_idx(stp.gpu_location_idx());
     is_last = t_id == stop_seq.size() - 1U;
     // ist äquivalent zu prev_arrival
     prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
@@ -534,14 +534,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       return;
     }
     // swap
-    uint32_t const size = *gtt_->n_locations_;
-    uint32_t* dummy_marks = new uint32_t[size]; //TODO: dass ändern von new zu einem speicher der vorher gemalloced wurde da so sehr teuer und kosten sehr viel performance
-    for(int i=0; i < *gtt_->n_locations_; i++){
-      dummy_marks[i] = station_mark_[i];
-      station_mark_[i] = prev_station_mark_[i];
-      prev_station_mark_[i] = dummy_marks[i]; //TODO: hab hier dummy_marks hin gemacht weil sonst währe es kein swap
-    }
-    delete[] dummy_marks;
+    cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
     for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF;
@@ -570,14 +563,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       route_mark_[i] = 0xFFFF;
     }
     // swap
-    uint32_t const size = *gtt_->n_locations_;
-    uint32_t* dummy_marks = new uint32_t[size];
-    for(int i=0; i < *gtt_->n_locations_; i++){
-      dummy_marks[i] = station_mark_[i];
-      station_mark_[i] = prev_station_mark_[i];
-      prev_station_mark_[i] = dummy_marks[i]; //TODO: nike ich hab das zu = dummy_marks geändert weil du sonst ja nicht swapen würdest
-    }
-    delete[] dummy_marks;
+    cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
     for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF; // soll es auf false setzen
@@ -693,7 +679,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & lb_,
                      int* & n_days_,
                      std::uint16_t* & kUnreachable_,
-                     unsigned int* & kIntermodalTarget_,
+                     gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
@@ -740,7 +726,7 @@ void copy_to_device_destroy(
     std::uint16_t* & lb_,
     int* & n_days_,
     std::uint16_t* & kUnreachable_,
-    unsigned int* & kIntermodalTarget_,
+    gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_){
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
@@ -760,11 +746,12 @@ void copy_to_device_destroy(
   }
 };
 
-void inline launch_kernel(void** args,
+void launch_kernel(void** args,
                           device_context const& device,
                           cudaStream_t s,
                           gpu_direction search_dir,
                           bool rt) {
+
   cudaSetDevice(device.id_);
   if(search_dir == gpu_direction::kForward && rt == true){
   cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,
@@ -779,6 +766,7 @@ void inline launch_kernel(void** args,
     cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kBackward,false>, device.grid_,
                                 device.threads_per_block_, args, 0, s);
   }
+
   cuda_check();
 }
 
