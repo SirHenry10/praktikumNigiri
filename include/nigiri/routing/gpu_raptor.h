@@ -93,7 +93,7 @@ __host__ __device__ inline gpu_sys_days base(gpu_timetable const* gtt, gpu_day_i
 template<gpu_direction SearchDir>
 __host__ __device__ static auto dir(auto a) { return (SearchDir==gpu_direction::kForward ? 1 : -1) * a; }
 
-__host__ __device__ gpu_delta_t to_gpu_delta(gpu_day_idx_t const day, std::int16_t const mam,gpu_day_idx_t* base_) {
+__host__ __device__ inline gpu_delta_t to_gpu_delta(gpu_day_idx_t const day, std::int16_t const mam,gpu_day_idx_t* base_) {
   return gpu_clamp((as_int(day) - as_int(*base_)) * 1440 + mam);
 }
 
@@ -125,8 +125,6 @@ struct gpu_raptor {
   static constexpr auto const kInvalid = kInvalidGpuDelta<SearchDir>;
   static constexpr auto const kUnreachable =
       std::numeric_limits<std::uint16_t>::max();
-  static auto const kIntermodalTarget =
-      gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
 
 
   gpu_raptor(gpu_timetable* gtt,
@@ -144,6 +142,8 @@ struct gpu_raptor {
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
     }
+    auto const kIntermodalTarget  =
+        gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,

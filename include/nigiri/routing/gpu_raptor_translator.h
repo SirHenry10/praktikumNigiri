@@ -221,7 +221,12 @@ template <nigiri::direction SearchDir, bool Rt>
 void gpu_raptor_translator<SearchDir, Rt>::add_start(nigiri::location_idx_t const l,
                                                      nigiri::unixtime_t const t) {
   auto gpu_l = *reinterpret_cast<const gpu_location_idx_t*>(&l);
-  auto gpu_t = *reinterpret_cast<const gpu_unixtime_t*>(&t);
+
+  // Konvertierung von t //TODO: checken ob so übersetzung stimmt
+  auto t_duration_since_epoch = t.time_since_epoch();
+  auto t_minutes_since_epoch = std::chrono::duration_cast<std::chrono::minutes>(t_duration_since_epoch);
+  auto gpu_t_minutes_since_epoch = cuda::std::chrono::minutes(t_minutes_since_epoch.count());
+  gpu_unixtime_t gpu_t(gpu_t_minutes_since_epoch);
   if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
     get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->add_start(gpu_l,gpu_t);
   } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
@@ -241,17 +246,17 @@ gpu_delta_t* gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
     nigiri::unixtime_t const worst_time_at_dest,
     nigiri::profile_idx_t const prf_idx) {
 
-  // Konvertierung von start_time
+  // Konvertierung von start_time zu cuda::std::chrono
   auto start_duration_since_epoch = start_time.time_since_epoch();
   auto start_minutes_since_epoch = std::chrono::duration_cast<std::chrono::minutes>(start_duration_since_epoch);
-  auto gpu_start_duration_since_epoch = cuda::std::chrono::duration<int32_t, cuda::std::ratio<60>>(start_minutes_since_epoch.count());
-  gpu_unixtime_t gpu_start_time(gpu_start_duration_since_epoch);
+  auto gpu_start_minutes_since_epoch = cuda::std::chrono::minutes(start_minutes_since_epoch.count());
+  gpu_unixtime_t gpu_start_time(gpu_start_minutes_since_epoch);
 
   // Konvertierung von worst_time_at_dest
   auto worst_duration_since_epoch = worst_time_at_dest.time_since_epoch();
   auto worst_minutes_since_epoch = std::chrono::duration_cast<std::chrono::minutes>(worst_duration_since_epoch);
-  auto gpu_worst_duration_since_epoch = cuda::std::chrono::duration<int32_t, cuda::std::ratio<60>>(worst_minutes_since_epoch.count());
-  gpu_unixtime_t gpu_worst_time_at_dest(gpu_worst_duration_since_epoch);
+  auto gpu_worst_minutes_since_epoch = cuda::std::chrono::minutes(worst_minutes_since_epoch.count());
+  gpu_unixtime_t gpu_worst_time_at_dest(gpu_worst_minutes_since_epoch);
   //TODO: überprüfen ob die konvertierung stimmt
 
   auto gpu_prf_idx = *reinterpret_cast<gpu_profile_idx_t const*>(&prf_idx);
@@ -281,7 +286,7 @@ gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(nigiri:
       reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t, std::uint64_t*>*>(
           &bitfields_data_);
   gpu_locations locations_ = gpu_locations(
-      reinterpret_cast<gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*>(
+      reinterpret_cast<gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*>(  //TODO: maybe auch anders übersetzen
           &tt.locations_.transfer_time_),
       reinterpret_cast<gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*>(
           tt.locations_.footpaths_out_.data()),
@@ -309,7 +314,7 @@ gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(nigiri:
       reinterpret_cast<
           gpu_vector_map<gpu_transport_idx_t, gpu_bitfield_idx_t>*>(
           &tt.transport_traffic_days_),
-      reinterpret_cast<nigiri::gpu_interval<gpu_sys_days>*>(&tt.date_range_),
+      reinterpret_cast<nigiri::gpu_interval<gpu_sys_days>*>(&tt.date_range_),  //TODO: überprüfen ob mit reinterpret_cast übersetzen geht oder ob ich noch per hand std::chrono in cuda::std::chron übersetzen muss
       &locations_,
       reinterpret_cast<gpu_vector_map<gpu_route_idx_t, gpu_clasz>*>(
           &tt.route_clasz_));

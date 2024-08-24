@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <cuda/std/chrono>
 #include <cuda/std/utility>
+#include <algorithm>
 
 #include "cista/containers/bitset.h"
 #include "cista/containers/ptr.h"
@@ -22,15 +23,11 @@ struct gpu_strong {
   __host__ __device__ explicit gpu_strong(T const& v) noexcept(
       std::is_nothrow_copy_constructible_v<T>)
       : v_{v} {}
-  __host__ __device__ constexpr explicit gpu_strong(T&& v) noexcept(
+  __host__ __device__ explicit gpu_strong(T&& v) noexcept(
       std::is_nothrow_move_constructible_v<T>)
       : v_{std::move(v)} {}
   template <typename X>
-#if _MSVC_LANG >= 202002L || __cplusplus >= 202002L
-    requires std::is_integral_v<std::decay_t<X>> &&
-             std::is_integral_v<std::decay_t<T>>
-#endif
-  explicit constexpr gpu_strong(X&& x) : v_{static_cast<T>(x)} {
+  __host__ __device__ explicit gpu_strong(X&& x) : v_{static_cast<T>(x)} {
   }
 
   __host__ __device__ gpu_strong(gpu_strong&& o) noexcept(
@@ -277,7 +274,7 @@ using gpu_base_t = typename gpu_base_type<T>::type;
 
 #ifdef NIGIRI_CUDA
 template <typename T, typename Tag>
-__host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(const gpu_strong<T, Tag>& s) {
+__host__ __device__ inline const typename gpu_strong<T, Tag>::value_t  gpu_to_idx(const gpu_strong<T, Tag>& s) {
   return s.v_;
 }
 template <typename T>
@@ -346,13 +343,13 @@ template <typename T>
 using ptr = T*;
 using gpu_i32_minutes = cuda::std::chrono::duration<int32_t, cuda::std::ratio<60>>;
 using gpu_u8_minutes = cuda::std::chrono::duration<std::uint8_t, cuda::std::ratio<60>>;
-auto test = cuda::std::chrono::system_clock();
 
 template <typename D>
 using gpu_sys_time = cuda::std::chrono::time_point<cuda::std::chrono::system_clock, D>;
 using gpu_unixtime_t = gpu_sys_time<gpu_i32_minutes>;
 using gpu_sys_days    = gpu_sys_time<gpu_days>;
-std::ostream& operator<<(std::ostream& out, const gpu_duration_t& duration) {
+
+__host__ __device__ inline std::ostream& operator<<(std::ostream& out, const gpu_duration_t& duration) {
   return out << duration.count() << " minute(s)";
 }
 struct gpu_delta{
@@ -365,9 +362,14 @@ struct gpu_delta{
     return !(operator==(a));
   }
 #ifdef NIGIRI_CUDA
+
   __host__ __device__ std::int16_t count() const { return days_ * 1440U + mam_; }
 #endif
 };
+template<typename T>
+__host__ __device__ T gpu_clamp(T value, T low, T high) {
+  return (value < low) ? low : (value > high) ? high : value;
+}
 #ifdef NIGIRI_CUDA
 template <typename T>
 __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
@@ -380,7 +382,7 @@ __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
   }
 #endif
   return static_cast<gpu_delta_t>(
-      std::clamp(t, static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::min()),
+      gpu_clamp(t, static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::min()),
                  static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::max())));
 }
 
@@ -415,7 +417,7 @@ inline gpu_delta_t gpu_clamp(T t) {
   }
 #endif
   return static_cast<gpu_delta_t>(
-      std::clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
+      gpu_clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
                  static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
 }
 inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base, gpu_unixtime_t const t) {
@@ -1255,7 +1257,7 @@ struct gpu_interval {
     return {from_, to_};
   }
 
-  __host__ __device__ T clamp(T const x) const { return std::clamp(x, from_, to_); }
+  __host__ __device__ T clamp(T const x) const { return gpu_clamp(x, from_, to_); }
 
   __host__ __device__ bool contains(T const t) const { return t >= from_ && t < to_; }
 
@@ -1341,7 +1343,7 @@ struct gpu_interval {
     return {from_, to_};
   }
 
-  T clamp(T const x) const { return std::clamp(x, from_, to_); }
+  T clamp(T const x) const { return gpu_clamp(x, from_, to_); }
 
   bool contains(T const t) const { return t >= from_ && t < to_; }
 
@@ -1413,31 +1415,31 @@ struct gpu_footpath {
   
   gpu_footpath() = default;
 
-  gpu_footpath(gpu_location_idx_t::value_t const val) {
+  __host__ __device__ gpu_footpath(gpu_location_idx_t::value_t const val) {
     std::memcpy(this, &val, sizeof(value_type));
   }
 
-  gpu_footpath(gpu_location_idx_t const target, gpu_duration_t const duration)
+  __host__ __device__ gpu_footpath(gpu_location_idx_t const target, gpu_duration_t const duration)
       : target_{target},
         duration_{static_cast<value_type>(
             (duration > kMaxDuration ? kMaxDuration : duration).count())} {
   }
 
-  gpu_location_idx_t target() const { return gpu_location_idx_t{target_}; }
-  gpu_duration_t duration() const { return gpu_duration_t{duration_}; }
+  __host__ __device__ gpu_location_idx_t target() const { return gpu_location_idx_t{target_}; }
+  __host__ __device__ gpu_duration_t duration() const { return gpu_duration_t{duration_}; }
 
-  gpu_location_idx_t::value_t value() const {
+  __host__ __device__ gpu_location_idx_t::value_t value() const {
     return *reinterpret_cast<gpu_location_idx_t::value_t const*>(this);
   }
-  friend std::ostream& operator<<(std::ostream& out, gpu_footpath const& fp) {
+  __host__ __device__ friend std::ostream& operator<<(std::ostream& out, gpu_footpath const& fp) {
     return out << "(" << fp.target() << ", " << fp.duration() << ")";
   }
 
-  friend bool operator==(gpu_footpath const& a, gpu_footpath const& b) {
+  __host__ __device__ friend bool operator==(gpu_footpath const& a, gpu_footpath const& b) {
     return a.value() == b.value();
   }
 
-  friend bool operator<(gpu_footpath const& a, gpu_footpath const& b) {
+  __host__ __device__ friend bool operator<(gpu_footpath const& a, gpu_footpath const& b) {
     return a.value() < b.value();
   }
 
@@ -1478,20 +1480,20 @@ enum class gpu_special_station : gpu_location_idx_t::value_t {
   kSpecialStationsSize
 };
 
-constexpr bool is_special(gpu_location_idx_t const l) {
+bool is_special(gpu_location_idx_t const l) {
   constexpr auto const max =
       static_cast<std::underlying_type_t<gpu_special_station>>(
           gpu_special_station::kSpecialStationsSize);
   return gpu_to_idx(l) < max;
 }
 
-constexpr auto const gpu_special_stations_names =
+auto const gpu_special_stations_names =
     cista::array<std::string_view,
                  static_cast<std::underlying_type_t<gpu_special_station>>(
                      gpu_special_station::kSpecialStationsSize)>{
         "START", "END", "VIA0", "VIA1", "VIA2", "VIA3", "VIA4", "VIA5", "VIA6"};
 
-constexpr gpu_location_idx_t get_gpu_special_station(gpu_special_station const x) {
+gpu_location_idx_t const get_gpu_special_station(gpu_special_station const x) {
   return gpu_location_idx_t{
       static_cast<std::underlying_type_t<gpu_special_station>>(x)};
 }

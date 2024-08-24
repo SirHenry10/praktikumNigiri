@@ -1,4 +1,4 @@
-
+#pragma once
 #include "nigiri/routing/gpu_raptor.h"
 
 #include <cooperative_groups.h>
@@ -535,12 +535,13 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     }
     // swap
     uint32_t const size = *gtt_->n_locations_;
-    uint32_t dummy_marks[size];
+    uint32_t* dummy_marks = new uint32_t[size]; //TODO: dass ändern von new zu einem speicher der vorher gemalloced wurde da so sehr teuer und kosten sehr viel performance
     for(int i=0; i < *gtt_->n_locations_; i++){
       dummy_marks[i] = station_mark_[i];
       station_mark_[i] = prev_station_mark_[i];
-      prev_station_mark_[i] = station_mark_[i];
+      prev_station_mark_[i] = dummy_marks[i]; //TODO: hab hier dummy_marks hin gemacht weil sonst währe es kein swap
     }
+    delete[] dummy_marks;
     // fill
     for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF;
@@ -570,12 +571,13 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     }
     // swap
     uint32_t const size = *gtt_->n_locations_;
-    uint32_t dummy_marks[size];
+    uint32_t* dummy_marks = new uint32_t[size];
     for(int i=0; i < *gtt_->n_locations_; i++){
       dummy_marks[i] = station_mark_[i];
       station_mark_[i] = prev_station_mark_[i];
-      prev_station_mark_[i] = station_mark_[i];
+      prev_station_mark_[i] = dummy_marks[i]; //TODO: nike ich hab das zu = dummy_marks geändert weil du sonst ja nicht swapen würdest
     }
+    delete[] dummy_marks;
     // fill
     for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF; // soll es auf false setzen
