@@ -188,7 +188,7 @@ struct gpu_bitset {
     return sum + popcount(sanitized_last_block());
   }
 
-  __host__ __device__ constexpr bool test(std::size_t const i) const noexcept {
+  __host__ __device__ bool test(std::size_t const i) const noexcept {
     if (i >= Size) {
       return false;
     }

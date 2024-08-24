@@ -149,15 +149,7 @@ __device__ It linear_lb(It from, End to, Key&& key, Cmp&& cmp) {
 template <gpu_direction SearchDir, bool Rt>
 __device__ bool is_transport_active(gpu_transport_idx_t const t,
                                     std::size_t const day , gpu_timetable* gtt_)  {
-  const auto traffic_day = (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]];
-  // test(i=day) methode
-  if (day >= traffic_day.size()) {
-    return false;
-  }
-  const auto bitfields_data = (*gtt_->bitfields_data_)[(*gtt_->transport_traffic_days_)[t]];
-  auto const block = bitfields_data[day / traffic_day.bits_per_block];
-  auto const bit = (day % traffic_day.bits_per_block);
-  return (block & (std::uint64_t{1U} << bit)) != 0U;
+  return (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]].test(day);
 }
 
 

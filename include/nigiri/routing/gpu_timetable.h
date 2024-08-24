@@ -14,7 +14,6 @@ extern "C"{
     gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>>* route_stop_time_ranges_{nullptr};
     gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >>* route_transport_ranges_{nullptr};
     gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>* bitfields_{nullptr};
-    gpu_vector_map<gpu_bitfield_idx_t,std::uint64_t*>* bitfields_data_{nullptr};
     gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>* transport_traffic_days_{nullptr};
     gpu_interval<gpu_sys_days>* date_range_{nullptr};
     gpu_locations* locations_{nullptr};
@@ -55,7 +54,6 @@ extern "C"{
                                              gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
                                              gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                              gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
-                                             gpu_vector_map<gpu_bitfield_idx_t,std::uint64_t*> const* bitfields_data_,
                                              gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
                                              gpu_interval<gpu_sys_days> const* date_range,
                                              gpu_locations const* locations,

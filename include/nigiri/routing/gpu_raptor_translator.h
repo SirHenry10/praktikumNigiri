@@ -73,7 +73,6 @@ struct gpu_raptor_translator {
   static bool test(bool hi);
 private:
   date::sys_days base() const;
-  gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt);
   gpu_delta_t* get_gpu_roundtimes(nigiri::unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   nigiri::unixtime_t const worst_time_at_dest,
@@ -149,6 +148,41 @@ date::sys_days gpu_raptor_translator<SearchDir, Rt>::base() const{
   return tt_.internal_interval_days().from_ +translator_as_int(base_) * date::days{1};
 };
 
+static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
+  gpu_locations locations_ = gpu_locations(
+      reinterpret_cast<gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*>(
+          &tt.locations_.transfer_time_),
+      reinterpret_cast<gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*>(
+          &tt.locations_.footpaths_out_),
+      reinterpret_cast<gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*>(
+          &tt.locations_.footpaths_in_));
+  auto n_locations = tt.n_locations();
+  auto n_routes = tt.n_routes();
+  auto gtt = create_gpu_timetable(
+      reinterpret_cast<gpu_delta*>(tt.route_stop_times_.data()),
+      tt.route_stop_times_.size(),
+      reinterpret_cast<gpu_vecvec<gpu_route_idx_t, gpu_value_type>*>(
+          &tt.route_location_seq_),
+      reinterpret_cast<gpu_vecvec<gpu_location_idx_t, gpu_route_idx_t>*>(
+          &tt.location_routes_),
+      &n_locations, &n_routes,
+      reinterpret_cast<gpu_vector_map<gpu_route_idx_t,
+                                      nigiri::gpu_interval<std::uint32_t>>*>(
+          &tt.route_stop_time_ranges_),
+      reinterpret_cast<gpu_vector_map<
+          gpu_route_idx_t, nigiri::gpu_interval<gpu_transport_idx_t>>*>(
+          &tt.route_transport_ranges_),
+      reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>*>(
+          &tt.bitfields_),
+      reinterpret_cast<
+          gpu_vector_map<gpu_transport_idx_t, gpu_bitfield_idx_t>*>(
+          &tt.transport_traffic_days_),
+      reinterpret_cast<nigiri::gpu_interval<gpu_sys_days>*>(&tt.date_range_),
+      &locations_,
+      reinterpret_cast<gpu_vector_map<gpu_route_idx_t, gpu_clasz>*>(
+          &tt.route_clasz_));
+  return gtt;
+}
 template <nigiri::direction SearchDir, bool Rt>
 gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
     nigiri::timetable const& tt,
@@ -171,6 +205,7 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
       n_routes_{tt.n_routes()},
       n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
       allowed_claszes_{allowed_claszes}{
+  std::cerr << "Test gpu_raptor_translator()" << std::endl;
   auto gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
   auto gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
   auto gtt = translate_tt_in_gtt(tt_);
@@ -222,11 +257,7 @@ void gpu_raptor_translator<SearchDir, Rt>::add_start(nigiri::location_idx_t cons
                                                      nigiri::unixtime_t const t) {
   auto gpu_l = *reinterpret_cast<const gpu_location_idx_t*>(&l);
 
-  // Konvertierung von t //TODO: checken ob so übersetzung stimmt
-  auto t_duration_since_epoch = t.time_since_epoch();
-  auto t_minutes_since_epoch = std::chrono::duration_cast<std::chrono::minutes>(t_duration_since_epoch);
-  auto gpu_t_minutes_since_epoch = cuda::std::chrono::minutes(t_minutes_since_epoch.count());
-  gpu_unixtime_t gpu_t(gpu_t_minutes_since_epoch);
+  gpu_unixtime_t gpu_t = *reinterpret_cast<gpu_unixtime_t const*>(&t);
   if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
     get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->add_start(gpu_l,gpu_t);
   } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
@@ -246,18 +277,9 @@ gpu_delta_t* gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
     nigiri::unixtime_t const worst_time_at_dest,
     nigiri::profile_idx_t const prf_idx) {
 
-  // Konvertierung von start_time zu cuda::std::chrono
-  auto start_duration_since_epoch = start_time.time_since_epoch();
-  auto start_minutes_since_epoch = std::chrono::duration_cast<std::chrono::minutes>(start_duration_since_epoch);
-  auto gpu_start_minutes_since_epoch = cuda::std::chrono::minutes(start_minutes_since_epoch.count());
-  gpu_unixtime_t gpu_start_time(gpu_start_minutes_since_epoch);
+  gpu_unixtime_t gpu_start_time = *reinterpret_cast<gpu_unixtime_t const*>(&start_time);
 
-  // Konvertierung von worst_time_at_dest
-  auto worst_duration_since_epoch = worst_time_at_dest.time_since_epoch();
-  auto worst_minutes_since_epoch = std::chrono::duration_cast<std::chrono::minutes>(worst_duration_since_epoch);
-  auto gpu_worst_minutes_since_epoch = cuda::std::chrono::minutes(worst_minutes_since_epoch.count());
-  gpu_unixtime_t gpu_worst_time_at_dest(gpu_worst_minutes_since_epoch);
-  //TODO: überprüfen ob die konvertierung stimmt
+  gpu_unixtime_t gpu_worst_time_at_dest = *reinterpret_cast<gpu_unixtime_t const*>(&worst_time_at_dest);;
 
   auto gpu_prf_idx = *reinterpret_cast<gpu_profile_idx_t const*>(&prf_idx);
   gpu_delta_t* gpu_round_times;
@@ -274,52 +296,6 @@ gpu_delta_t* gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
   return gpu_round_times;
 }
 
-template <nigiri::direction SearchDir, bool Rt>
-gpu_timetable* gpu_raptor_translator<SearchDir, Rt>::translate_tt_in_gtt(nigiri::timetable tt) {
-  vector_map<nigiri::bitfield_idx_t, std::uint64_t*> bitfields_data_ =
-      vector_map<nigiri::bitfield_idx_t, std::uint64_t*>();
-  for (nigiri::bitfield_idx_t i = nigiri::bitfield_idx_t{0}; i < tt.bitfields_.size(); ++i) {
-    auto t = tt.bitfields_.at(i);
-    bitfields_data_.emplace_back(t.blocks_.data());     //TODO: überprüfen ob es so funktioniert
-  }
-  auto gpu_bitfields_data_ =
-      reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t, std::uint64_t*>*>(
-          &bitfields_data_);
-  gpu_locations locations_ = gpu_locations(
-      reinterpret_cast<gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*>(  //TODO: maybe auch anders übersetzen
-          &tt.locations_.transfer_time_),
-      reinterpret_cast<gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*>(
-          tt.locations_.footpaths_out_.data()),
-      reinterpret_cast<gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*>(
-          tt.locations_.footpaths_in_.data()));
-  auto n_locations = tt.n_locations();
-  auto n_routes = tt.n_routes();
-  auto gtt = create_gpu_timetable(
-      reinterpret_cast<gpu_delta*>(tt.route_stop_times_.data()),
-      tt.route_stop_times_.size(),
-      reinterpret_cast<gpu_vecvec<gpu_route_idx_t, gpu_value_type>*>(
-          &tt.route_location_seq_),
-      reinterpret_cast<gpu_vecvec<gpu_location_idx_t, gpu_route_idx_t>*>(
-          &tt.location_routes_),
-      &n_locations, &n_routes,
-      reinterpret_cast<gpu_vector_map<gpu_route_idx_t,
-                                      nigiri::gpu_interval<std::uint32_t>>*>(
-          &tt.route_stop_time_ranges_),
-      reinterpret_cast<gpu_vector_map<
-          gpu_route_idx_t, nigiri::gpu_interval<gpu_transport_idx_t>>*>(
-          &tt.route_transport_ranges_),
-      reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>*>(
-          &tt.bitfields_),
-      gpu_bitfields_data_,
-      reinterpret_cast<
-          gpu_vector_map<gpu_transport_idx_t, gpu_bitfield_idx_t>*>(
-          &tt.transport_traffic_days_),
-      reinterpret_cast<nigiri::gpu_interval<gpu_sys_days>*>(&tt.date_range_),  //TODO: überprüfen ob mit reinterpret_cast übersetzen geht oder ob ich noch per hand std::chrono in cuda::std::chron übersetzen muss
-      &locations_,
-      reinterpret_cast<gpu_vector_map<gpu_route_idx_t, gpu_clasz>*>(
-          &tt.route_clasz_));
-  return gtt;
-}
 template <nigiri::direction SearchDir, bool Rt>
 mem* gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable* gtt) {
   state_.resize(n_locations_,n_routes_,n_rt_transports_);

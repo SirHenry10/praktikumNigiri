@@ -16,6 +16,19 @@ using namespace nigiri::routing;
 using namespace nigiri::test_data::hrd_timetable;
 using namespace std::chrono_literals;
 using nigiri::test::raptor_search;
+
+TEST(routing, gpu_timetable) {
+  constexpr auto const src = source_idx_t{0U};
+
+  timetable tt;
+  tt.date_range_ = full_period();
+  load_timetable(src, loader::hrd::hrd_5_20_26, files_abc(), tt);
+  finalize(tt);
+  auto gtt = translate_tt_in_gtt(tt);
+  //EXPECT_NE(nullptr, gtt);
+  //destroy_gpu_timetable(gtt);
+  //EXPECT_EQ(nullptr, gtt);
+}
 TEST(routing, gpu_raptor) {
   constexpr auto const src = source_idx_t{0U};
 
@@ -29,20 +42,22 @@ TEST(routing, gpu_raptor) {
       );
   *///EXPECT_NE(nullptr, gtt);
   //destroy_gpu_timetable(gtt);
-  direction const SearchDir = nigiri::direction::kForward;
   auto rtt = rt_timetable{};
   using algo_state_t = routing::raptor_state;
   static auto search_state = routing::search_state{};
   static auto algo_state = algo_state_t{};
+  testing::internal::CaptureStdout();
 
 
-  //auto const results =
-  //    raptor_search(tt, &rtt, "A", "D", sys_days{May / 2 / 2019} +23h,
-  //                  direction::kForward,true);
+  std::cerr << "raptor_search_started" << std::endl;
+  auto const results =
+      raptor_search(tt, &rtt, "A", "D", sys_days{May / 2 / 2019} +23h,
+                    direction::kForward,true);
 
-
+  auto SearchDir = direction::kForward;
   auto gpu_direction2 = *reinterpret_cast<const gpu_direction*>(&SearchDir);
   bool tester = gpu_direction2 == gpu_direction::kForward;
   std::cout<<"reinterpret_cast SearchDir is working: " << tester;
-  //std::cout<<"" << results.size();
+  std::cout<<"" << results.size();
+
 }
