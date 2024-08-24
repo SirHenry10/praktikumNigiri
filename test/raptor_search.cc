@@ -30,6 +30,7 @@ pareto_set<routing::journey> raptor_search(timetable const& tt,
 
   if (rtt == nullptr) {
     if(gpu){
+      std::cerr << "debugger: 0" << std::endl;
       //gpu_raptor without rtt
       using algo_t = gpu_raptor_translator<SearchDir, false>;
       return *(routing::search<SearchDir, algo_t>{tt, rtt, search_state,
@@ -66,6 +67,7 @@ pareto_set<routing::journey> raptor_search(timetable const& tt,
                                            routing::query q,
                                            direction const search_dir,
                                            bool gpu) {
+  std::cerr << "debugger: -1" << std::endl;
   if (search_dir == direction::kForward) {
     return raptor_search<direction::kForward>(tt, rtt, std::move(q),gpu);
   } else {

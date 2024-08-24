@@ -7,7 +7,7 @@
 extern "C"{
   struct gpu_timetable {
     gpu_delta* route_stop_times_{nullptr};
-    gpu_vecvec<gpu_route_idx_t,gpu_value_type,unsigned int>* route_location_seq_ {nullptr};
+    gpu_vecvec<gpu_route_idx_t,gpu_value_type,unsigned int> * route_location_seq_ {nullptr};
     gpu_vecvec<gpu_location_idx_t,gpu_route_idx_t,unsigned int>* location_routes_ {nullptr};
     std::uint32_t* n_locations_{nullptr};
     std::uint32_t* n_routes_{nullptr};

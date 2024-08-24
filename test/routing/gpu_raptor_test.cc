@@ -25,9 +25,9 @@ TEST(routing, gpu_timetable) {
   load_timetable(src, loader::hrd::hrd_5_20_26, files_abc(), tt);
   finalize(tt);
   auto gtt = translate_tt_in_gtt(tt);
-  //EXPECT_NE(nullptr, gtt);
-  //destroy_gpu_timetable(gtt);
-  //EXPECT_EQ(nullptr, gtt);
+  EXPECT_NE(nullptr, gtt);
+  destroy_gpu_timetable(gtt);
+  EXPECT_EQ(nullptr, gtt);
 }
 TEST(routing, gpu_raptor) {
   constexpr auto const src = source_idx_t{0U};
