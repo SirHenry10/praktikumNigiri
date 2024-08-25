@@ -1,6 +1,10 @@
 #include "nigiri/routing/journey.h"
 
 #include "nigiri/routing/pareto_set.h"
+enum GPU{
+  useGPU,
+  nonGPU
+};
 
 namespace nigiri {
 struct timetable;
@@ -16,8 +20,8 @@ pareto_set<routing::journey> raptor_search(
     std::string_view to,
     std::string_view time,
     direction = direction::kForward,
-    routing::clasz_mask_t mask = routing::all_clasz_allowed(),
-    bool gpu = false);
+    routing::clasz_mask_t mask = routing::all_clasz_allowed()
+    );
 
 pareto_set<routing::journey> raptor_search(
     timetable const&,
@@ -26,15 +30,13 @@ pareto_set<routing::journey> raptor_search(
     std::string_view to,
     routing::start_time_t,
     direction = direction::kForward,
-    routing::clasz_mask_t mask = routing::all_clasz_allowed(),
-    bool gpu = false);
+    routing::clasz_mask_t mask = routing::all_clasz_allowed());
 
 
 pareto_set<routing::journey> raptor_search(timetable const&,
                                            rt_timetable const*,
                                            routing::query,
-                                           direction = direction::kForward,
-                                           bool gpu = false);
+                                           direction = direction::kForward);
 
 pareto_set<routing::journey> raptor_intermodal_search(
     timetable const&,
@@ -45,7 +47,45 @@ pareto_set<routing::journey> raptor_intermodal_search(
     direction = direction::kForward,
     std::uint8_t min_connection_count = 0U,
     bool extend_interval_earlier = false,
-    bool extend_interval_later = false,
-    bool gpu = false);
+    bool extend_interval_later = false);
 
+pareto_set<routing::journey> raptor_search(
+    timetable const&,
+    rt_timetable const*,
+    std::string_view from,
+    std::string_view to,
+    std::string_view time,
+    GPU gpu,
+    direction = direction::kForward,
+    routing::clasz_mask_t mask = routing::all_clasz_allowed()
+);
+
+pareto_set<routing::journey> raptor_search(
+    timetable const&,
+    rt_timetable const*,
+    std::string_view from,
+    std::string_view to,
+    routing::start_time_t,
+    GPU gpu,
+    direction = direction::kForward,
+    routing::clasz_mask_t mask = routing::all_clasz_allowed());
+
+
+pareto_set<routing::journey> raptor_search(timetable const&,
+                                           rt_timetable const*,
+                                           routing::query,
+                                           GPU gpu,
+                                           direction = direction::kForward);
+
+pareto_set<routing::journey> raptor_intermodal_search(
+    timetable const&,
+    rt_timetable const*,
+    std::vector<routing::offset> start,
+    std::vector<routing::offset> destination,
+    routing::start_time_t,
+    GPU gpu,
+    direction = direction::kForward,
+    std::uint8_t min_connection_count = 0U,
+    bool extend_interval_earlier = false,
+    bool extend_interval_later = false);
 }  // namespace nigiri::test
