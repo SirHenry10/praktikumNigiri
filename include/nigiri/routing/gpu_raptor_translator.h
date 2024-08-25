@@ -150,7 +150,6 @@ date::sys_days gpu_raptor_translator<SearchDir, Rt>::base() const{
 
 static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
 
-  std::cerr << "test1" << std::endl;
   gpu_locations locations_ = gpu_locations(
       reinterpret_cast<gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*>(
           &tt.locations_.transfer_time_),
@@ -159,10 +158,8 @@ static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
       reinterpret_cast<gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*>(
           &tt.locations_.footpaths_in_));
 
-  std::cerr << "Test2" << std::endl;
   uint32_t n_locations = tt.n_locations();;
   uint32_t n_routes = tt.n_routes();
-  std::cerr << "Test3" << std::endl;
   auto gtt = create_gpu_timetable(
       reinterpret_cast<gpu_delta*>(tt.route_stop_times_.data()),
       tt.route_stop_times_.size(),
@@ -187,7 +184,6 @@ static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
       &locations_,
       reinterpret_cast<gpu_vector_map<gpu_route_idx_t, gpu_clasz>*>(
           &tt.route_clasz_));
-  std::cerr << "Test4" << std::endl;
   return gtt;
 }
 template <nigiri::direction SearchDir, bool Rt>

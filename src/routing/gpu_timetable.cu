@@ -22,117 +22,71 @@
     device_bytes += size * sizeof(type);
 
 template <typename KeyType, typename ValueType>
-gpu_vecvec<KeyType, ValueType>* copy_gpu_vecvec_to_device(gpu_vecvec<KeyType, ValueType> const* host_vecvec, size_t& device_bytes, cudaError_t& code) {
-  std::cerr << "Test3.11" << std::endl;
-  fflush(stdout);
-  using VecVec = gpu_vecvec<KeyType, ValueType>;
+void copy_gpu_vecvec_to_device(gpu_vecvec<KeyType, ValueType> const* h_vecvec,gpu_vecvec<KeyType, ValueType>*& d_vecvec, size_t& device_bytes, cudaError_t& code) {
+  // Device-Speicher für `gpu_vecvec` zuweisen
+  d_vecvec = nullptr;
+  gpu_vector<ValueType>* d_data = nullptr;
+  gpu_vector<gpu_base_t<KeyType>>* d_bucket_starts = nullptr;
+  CUDA_CALL(cudaMalloc(&d_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>)));
 
-  // Step 1: Allocate memory on the device for the `gpu_vecvec` structure
-  VecVec* device_vecvec = nullptr;
-  gpu_base_t<KeyType>* device_bucket_starts = nullptr;
-  ValueType* device_data = nullptr;
-  VecVec host_vecvec_copy = *host_vecvec; // Create a host copy to modify the pointers
-  CUDA_CALL(cudaMalloc(&device_vecvec, sizeof(VecVec)));
+  // Device-Speicher für `bucket_starts_` und `data_` zuweisen
+  CUDA_CALL(cudaMalloc(&d_bucket_starts, h_vecvec->bucket_starts_.size() * sizeof(gpu_base_t<KeyType>)));
+  CUDA_CALL(cudaMemcpy(d_bucket_starts, h_vecvec->bucket_starts_.data(),
+                        h_vecvec->bucket_starts_.size() * sizeof(gpu_base_t<KeyType>), cudaMemcpyHostToDevice));
 
-  std::cerr << "Test3.112" << std::endl;
-  // Step 2: Allocate memory on the device for `bucket_starts`
-  CUDA_CALL(cudaMalloc(&device_bucket_starts, host_vecvec->bucket_starts_.size() * sizeof(gpu_base_t<KeyType>)));
+  CUDA_CALL(cudaMalloc(&d_data, h_vecvec->data_.size() * sizeof(ValueType)));
+  CUDA_CALL(cudaMemcpy(d_data, h_vecvec->data_.data(),
+                        h_vecvec->data_.size() * sizeof(ValueType), cudaMemcpyHostToDevice));
 
-  std::cerr << "Test3.113" << std::endl;
-  // Copy `bucket_starts` from host to device
-  CUDA_CALL(cudaMemcpy(device_bucket_starts, host_vecvec->bucket_starts_.data(),
-                    host_vecvec->bucket_starts_.size() * sizeof(gpu_base_t<KeyType>), cudaMemcpyHostToDevice));
+  // Die Kopie der Vektorzeiger auf die GPU-Struktur setzen
+  CUDA_CALL(cudaMemcpy(&(d_vecvec->bucket_starts_), &d_bucket_starts, sizeof(gpu_vector<gpu_base_t<KeyType>>), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_vecvec->data_), &d_data, sizeof(gpu_vector<ValueType>), cudaMemcpyHostToDevice));
 
-  std::cerr << "Test3.114" << std::endl;
-  // Step 3: Allocate memory on the device for `data`
-  CUDA_CALL(cudaMalloc(&device_data, host_vecvec->data_.size() * sizeof(ValueType)));
+  CUDA_CALL(cudaMemcpy(&(d_vecvec->bucket_starts_.used_size_), &h_vecvec->bucket_starts_.used_size_, sizeof(h_vecvec->bucket_starts_.used_size_), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_vecvec->bucket_starts_.allocated_size_), &h_vecvec->bucket_starts_.allocated_size_, sizeof(h_vecvec->bucket_starts_.allocated_size_), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_vecvec->bucket_starts_.self_allocated_), &h_vecvec->bucket_starts_.self_allocated_, sizeof(h_vecvec->bucket_starts_.self_allocated_), cudaMemcpyHostToDevice));
 
-  std::cerr << "Test3.115" << std::endl;
-  // Copy `data` from host to device
-  CUDA_CALL(cudaMemcpy(device_data, host_vecvec->data_.data(),
-                    host_vecvec->data_.size() * sizeof(ValueType), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_vecvec->data_.used_size_), &h_vecvec->data_.used_size_, sizeof(h_vecvec->data_.used_size_), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_vecvec->data_.allocated_size_), &h_vecvec->data_.allocated_size_, sizeof(h_vecvec->data_.allocated_size_), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_vecvec->data_.self_allocated_), &h_vecvec->data_.self_allocated_, sizeof(h_vecvec->data_.self_allocated_), cudaMemcpyHostToDevice));
 
-  std::cerr << "Test3.116" << std::endl;
-  // Step 4: Update the `gpu_vecvec` on the device to point to device memory
-  host_vecvec_copy.bucket_starts_.el_ = device_bucket_starts;
-  host_vecvec_copy.data_.el_ = device_data;
-
-  std::cerr << "Test3.117" << std::endl;
-  // Copy the modified `gpu_vecvec` from host to device
-  CUDA_CALL(cudaMemcpy(device_vecvec, &host_vecvec_copy, sizeof(VecVec), cudaMemcpyHostToDevice));
-
-  std::cerr << "Test3.118" << std::endl;
-  device_bytes += sizeof(VecVec);
-  device_bytes += host_vecvec->bucket_starts_.size() * sizeof(gpu_base_t<KeyType>);
-  device_bytes += host_vecvec->data_.size() * sizeof(ValueType);
-
-  if (cudaDeviceSynchronize() != cudaSuccess) {
-    std::cerr << "CUDA synchronization error "  << std::endl;
-    goto fail;
-  }
-  std::cerr << "Test3.119" << std::endl;
-  if (!device_vecvec || !device_bucket_starts || !device_data) {
-    std::cerr << "Error: Memory allocation failed." << std::endl;
-    goto fail;
-  }
-  std::cerr << "device_data_data: " << host_vecvec_copy.data_.data() << std::endl;
-  std::cerr << "device_bucket_starts_data: " << host_vecvec_copy.bucket_starts_.data() << std::endl;
-  std::cerr << "device_data_data: " << device_vecvec->data_.data() << std::endl;
-  std::cerr << "device_bucket_starts_data: " << device_vecvec->bucket_starts_.data() << std::endl;
-  std::cerr << "Pointer status: " << std::endl;
-  std::cerr << "device_vecvec: " << device_vecvec << std::endl;
-  std::cerr << "device_bucket_starts: " << device_bucket_starts << std::endl;
-  std::cerr << "device_data: " << device_data << std::endl;
-  std::cerr << "device_data_size: " << device_vecvec->data_.size() << std::endl;
-  std::cerr << "device_bucket_starts_size: " << device_vecvec->bucket_starts_.size() << std::endl;
-
-  return device_vecvec;
+  device_bytes += sizeof(gpu_vecvec<KeyType, ValueType>);
+  return;
 fail:
-  std::cerr << "Test3.32" << std::endl;
-  if (device_bucket_starts) cudaFree(device_bucket_starts);
-  if (device_data) cudaFree(device_data);
-  if (device_vecvec) cudaFree(device_vecvec);
-  return nullptr;
+  std::cerr << "ERROR VECVEC" << std::endl;
+  if (d_bucket_starts) cudaFree(d_bucket_starts);
+  if (d_data) cudaFree(d_data);
+  if (d_vecvec) cudaFree(d_vecvec);
+  d_vecvec = nullptr;
+  return;
 }
 
 template <typename KeyType, typename ValueType>
-gpu_vector_map<KeyType, ValueType>* copy_gpu_vector_map_to_device(
-    const gpu_vector_map<KeyType, ValueType>* host_vector_map,
+void copy_gpu_vector_map_to_device(
+    const gpu_vector_map<KeyType, ValueType>* h_map,gpu_vector_map<KeyType, ValueType>*& d_map,
     size_t& device_bytes, cudaError_t& code) {
 
-  std::cerr << "Test3.12" << std::endl;
-  using MapType = gpu_vector_map<KeyType, ValueType>;
+  // Device-Speicher für gpu_vector_map zuweisen
+  d_map = nullptr;
+  gpu_vector<ValueType>* d_data = nullptr;
+  CUDA_CALL(cudaMalloc(&d_map, sizeof(gpu_vector_map<KeyType, ValueType>)));
+  // Device-Speicher für die Daten innerhalb von gpu_vector_map zuweisen
+  CUDA_CALL(cudaMalloc(&d_data, h_map->size() * sizeof(ValueType)));
+  CUDA_CALL(cudaMemcpy(d_data, h_map->data(), h_map->size() * sizeof(ValueType), cudaMemcpyHostToDevice));
+  // Die Kopie des Datenzeigers auf die GPU-Struktur setzen
+  CUDA_CALL(cudaMemcpy(&(d_map->el_), &d_data, sizeof(gpu_vector<ValueType>), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_map->used_size_), &h_map->used_size_, sizeof(h_map->used_size_), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_map->allocated_size_), &h_map->allocated_size_, sizeof(h_map->allocated_size_), cudaMemcpyHostToDevice));
+  CUDA_CALL(cudaMemcpy(&(d_map->self_allocated_), &h_map->self_allocated_, sizeof(h_map->self_allocated_), cudaMemcpyHostToDevice))
 
-  // Schritt 1: Allokieren des Gerätespeichers für die `gpu_vector_map`-Struktur
-  MapType* device_vector_map = nullptr;
-  ValueType* device_data = nullptr;
-  MapType host_map_copy = *host_vector_map;
-  CUDA_CALL(cudaMalloc(&device_vector_map, sizeof(MapType)));
-
-  // Schritt 2: Allokieren des Gerätespeichers für `el_` (die Daten)
-  CUDA_CALL(cudaMalloc(&device_data, host_vector_map->size() * sizeof(ValueType)));
-
-  // Schritt 3: Kopieren der Daten vom Host zum Gerät
-  CUDA_CALL(cudaMemcpy(device_data, host_vector_map->data(),
-                    host_vector_map->size() * sizeof(ValueType),
-                    cudaMemcpyHostToDevice));
-
-  // Schritt 4: Aktualisieren der `el_`-Zeiger im `gpu_vector_map` auf dem Gerät
-  host_map_copy.el_ = device_data;
-
-  // Kopieren der aktualisierten `gpu_vector_map`-Struktur zurück auf das Gerät
-  CUDA_CALL(cudaMemcpy(device_vector_map, &host_map_copy, sizeof(MapType),
-                    cudaMemcpyHostToDevice));
-
-  cudaDeviceSynchronize();
-  device_bytes += sizeof(MapType);
-  device_bytes += host_vector_map->size() * sizeof(ValueType);
-  std::cerr << "Test3.121" << std::endl;
-  return device_vector_map;
+  device_bytes += sizeof(gpu_vector_map<KeyType, ValueType>);
+  return;
 fail:
-    if (device_data) cudaFree(device_data);
-    if (device_vector_map) cudaFree(device_vector_map);
-    return nullptr;
+  std::cerr << "ERROR VECMAP" << std::endl;
+    if (d_data) cudaFree(d_data);
+    if (d_map) cudaFree(d_map);
+    d_map = nullptr;
+    return;
 }
 
 struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
@@ -149,7 +103,6 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                            gpu_locations const* locations,
                                            gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz) {
   size_t device_bytes = 0U;
-  std::cerr << "Test3.1" << std::endl;
   cudaError_t code;
   gpu_timetable* gtt =
       static_cast<gpu_timetable*>(malloc(sizeof(gpu_timetable)));
@@ -157,51 +110,52 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
     printf("nigiri gpu raptor: malloc for gpu_timetable failed\n");
     return nullptr;
   }
-  std::cerr << "Test3.2" << std::endl;
   auto locations_copy = *locations;
   // route_stop_times_
   gtt->route_stop_times_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_delta, gtt->route_stop_times_, route_stop_times,
                       n_route_stop_times);
-  std::cerr << "Test3.24" << std::endl;
   //route_location_seq
-  gtt->route_location_seq_ = copy_gpu_vecvec_to_device(route_location_seq,device_bytes,code);
+   copy_gpu_vecvec_to_device(route_location_seq,gtt->route_location_seq_,device_bytes,code);
 
 
-  std::cerr << "Test3.25" << std::endl;
   //location_routes_
-  gtt->location_routes_ = copy_gpu_vecvec_to_device(location_routes, device_bytes, code);
+  copy_gpu_vecvec_to_device(location_routes,gtt->location_routes_, device_bytes, code);
   //n_locations_
-  std::cerr << "Test3.3" << std::endl;
   gtt->n_locations_ = nullptr;
   CUDA_COPY_TO_DEVICE(uint32_t , gtt->n_locations_, n_locations,1);
   //n_routes_
   gtt->n_routes_ = nullptr;
   CUDA_COPY_TO_DEVICE(uint32_t , gtt->n_routes_, n_routes,1);
   //route_stop_time_ranges_
-  gtt->route_stop_time_ranges_ = copy_gpu_vector_map_to_device(route_stop_time_ranges,device_bytes,code);
+  copy_gpu_vector_map_to_device(route_stop_time_ranges,gtt->route_stop_time_ranges_,device_bytes,code);
   //route_transport_ranges_
-  gtt->route_transport_ranges_ = copy_gpu_vector_map_to_device(route_transport_ranges,device_bytes,code);
+  copy_gpu_vector_map_to_device(route_transport_ranges,gtt->route_transport_ranges_,device_bytes,code);
   //bitfields_
-  gtt->bitfields_ = copy_gpu_vector_map_to_device(bitfields,device_bytes,code);
+  copy_gpu_vector_map_to_device(bitfields,gtt->bitfields_,device_bytes,code);
   //transport_traffic_days_
-  gtt->transport_traffic_days_ = copy_gpu_vector_map_to_device(transport_traffic_days,device_bytes,code);
+  copy_gpu_vector_map_to_device(transport_traffic_days,gtt->transport_traffic_days_,device_bytes,code);
   //date_range_
-  std::cerr << "Test3.4" << std::endl;
   gtt->date_range_ = nullptr;
   using gpu_date_range = gpu_interval<gpu_sys_days>;
   CUDA_COPY_TO_DEVICE(gpu_date_range , gtt->date_range_, date_range,1);
   //locations_
   gtt->locations_ = nullptr;
-  locations_copy.transfer_time_ = copy_gpu_vector_map_to_device(locations->transfer_time_,device_bytes,code);
-  locations_copy.gpu_footpaths_in_ = copy_gpu_vecvec_to_device(locations->gpu_footpaths_in_,device_bytes,code);
-  locations_copy.gpu_footpaths_out_ = copy_gpu_vecvec_to_device(locations->gpu_footpaths_out_,device_bytes,code);
+  //TODO:maybe fix locations?
+  std::cerr << "Locations" << std::endl;
+  copy_gpu_vector_map_to_device(locations->transfer_time_,locations_copy.transfer_time_,device_bytes,code);
+  copy_gpu_vecvec_to_device(locations->gpu_footpaths_in_,locations_copy.gpu_footpaths_in_,device_bytes,code);
+  copy_gpu_vecvec_to_device(locations->gpu_footpaths_out_,locations_copy.gpu_footpaths_out_,device_bytes,code);
   CUDA_COPY_TO_DEVICE(gpu_locations, gtt->locations_, &locations_copy,1);
-  std::cerr << "Test3.5" << std::endl;
   //route_clasz_
-  gtt->route_clasz_ = copy_gpu_vector_map_to_device(route_clasz,device_bytes,code);
+  copy_gpu_vector_map_to_device(route_clasz,gtt->route_clasz_,device_bytes,code);
 
   cudaDeviceSynchronize();
+  if(!gtt->route_stop_times_||!gtt->route_location_seq_ || !gtt->location_routes_||!gtt->n_locations_||!gtt->n_routes_||!gtt->route_stop_time_ranges_||!gtt->route_transport_ranges_||!gtt->bitfields_||
+      !gtt->transport_traffic_days_||! gtt->date_range_||!gtt->locations_||!gtt->route_clasz_){
+    std::cerr << "something went wrong, one attribute ist nullptr" << std::endl;
+    goto fail;
+  }
   return gtt;
 
 
@@ -215,14 +169,14 @@ void destroy_gpu_timetable(gpu_timetable* gtt) {
   if (gtt->route_stop_times_) cudaFree(gtt->route_stop_times_);
 
   if (gtt->route_location_seq_) {
-    if (gtt->route_location_seq_->data_.el_) cudaFree(gtt->route_location_seq_->data_.el_);
-    if (gtt->route_location_seq_->bucket_starts_.el_) cudaFree(gtt->route_location_seq_->bucket_starts_.el_);
+    if (&(gtt->route_location_seq_->data_.el_)) cudaFree(&(gtt->route_location_seq_->data_.el_));
+    if (&(gtt->route_location_seq_->bucket_starts_.el_)) cudaFree(&(gtt->route_location_seq_->bucket_starts_.el_));
     cudaFree(gtt->route_location_seq_);
   }
 
   if (gtt->location_routes_) {
-    if (gtt->location_routes_->data_.el_) cudaFree(gtt->location_routes_->data_.el_);
-    if (gtt->location_routes_->bucket_starts_.el_) cudaFree(gtt->location_routes_->bucket_starts_.el_);
+    if (&(gtt->location_routes_->data_.el_)) cudaFree(&(gtt->location_routes_->data_.el_));
+    if (&(gtt->location_routes_->bucket_starts_.el_)) cudaFree(&(gtt->location_routes_->bucket_starts_.el_));
     cudaFree(gtt->location_routes_);
   }
 
@@ -230,47 +184,49 @@ void destroy_gpu_timetable(gpu_timetable* gtt) {
   if (gtt->n_routes_) cudaFree(gtt->n_routes_);
 
   if (gtt->route_stop_time_ranges_) {
-    if (gtt->route_stop_time_ranges_->el_) cudaFree(gtt->route_stop_time_ranges_->el_);
+    if (&(gtt->route_stop_time_ranges_->el_)) cudaFree(&(gtt->route_stop_time_ranges_->el_));
     cudaFree(gtt->route_stop_time_ranges_);
   }
 
   if (gtt->route_transport_ranges_) {
-    if (gtt->route_transport_ranges_->el_) cudaFree(gtt->route_transport_ranges_->el_);
+    if (&(gtt->route_transport_ranges_->el_)) cudaFree(&(gtt->route_transport_ranges_->el_));
     cudaFree(gtt->route_transport_ranges_);
   }
 
   if (gtt->bitfields_) {
-    if (gtt->bitfields_->el_) cudaFree(gtt->bitfields_->el_);
+    if (&(gtt->bitfields_->el_)) cudaFree(&(gtt->bitfields_->el_));
     cudaFree(gtt->bitfields_);
   }
 
   if (gtt->transport_traffic_days_) {
-    if (gtt->transport_traffic_days_->el_) cudaFree(gtt->transport_traffic_days_->el_);
+    if (&(gtt->transport_traffic_days_->el_)) cudaFree(&(gtt->transport_traffic_days_->el_));
     cudaFree(gtt->transport_traffic_days_);
   }
 
   if (gtt->date_range_) cudaFree(gtt->date_range_);
 
+  std::cerr << "Locations del" << std::endl;
   if (gtt->locations_) {
-    if (gtt->locations_->transfer_time_) {
-      if (gtt->locations_->transfer_time_->el_) cudaFree(gtt->locations_->transfer_time_->el_);
+    if (&(gtt->locations_->transfer_time_)) {
+      if (&(gtt->locations_->transfer_time_->el_)) cudaFree(&(gtt->locations_->transfer_time_->el_));
       cudaFree(gtt->locations_->transfer_time_);
     }
-    if (gtt->locations_->gpu_footpaths_in_) {
-      if (gtt->locations_->gpu_footpaths_in_->data_.el_) cudaFree(gtt->locations_->gpu_footpaths_in_->data_.el_);
-      if (gtt->locations_->gpu_footpaths_in_->bucket_starts_.el_) cudaFree(gtt->locations_->gpu_footpaths_in_->bucket_starts_.el_);
+    if (&(gtt->locations_->gpu_footpaths_in_)) {
+      if (&(gtt->locations_->gpu_footpaths_in_->data_.el_)) cudaFree(&(gtt->locations_->gpu_footpaths_in_->data_.el_));
+      if (&(gtt->locations_->gpu_footpaths_in_->bucket_starts_.el_)) cudaFree(&(gtt->locations_->gpu_footpaths_in_->bucket_starts_.el_));
       cudaFree(gtt->locations_->gpu_footpaths_in_);
     }
-    if (gtt->locations_->gpu_footpaths_out_) {
-      if (gtt->locations_->gpu_footpaths_out_->data_.el_) cudaFree(gtt->locations_->gpu_footpaths_out_->data_.el_);
-      if (gtt->locations_->gpu_footpaths_out_->bucket_starts_.el_) cudaFree(gtt->locations_->gpu_footpaths_out_->bucket_starts_.el_);
+    if (&(gtt->locations_->gpu_footpaths_out_)) {
+      if (&(gtt->locations_->gpu_footpaths_out_->data_.el_)) cudaFree(&(gtt->locations_->gpu_footpaths_out_->data_.el_));
+      if (&(gtt->locations_->gpu_footpaths_out_->bucket_starts_.el_)) cudaFree(&(gtt->locations_->gpu_footpaths_out_->bucket_starts_.el_));
       cudaFree(gtt->locations_->gpu_footpaths_out_);
     }
     cudaFree(gtt->locations_);
   }
 
+  std::cerr << "Locations del end" << std::endl;
   if (gtt->route_clasz_) {
-    if (gtt->route_clasz_->el_) cudaFree(gtt->route_clasz_->el_);
+    if (&(gtt->route_clasz_->el_)) cudaFree(&(gtt->route_clasz_->el_));
     cudaFree(gtt->route_clasz_);
   }
   free(gtt);
