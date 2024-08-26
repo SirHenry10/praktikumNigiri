@@ -101,6 +101,7 @@ device_memory::device_memory(uint32_t n_locations,
   cudaMalloc(&stats_,32*sizeof(gpu_raptor_stats));
   cuda_check();
   invalid_ = invalid;
+  cudaDeviceSynchronize();
   this->reset_async(nullptr);
 }
 
@@ -112,6 +113,7 @@ void device_memory::destroy() {
   cudaFree(station_mark_);
   cudaFree(prev_station_mark_);
   cudaFree(route_mark_);
+  cudaFree(any_station_marked_);
   cudaFree(stats_);
 }
 
@@ -125,6 +127,7 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemsetAsync(route_mark_, 0, n_routes_*sizeof(uint32_t), s);
   cudaMemsetAsync(any_station_marked_, 0, sizeof(bool), s);
   gpu_raptor_stats init_value = {};
+
   for (int i = 0; i < 32; ++i) {
     cudaMemcpyAsync(&stats_[i], &init_value, sizeof(gpu_raptor_stats), cudaMemcpyHostToDevice, s);
   }
@@ -160,7 +163,7 @@ void gpu_raptor_state::init(gpu_timetable const& gtt,gpu_delta_t invalid) {
   int32_t device_count = 0;
   cudaGetDeviceCount(&device_count);
 
-
+  //maybe da drin?
   for (auto device_id = 0; device_id < device_count; ++device_id) {
       memory_.emplace_back(std::make_unique<struct mem>(
         gtt.n_locations_,gtt.n_routes_,gpu_kMaxTransfers + 1U,gtt.n_locations_,invalid, device_id));
@@ -186,9 +189,10 @@ loaned_mem::~loaned_mem() {
 }
 void mem::reset_arrivals_async(){
   device_.reset_arrivals_async(context_.proc_stream_);
-  cuda_sync_stream(context_.proc_stream_);
+  //TODO: überlegen ob das hier hin muss oder nicht
+  //cuda_sync_stream(context_.proc_stream_);
 }
 void mem::next_start_time_async(){
   device_.next_start_time_async(context_.proc_stream_);
-  cuda_sync_stream(context_.proc_stream_);
+  //cuda_sync_stream(context_.proc_stream_);
 }

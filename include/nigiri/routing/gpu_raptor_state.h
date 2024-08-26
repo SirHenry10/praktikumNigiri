@@ -154,7 +154,6 @@ struct gpu_raptor_state {
   using mem_idx = uint32_t;
   static_assert(std::is_unsigned_v<mem_idx>);
 
-  gpu_raptor_state() = default;
   void init(gpu_timetable const& gtt,gpu_delta_t invalid);
 
   mem_idx get_mem_idx();

@@ -832,7 +832,7 @@ mem* gpu_mem(
   } else{
     kInvalid = kInvalidGpuDelta<gpu_direction::kBackward>;
   }
-  auto state = gpu_raptor_state{};
+  gpu_raptor_state state;
   std::cerr << "Test gpu_raptor::gpu_mem() 1" << std::endl;
   state.init(*gtt, kInvalid);
   loaned_mem loan(state,kInvalid);
@@ -851,6 +851,7 @@ mem* gpu_mem(
   }
 
     std::cerr << "Test gpu_raptor::gpu_mem() 2" << std::endl;
+
   //TODO: Maybe tmp und best entfernen da eh überschieben???
     cudaMemcpy(mem->device_.tmp_, tmp.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
@@ -862,7 +863,6 @@ mem* gpu_mem(
   cuda_check();
   cudaMemcpy(mem->device_.route_mark_, gpu_route_mark.data(), (gtt->n_routes_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  std::cerr << "Test gpu_raptor::gpu_mem() ende" << std::endl;
   return mem;
 }
 

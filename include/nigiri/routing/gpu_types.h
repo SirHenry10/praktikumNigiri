@@ -1719,7 +1719,19 @@ struct gpu_it_range {
   BeginIt begin_;
   EndIt end_;
 };
-
-template <typename BeginIt, typename EndIt>
-gpu_it_range(BeginIt, EndIt) -> gpu_it_range<BeginIt, EndIt>;
+__host__ __device__ gpu_delta event_mam(gpu_route_idx_t const r,
+                                        gpu_transport_idx_t t,
+                                        gpu_stop_idx_t const stop_idx,
+                                        gpu_event_type const ev_type,
+                                        gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const route_transport_ranges,
+                                        gpu_delta* route_stop_times,
+                                        gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> route_stop_time_ranges){
+  auto const range = route_transport_ranges[r];
+  auto const n_transports = static_cast<unsigned>(range.size());
+  auto const route_stop_begin = static_cast<unsigned>(
+      route_stop_time_ranges[r].from_ +
+      n_transports * (stop_idx * 2 - (ev_type == gpu_event_type::kArr ? 1 : 0)));
+  auto const t_idx_in_route = gpu_to_idx(t) - gpu_to_idx(range.from_);
+  return route_stop_times[route_stop_begin + t_idx_in_route];
+}
 

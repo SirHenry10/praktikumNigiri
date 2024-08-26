@@ -110,6 +110,12 @@ TEST(routing, gpu_types) {
   auto gpu_direction_kForward = *reinterpret_cast<const gpu_direction*>(&SearchDir_kForward);
   auto SearchDir_kBackward = direction::kBackward;
   auto gpu_direction_kBackward = *reinterpret_cast<const gpu_direction*>(&SearchDir_kBackward);
+  static gpu_direction const gpu_direction_static_kForward =
+      static_cast<enum gpu_direction const>(SearchDir_kForward);
+  static gpu_direction const gpu_direction_static_kBackward =
+      static_cast<enum gpu_direction const>(SearchDir_kBackward);
+  EXPECT_EQ(gpu_direction_static_kForward, gpu_direction::kForward);
+  EXPECT_EQ(gpu_direction_static_kBackward, gpu_direction::kBackward);
   EXPECT_EQ(gpu_direction_kForward, gpu_direction::kForward);
   EXPECT_EQ(gpu_direction_kBackward, gpu_direction::kBackward);
   //TODO: mehr typen noch test...
