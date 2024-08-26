@@ -10,7 +10,7 @@
 
 #define CUDA_CALL(call)                                   \
     if ((code = call) != cudaSuccess) {                     \
-      printf("CUDA error: %s at " XSTR(call) " %s:%d\n",     \
+      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
              cudaGetErrorString(code), __FILE__, __LINE__); \
       goto fail;                                            \
     }
