@@ -197,7 +197,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
 
     auto const trips = (*gtt_->route_stop_time_ranges_)[r];
     auto const trips_from = trips.from_; // wir haben hier wieder from_ und to_
-    auto const trip_stop = (*gtt_->route_stop_times_[t_id].days_); // hier steckt ein delta drin
+    auto const trip_stop = (gtt_->route_stop_times_[t_id].days_); // hier steckt ein delta drin
     auto const splitter = gpu_split_day_mam(*base_, prev_round_time);
     auto const day_at_stop = splitter.first;
     auto const mam = splitter.second;
