@@ -3,7 +3,6 @@
 
 #include <cooperative_groups.h>
 using namespace cooperative_groups;
-
 // leader type must be unsigned 32bit
 // no leader is a zero ballot vote (all 0) minus 1 => with underflow all 1's
 constexpr unsigned int FULL_MASK = 0xFFFFffff;
@@ -150,15 +149,7 @@ __device__ It linear_lb(It from, End to, Key&& key, Cmp&& cmp) {
 template <gpu_direction SearchDir, bool Rt>
 __device__ bool is_transport_active(gpu_transport_idx_t const t,
                                     std::size_t const day , gpu_timetable* gtt_)  {
-  const auto traffic_day = (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]];
-  // test(i=day) methode
-  if (day >= traffic_day.size()) {
-    return false;
-  }
-  const auto bitfields_data = (*gtt_->bitfields_data_)[(*gtt_->transport_traffic_days_)[t]];
-  auto const block = bitfields_data[day / traffic_day.bits_per_block];
-  auto const bit = (day % traffic_day.bits_per_block);
-  return (block & (std::uint64_t{1U} << bit)) != 0U;
+  return (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]].test(day);
 }
 
 
@@ -179,7 +170,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   gpu_stop stp{};
   unsigned int l_idx;
   bool is_last;
-  gpu_delta_t prev_round_time = std::numeric_limits<gpu_delta_t>::max();
+  gpu_delta_t prev_round_time = cuda::std::numeric_limits<gpu_delta_t>::max();
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
   if(t_id == 0){
@@ -190,12 +181,12 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     stop_idx = static_cast<gpu_stop_idx_t>(
         (SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
     stp = gpu_stop{stop_seq[stop_idx]};
-    l_idx = gpu_to_idx(gpu_location_idx_t{stp.location_});
+    l_idx = gpu_to_idx(stp.gpu_location_idx());
     is_last = t_id == stop_seq.size() - 1U;
     // ist äquivalent zu prev_arrival
     prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
   }
-  if (!__any_sync(FULL_MASK, prev_round_time!=std::numeric_limits<gpu_delta_t>::max())) {
+  if (!__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())) {
     return any_station_marked_;
   }
 
@@ -213,7 +204,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                                                                                       n_days_ - as_int(day_at_stop) : as_int(day_at_stop)+1);
     auto const event_times =
         gtt_->event_times_at_stop(r, stop_idx, (SearchDir == gpu_direction::kForward) ?
-                                                gpu_event_type::kDep : gpu_event_type::kArr);
+                                                                                      gpu_event_type::kDep : gpu_event_type::kArr);
     /*auto const seek_first_day = [&]() {
       return linear_lb(gpu_get_begin_it<SearchDir>(event_times),
                        gpu_get_end_it<SearchDir>(event_times), mam,
@@ -259,17 +250,17 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
           et = {t, static_cast<gpu_day_idx_t>(as_int(day) - ev_day_offset)};
         }
         auto const et_time_at_stop = et.is_valid()
-                   ? time_at_stop<SearchDir, Rt>(r, et, stop_idx, (SearchDir == gpu_direction::kForward) ?
-                     gpu_event_type::kDep : gpu_event_type::kArr, gtt_, *base_) : kInvalidGpuDelta<SearchDir>;
+                                         ? time_at_stop<SearchDir, Rt>(r, et, stop_idx, (SearchDir == gpu_direction::kForward) ?
+                                                                                                                               gpu_event_type::kDep : gpu_event_type::kArr, gtt_, *base_) : kInvalidGpuDelta<SearchDir>;
         // hier leader election? -> jeder thread hat zu diesem Punkt sein et von diesem trip/transport bekommen
         // elect leader via two CUDA functions
         // every participating thread (1.parameter) evaluates predicate (2.parameter)
         // & also works as a barrier, d.h. we have to wait for all threads to cast their vote
         // predicate is true if it is possible to enter current trip at station
         unsigned ballot = __ballot_sync(
-            FULL_MASK, (t_id < active_stop_count) && prev_round_time!=std::numeric_limits<gpu_delta_t>::max() &&
-                        et_time_at_stop!=std::numeric_limits<gpu_delta_t>::max() &&
-                        (prev_round_time <= et_time_at_stop));
+            FULL_MASK, (t_id < active_stop_count) && prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max() &&
+                           et_time_at_stop!=cuda::std::numeric_limits<gpu_delta_t>::max() &&
+                           (prev_round_time <= et_time_at_stop));
         leader = __ffs(ballot) - 1; // returns smallest thread, for which predicate is true
         // jeder thread, dessen station nach der von leader liegt,
         // kann jetzt seine jeweilige trip arrival time versuchen zu aktualisieren
@@ -366,13 +357,13 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
       // parameter stimmen noch nicht
       if((*gtt_).route_location_seq_[r_idx].size() <= 32){ // die Route hat <= 32 stops
         any_station_marked_ |= update_route_smaller32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
-                                                      round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
-                                                      lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
+                                                                     round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
+                                                                     lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
       }
       else{ // diese Route hat > 32 Stops
         any_station_marked_ |= update_route_bigger32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
-                                                     round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
-                                                     lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
+                                                                    round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
+                                                                    lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
       }
 
     }
@@ -396,7 +387,7 @@ __device__ void update_transfers(unsigned const k, gpu_timetable* gtt_,
     }
     auto const is_dest = is_dest_[l_idx];
     auto const transfer_time = (dist_to_end_size_==0 && is_dest)
-        ? 0 : dir<SearchDir>((*gtt_->locations_->transfer_time_)[gpu_location_idx_t{l_idx}]).count();
+                                   ? 0 : dir<SearchDir>((*gtt_->locations_->transfer_time_)[gpu_location_idx_t{l_idx}]).count();
     const auto fp_target_time =
         static_cast<gpu_delta_t>(tmp_[l_idx] + transfer_time);
     if(is_better<SearchDir>(fp_target_time, best_[l_idx])
@@ -436,8 +427,8 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
     }
     auto const l_idx = gpu_location_idx_t{idx};
     auto const& fps = (SearchDir == gpu_direction::kForward)
-         ? gtt_->locations_->gpu_footpaths_out_[prf_idx][l_idx]
-           : gtt_->locations_->gpu_footpaths_in_[prf_idx][l_idx];
+                          ? gtt_->locations_->gpu_footpaths_out_[prf_idx][l_idx]
+                          : gtt_->locations_->gpu_footpaths_in_[prf_idx][l_idx];
     for(auto const& fp: fps){
       ++stats_[idx>>5].n_footpaths_visited_;
       auto const target = gpu_to_idx(gpu_location_idx_t{fp.target_});
@@ -527,7 +518,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     *any_station_marked_ = false;
   }
   convert_station_to_route_marks<SearchDir, Rt>(station_mark_, route_mark_,
-                                                  any_station_marked_, gtt_);
+                                                any_station_marked_, gtt_);
   this_grid().sync();
 
   if(get_global_thread_id()==0){
@@ -535,13 +526,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       return;
     }
     // swap
-    uint32_t const size = *gtt_->n_locations_;
-    uint32_t dummy_marks[size];
-    for(int i=0; i < *gtt_->n_locations_; i++){
-      dummy_marks[i] = station_mark_[i];
-      station_mark_[i] = prev_station_mark_[i];
-      prev_station_mark_[i] = station_mark_[i];
-    }
+    cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
     for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF;
@@ -551,14 +536,14 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
   *any_station_marked_ = (allowed_claszes_ == 0xffff)
-                         ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, gtt_, route_mark_, &allowed_claszes_,
-                                                             stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
-                                                             round_times_, row_count_round_times_, tmp_, lb_, n_days_,
-                                                             time_at_dest_, station_mark_, base_, kUnreachable)
-                           : loop_routes<SearchDir, Rt, true>(k, any_station_marked_, gtt_, route_mark_, &allowed_claszes_,
-                                                             stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
-                                                             round_times_, row_count_round_times_, tmp_, lb_, n_days_,
-                                                             time_at_dest_, station_mark_, base_, kUnreachable);
+                             ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, gtt_, route_mark_, &allowed_claszes_,
+                                                                 stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
+                                                                 round_times_, row_count_round_times_, tmp_, lb_, n_days_,
+                                                                 time_at_dest_, station_mark_, base_, kUnreachable)
+                             : loop_routes<SearchDir, Rt, true>(k, any_station_marked_, gtt_, route_mark_, &allowed_claszes_,
+                                                                stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
+                                                                round_times_, row_count_round_times_, tmp_, lb_, n_days_,
+                                                                time_at_dest_, station_mark_, base_, kUnreachable);
 
   this_grid().sync();
   if(get_global_thread_id()==0){
@@ -570,13 +555,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       route_mark_[i] = 0xFFFF;
     }
     // swap
-    uint32_t const size = *gtt_->n_locations_;
-    uint32_t dummy_marks[size];
-    for(int i=0; i < *gtt_->n_locations_; i++){
-      dummy_marks[i] = station_mark_[i];
-      station_mark_[i] = prev_station_mark_[i];
-      prev_station_mark_[i] = station_mark_[i];
-    }
+    cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
     for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF; // soll es auf false setzen
@@ -585,20 +564,20 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
   // update_transfers
   update_transfers<SearchDir, Rt>(k, gtt_, is_dest_, dist_to_end_, dist_to_end_size_,
-                   tmp_, best_, time_at_dest_, kUnreachable, lb_, round_times_,
-                   row_count_round_times_, station_mark_, prev_station_mark_, stats_);
+                                  tmp_, best_, time_at_dest_, kUnreachable, lb_, round_times_,
+                                  row_count_round_times_, station_mark_, prev_station_mark_, stats_);
   this_grid().sync();
 
   // update_footpaths
   update_footpaths<SearchDir, Rt>(k, prf_idx, kUnreachable, prev_station_mark_,
-                   gtt_, tmp_, best_, lb_, station_mark_, time_at_dest_,
-                   is_dest_, round_times_, row_count_round_times_, stats_);
+                                  gtt_, tmp_, best_, lb_, station_mark_, time_at_dest_,
+                                  is_dest_, round_times_, row_count_round_times_, stats_);
   this_grid().sync();
 
   // update_intermodal_footpaths
   update_intermodal_footpaths<SearchDir, Rt>(k, gtt_, dist_to_end_, dist_to_end_size_, station_mark_,
-                             prev_station_mark_, time_at_dest_, kUnreachable,
-                             gpu_kIntermodalTarget, best_, tmp_, round_times_, row_count_round_times_);
+                                             prev_station_mark_, time_at_dest_, kUnreachable,
+                                             gpu_kIntermodalTarget, best_, tmp_, round_times_, row_count_round_times_);
 
 }
 
@@ -632,7 +611,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
   // 1. Initialisierung
   gpu_delta_t d_worst_at_dest{};
   init_arrivals<SearchDir, Rt>(d_worst_at_dest, worst_time_at_dest, gr.base_,
-                gr.mem_->device_.time_at_dest_, gr.gtt_);
+                               gr.mem_->device_.time_at_dest_, gr.gtt_);
   this_grid().sync();
 
   // 2. Update Routes
@@ -640,15 +619,15 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
 
     // Resultate aus lezter Runde von device in variable speichern?  //TODO: typen von kIntermodalTarget und dist_to_end_size falsch???
     raptor_round<SearchDir, Rt>(k, prf_idx, gr.gtt_, gr.base_, *gr.allowed_claszes_,
-                 gr.dist_to_end_, *gr.dist_to_end_size_, gr.is_dest_, gr.lb_, *gr.n_days_,
-                 gr.mem_->device_.time_at_dest_,
-                 gr.mem_->device_.any_station_marked_, gr.mem_->device_.route_mark_,
-                 gr.mem_->device_.station_mark_, gr.mem_->device_.best_,
-                 gr.kUnreachable, gr.mem_->device_.prev_station_mark_,
-                 gr.mem_->device_.round_times_, gr.mem_->device_.tmp_,
-                 gr.mem_->device_.row_count_round_times_,
-                 gr.mem_->device_.column_count_round_times_,
-                 gr.kIntermodalTarget_, gr.mem_->device_.stats_, gr.kMaxTravelTimeTicks_);
+                                gr.dist_to_end_, *gr.dist_to_end_size_, gr.is_dest_, gr.lb_, *gr.n_days_,
+                                gr.mem_->device_.time_at_dest_,
+                                gr.mem_->device_.any_station_marked_, gr.mem_->device_.route_mark_,
+                                gr.mem_->device_.station_mark_, gr.mem_->device_.best_,
+                                gr.kUnreachable, gr.mem_->device_.prev_station_mark_,
+                                gr.mem_->device_.round_times_, gr.mem_->device_.tmp_,
+                                gr.mem_->device_.row_count_round_times_,
+                                gr.mem_->device_.column_count_round_times_,
+                                gr.kIntermodalTarget_, gr.mem_->device_.stats_, gr.kMaxTravelTimeTicks_);
     this_grid().sync();
   }
   this_grid().sync();
@@ -692,7 +671,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & lb_,
                      int* & n_days_,
                      std::uint16_t* & kUnreachable_,
-                     unsigned int* & kIntermodalTarget_,
+                     gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
@@ -739,7 +718,7 @@ void copy_to_device_destroy(
     std::uint16_t* & lb_,
     int* & n_days_,
     std::uint16_t* & kUnreachable_,
-    unsigned int* & kIntermodalTarget_,
+    gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_){
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
@@ -759,15 +738,16 @@ void copy_to_device_destroy(
   }
 };
 
-void inline launch_kernel(void** args,
-                          device_context const& device,
-                          cudaStream_t s,
-                          gpu_direction search_dir,
-                          bool rt) {
+void launch_kernel(void** args,
+                   device_context const& device,
+                   cudaStream_t s,
+                   gpu_direction search_dir,
+                   bool rt) {
+
   cudaSetDevice(device.id_);
   if(search_dir == gpu_direction::kForward && rt == true){
-  cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,
-                              device.threads_per_block_, args, 0, s);
+    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,
+                                device.threads_per_block_, args, 0, s);
   } else if(search_dir == gpu_direction::kForward && rt == false){
     cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,false>, device.grid_,
                                 device.threads_per_block_, args, 0, s);
@@ -778,6 +758,7 @@ void inline launch_kernel(void** args,
     cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kBackward,false>, device.grid_,
                                 device.threads_per_block_, args, 0, s);
   }
+
   cuda_check();
 }
 
@@ -890,10 +871,10 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,start_time_ptr,start_time,1);
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
   CUDA_COPY_TO_DEVICE(gpu_profile_idx_t ,prf_idx_ptr,prf_idx,1);
-  fail:
-    cudaFree(start_time_ptr);
-    cudaFree(worst_time_at_dest_ptr);
-    cudaFree(prf_idx_ptr);
+fail:
+  cudaFree(start_time_ptr);
+  cudaFree(worst_time_at_dest_ptr);
+  cudaFree(prf_idx_ptr);
 }
 void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
                               gpu_unixtime_t* worst_time_at_dest_ptr,
