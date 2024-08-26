@@ -1,5 +1,6 @@
 #pragma once
 #include "nigiri/routing/gpu_raptor.h"
+#include <iostream>
 
 #include <cooperative_groups.h>
 using namespace cooperative_groups;
@@ -108,7 +109,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
   auto const global_stride = get_global_stride();
   // anstatt stop_count_ brauchen wir location_routes ?location_idx_{gtt.n_locations}?
   for (uint32_t idx = global_t_id;
-       idx < *gtt_->n_locations_; idx += global_stride) {
+       idx < gtt_->n_locations_; idx += global_stride) {
     if (marked(station_marks, idx)) {
       if (!*any_station_marked) {
         *any_station_marked = true;
@@ -342,7 +343,7 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
   }
   //Hier gehen wir durch alle Routen wie in update_routes_dev von Julian
   for(auto r_idx = global_t_id;
-       r_idx <= *gtt_->n_routes_; r_idx += global_stride){
+       r_idx <= gtt_->n_routes_; r_idx += global_stride){
     auto const r = gpu_route_idx_t{r_idx};
     if(marked(route_mark_, r_idx)){
       if constexpr (WithClaszFilter){
@@ -381,7 +382,7 @@ __device__ void update_transfers(unsigned const k, gpu_timetable* gtt_,
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto l_idx = global_t_id;
-       l_idx <= *gtt_->n_locations_; l_idx += global_stride){
+       l_idx <= gtt_->n_locations_; l_idx += global_stride){
     if(!marked(prev_station_mark_, l_idx)){
       continue;
     }
@@ -421,7 +422,7 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto idx = global_t_id;
-       idx <= *gtt_->n_locations_; idx += global_stride){
+       idx <= gtt_->n_locations_; idx += global_stride){
     if(!marked(prev_station_mark_, idx)){
       continue;
     }
@@ -471,7 +472,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, gpu_timetable* gtt
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto idx = global_t_id;
-       idx <= *gtt_->n_locations_; idx += global_stride){
+       idx <= gtt_->n_locations_; idx += global_stride){
     if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
       auto const end_time = gpu_clamp(get_best<SearchDir>(best_[idx], tmp_[idx]) + dir<SearchDir>(dist_to_end_[idx]));
       if(is_better<SearchDir>(end_time, gpu_kIntermodalTarget[(*best_)].v_)){
@@ -504,7 +505,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   //TODO sicher, dass man über n_locations iterieren muss? -> aufpassen, dass round_times nicht out of range zugegriffen wird
-  for(auto idx = global_t_id; idx < *gtt_->n_locations_; idx += global_stride){
+  for(auto idx = global_t_id; idx < gtt_->n_locations_; idx += global_stride){
     best_[global_t_id] = get_best<SearchDir>
         (round_times_[k*row_count_round_times_+idx], best_[idx]);
     if(is_dest_[idx]){
@@ -528,7 +529,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     // swap
     cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
-    for(int j = 0; j < *gtt_->n_locations_; j++){
+    for(int j = 0; j < gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF;
     }
   }
@@ -551,13 +552,13 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       return;
     }
     // fill
-    for(int i = 0; reinterpret_cast<uint32_t*>(i) < gtt_->n_routes_; i++){
+    for(int i = 0; i < gtt_->n_routes_; i++){
       route_mark_[i] = 0xFFFF;
     }
     // swap
     cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
-    for(int j = 0; j < *gtt_->n_locations_; j++){
+    for(int j = 0; j < gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF; // soll es auf false setzen
     }
   }
@@ -824,6 +825,7 @@ mem* gpu_mem(
     std::vector<bool> route_mark,
     gpu_direction search_dir,
     gpu_timetable* gtt){
+  std::cerr << "Test gpu_raptor::gpu_mem()" << std::endl;
   short kInvalid = 0;
   if(search_dir == gpu_direction::kForward){
     kInvalid = kInvalidGpuDelta<gpu_direction::kForward>;
@@ -831,33 +833,36 @@ mem* gpu_mem(
     kInvalid = kInvalidGpuDelta<gpu_direction::kBackward>;
   }
   auto state = gpu_raptor_state{};
+  std::cerr << "Test gpu_raptor::gpu_mem() 1" << std::endl;
   state.init(*gtt, kInvalid);
   loaned_mem loan(state,kInvalid);
   mem* mem = loan.mem_;
-  std::vector<uint32_t> gpu_station_mark(*gtt->n_locations_);
+  std::vector<uint32_t> gpu_station_mark(gtt->n_locations_);
   for (size_t i = 0; i < station_mark.size(); ++i) {
     gpu_station_mark[i] = station_mark[i];
   }
-  std::vector<uint32_t> gpu_prev_station_mark(*gtt->n_locations_);
+  std::vector<uint32_t> gpu_prev_station_mark(gtt->n_locations_);
   for (size_t i = 0; i < prev_station_mark.size(); ++i) {
     gpu_prev_station_mark[i] = prev_station_mark[i];
   }
-  std::vector<uint32_t> gpu_route_mark(*gtt->n_locations_);
+  std::vector<uint32_t> gpu_route_mark(gtt->n_locations_);
   for (size_t i = 0; i < route_mark.size(); ++i) {
     gpu_route_mark[i] = route_mark[i];
   }
 
+    std::cerr << "Test gpu_raptor::gpu_mem() 2" << std::endl;
   //TODO: Maybe tmp und best entfernen da eh überschieben???
-  cudaMemcpy(mem->device_.tmp_, tmp.data(), (*gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+    cudaMemcpy(mem->device_.tmp_, tmp.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.best_, best.data(), (*gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.best_, best.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.station_mark_, gpu_station_mark.data(), (*gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.station_mark_, gpu_station_mark.data(), (gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.prev_station_mark_, gpu_prev_station_mark.data(), (*gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.prev_station_mark_, gpu_prev_station_mark.data(), (gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.route_mark_, gpu_route_mark.data(), (*gtt->n_routes_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.route_mark_, gpu_route_mark.data(), (gtt->n_routes_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
+  std::cerr << "Test gpu_raptor::gpu_mem() ende" << std::endl;
   return mem;
 }
 

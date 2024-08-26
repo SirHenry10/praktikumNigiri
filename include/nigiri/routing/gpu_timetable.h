@@ -9,8 +9,8 @@ extern "C"{
     gpu_delta* route_stop_times_{nullptr};
     gpu_vecvec<gpu_route_idx_t,gpu_value_type,unsigned int> * route_location_seq_ {nullptr};
     gpu_vecvec<gpu_location_idx_t,gpu_route_idx_t,unsigned int>* location_routes_ {nullptr};
-    std::uint32_t* n_locations_{nullptr};
-    std::uint32_t* n_routes_{nullptr};
+    std::uint32_t n_locations_;
+    std::uint32_t n_routes_;
     gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>>* route_stop_time_ranges_{nullptr};
     gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >>* route_transport_ranges_{nullptr};
     gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>* bitfields_{nullptr};
@@ -49,8 +49,8 @@ extern "C"{
                                              std::uint32_t n_route_stop_times,
                                              gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq, // Route -> list_of_stops
                                              gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes, // location -> Route
-                                             std::uint32_t const* n_locations,
-                                             std::uint32_t const* n_routes,
+                                             std::uint32_t const n_locations,
+                                             std::uint32_t const n_routes,
                                              gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
                                              gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                              gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
@@ -58,5 +58,5 @@ extern "C"{
                                              gpu_interval<gpu_sys_days> const* date_range,
                                              gpu_locations const* locations,
                                              gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz);
-  void destroy_gpu_timetable(gpu_timetable* gtt);
+  void destroy_gpu_timetable(gpu_timetable*& gtt);
   } //extern "C"

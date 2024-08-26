@@ -72,19 +72,35 @@ device_memory::device_memory(uint32_t n_locations,
       n_routes_{n_routes},
       row_count_round_times_{row_count_round_times},
       column_count_round_times_{column_count_round_times}{
+  tmp_ = nullptr;
   cudaMalloc(&tmp_, n_locations_ * sizeof(gpu_delta_t));
+  cuda_check();
   time_at_dest_ = nullptr;
   cudaMalloc(&time_at_dest_, (gpu_kMaxTransfers+1) *sizeof(gpu_delta_t));
+  cuda_check();
+  best_ = nullptr;
   cudaMalloc(&best_, n_locations_ * sizeof(gpu_delta_t));
+  cuda_check();
+  round_times_ = nullptr;
   cudaMalloc(&round_times_, row_count_round_times_ * column_count_round_times_ *
                                 sizeof(gpu_delta_t));
-  cudaMalloc(&station_mark_, n_locations_ * sizeof(uint32_t));
-  cudaMalloc(&prev_station_mark_, n_locations_ * sizeof(uint32_t));
-  cudaMalloc(&route_mark_, n_routes_ * sizeof(uint32_t));
-  cudaMalloc(&any_station_marked_, sizeof(bool));
-  cudaMalloc(&stats_,32*sizeof(gpu_raptor_stats));
-  invalid_ = invalid;
   cuda_check();
+  station_mark_ = nullptr;
+  cudaMalloc(&station_mark_, n_locations_ * sizeof(uint32_t));
+  cuda_check();
+  prev_station_mark_ = nullptr;
+  cudaMalloc(&prev_station_mark_, n_locations_ * sizeof(uint32_t));
+  cuda_check();
+  route_mark_ = nullptr;
+  cudaMalloc(&route_mark_, n_routes_ * sizeof(uint32_t));
+  cuda_check();
+  any_station_marked_ = nullptr;
+  cudaMalloc(&any_station_marked_, sizeof(bool));
+  cuda_check();
+  stats_ = nullptr;
+  cudaMalloc(&stats_,32*sizeof(gpu_raptor_stats));
+  cuda_check();
+  invalid_ = invalid;
   this->reset_async(nullptr);
 }
 
@@ -147,7 +163,7 @@ void gpu_raptor_state::init(gpu_timetable const& gtt,gpu_delta_t invalid) {
 
   for (auto device_id = 0; device_id < device_count; ++device_id) {
       memory_.emplace_back(std::make_unique<struct mem>(
-        *gtt.n_locations_,*gtt.n_routes_,gpu_kMaxTransfers + 1U,*gtt.n_locations_,invalid, device_id));
+        gtt.n_locations_,gtt.n_routes_,gpu_kMaxTransfers + 1U,gtt.n_locations_,invalid, device_id));
   }
   memory_mutexes_ = std::vector<std::mutex>(memory_.size());
 }

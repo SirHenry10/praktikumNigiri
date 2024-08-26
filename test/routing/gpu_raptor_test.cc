@@ -105,11 +105,14 @@ TEST(routing, gpu_timetable) {
   destroy_gpu_timetable(gtt);
   EXPECT_EQ(nullptr, gtt);
 }
-TEST(routing, gpu_direction) {
-  auto SearchDir = direction::kForward;
-  auto gpu_direction2 = *reinterpret_cast<const gpu_direction*>(&SearchDir);
-  bool tester = gpu_direction2 == gpu_direction::kForward;
-  std::cout<<"reinterpret_cast SearchDir is working: " << tester;
+TEST(routing, gpu_types) {
+  auto SearchDir_kForward = direction::kForward;
+  auto gpu_direction_kForward = *reinterpret_cast<const gpu_direction*>(&SearchDir_kForward);
+  auto SearchDir_kBackward = direction::kBackward;
+  auto gpu_direction_kBackward = *reinterpret_cast<const gpu_direction*>(&SearchDir_kBackward);
+  EXPECT_EQ(gpu_direction_kForward, gpu_direction::kForward);
+  EXPECT_EQ(gpu_direction_kBackward, gpu_direction::kBackward);
+  //TODO: mehr typen noch test...
 }
 TEST(routing, gpu_raptor) {
   constexpr auto const src = source_idx_t{0U};
@@ -119,12 +122,6 @@ TEST(routing, gpu_raptor) {
                     date::sys_days{2019_y / November / 1}};
   load_timetable({}, source_idx_t{0}, test_files(), tt);
   finalize(tt);
-  /*auto gtt = create_gpu_timetable(
-      reinterpret_cast<gpu_delta*>(tt.route_stop_times_.data()),
-      tt.route_stop_times_.size()
-      );
-  *///EXPECT_NE(nullptr, gtt);
-  //destroy_gpu_timetable(gtt);
   using algo_state_t = routing::raptor_state;
   static auto search_state = routing::search_state{};
   static auto algo_state = algo_state_t{};
