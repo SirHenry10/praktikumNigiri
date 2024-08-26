@@ -3,8 +3,10 @@
 #include <cassert>
 #include <chrono>
 #include <type_traits>
+#include <cuda/std/chrono>
+#include <cuda/std/utility>
+#include <algorithm>
 
-#include "cista/containers/bitset.h"
 #include "cista/containers/ptr.h"
 #include "cista/containers/vector.h"
 #include "cista/reflection/comparable.h"
@@ -15,20 +17,15 @@
 template <typename T, typename Tag>
 struct gpu_strong {
   using value_t = T;
-#ifdef NIGIRI_CUDA
   __host__ __device__ gpu_strong() = default;
   __host__ __device__ explicit gpu_strong(T const& v) noexcept(
       std::is_nothrow_copy_constructible_v<T>)
       : v_{v} {}
-  __host__ __device__ constexpr explicit gpu_strong(T&& v) noexcept(
+  __host__ __device__ explicit gpu_strong(T&& v) noexcept(
       std::is_nothrow_move_constructible_v<T>)
       : v_{std::move(v)} {}
   template <typename X>
-#if _MSVC_LANG >= 202002L || __cplusplus >= 202002L
-    requires std::is_integral_v<std::decay_t<X>> &&
-             std::is_integral_v<std::decay_t<T>>
-#endif
-  explicit constexpr gpu_strong(X&& x) : v_{static_cast<T>(x)} {
+  __host__ __device__ explicit gpu_strong(X&& x) : v_{static_cast<T>(x)} {
   }
 
   __host__ __device__ gpu_strong(gpu_strong&& o) noexcept(
@@ -137,130 +134,297 @@ struct gpu_strong {
     return o << t.v_;
   }
 
-#else
-  constexpr gpu_strong() = default;
-  explicit constexpr gpu_strong(T const& v) noexcept(
-      std::is_nothrow_copy_constructible_v<T>)
-      : v_{v} {}
-  explicit constexpr gpu_strong(T&& v) noexcept(
-      std::is_nothrow_move_constructible_v<T>)
-      : v_{std::move(v)} {}
-  template <typename X>
-#if _MSVC_LANG >= 202002L || __cplusplus >= 202002L
-    requires std::is_integral_v<std::decay_t<X>> &&
-             std::is_integral_v<std::decay_t<T>>
-#endif
-  explicit constexpr gpu_strong(X&& x) : v_{static_cast<T>(x)} {
-  }
-
-  constexpr gpu_strong(gpu_strong&& o) noexcept(
-      std::is_nothrow_move_constructible_v<T>) = default;
-  constexpr gpu_strong& operator=(gpu_strong&& o) noexcept(
-      std::is_nothrow_move_constructible_v<T>) = default;
-
-  constexpr gpu_strong(gpu_strong const& o) = default;
-  constexpr gpu_strong& operator=(gpu_strong const& o) = default;
-
-  static constexpr gpu_strong invalid() {
-    return gpu_strong{std::numeric_limits<T>::max()};
-  }
-
-  constexpr gpu_strong& operator++() {
-    ++v_;
-    return *this;
-  }
-
-  constexpr gpu_strong operator++(int) {
-    auto cpy = *this;
-    ++v_;
-    return cpy;
-  }
-
-  constexpr gpu_strong& operator--() {
-    --v_;
-    return *this;
-  }
-
-  constexpr const gpu_strong operator--(int) {
-    auto cpy = *this;
-    --v_;
-    return cpy;
-  }
-
-  constexpr gpu_strong operator+(gpu_strong const& s) const {
-    return gpu_strong{static_cast<value_t>(v_ + s.v_)};
-  }
-  constexpr gpu_strong operator-(gpu_strong const& s) const {
-    return gpu_strong{static_cast<value_t>(v_ - s.v_)};
-  }
-  constexpr gpu_strong operator*(gpu_strong const& s) const {
-    return gpu_strong{static_cast<value_t>(v_ * s.v_)};
-  }
-  constexpr gpu_strong operator/(gpu_strong const& s) const {
-    return gpu_strong{static_cast<value_t>(v_ / s.v_)};
-  }
-  constexpr gpu_strong operator+(T const& i) const {
-    return gpu_strong{static_cast<value_t>(v_ + i)};
-  }
-  constexpr gpu_strong operator-(T const& i) const {
-    return gpu_strong{static_cast<value_t>(v_ - i)};
-  }
-  constexpr gpu_strong operator*(T const& i) const {
-    return gpu_strong{static_cast<value_t>(v_ * i)};
-  }
-  constexpr gpu_strong operator/(T const& i) const {
-    return gpu_strong{static_cast<value_t>(v_ / i)};
-  }
-
-  constexpr gpu_strong& operator+=(T const& i) {
-    v_ += i;
-    return *this;
-  }
-  constexpr gpu_strong& operator-=(T const& i) {
-    v_ -= i;
-    return *this;
-  }
-
-  constexpr gpu_strong operator>>(T const& i) const {
-    return gpu_strong{static_cast<value_t>(v_ >> i)};
-  }
-  constexpr gpu_strong operator<<(T const& i) const {
-    return gpu_strong{static_cast<value_t>(v_ << i)};
-  }
-  constexpr gpu_strong operator>>(gpu_strong const& o) const { return v_ >> o.v_; }
-  constexpr gpu_strong operator<<(gpu_strong const& o) const { return v_ << o.v_; }
-
-  constexpr gpu_strong& operator|=(gpu_strong const& o) {
-    v_ |= o.v_;
-    return *this;
-  }
-  constexpr gpu_strong& operator&=(gpu_strong const& o) {
-    v_ &= o.v_;
-    return *this;
-  }
-
-  constexpr bool operator==(gpu_strong const& o) const { return v_ == o.v_; }
-  constexpr bool operator!=(gpu_strong const& o) const { return v_ != o.v_; }
-  constexpr bool operator<=(gpu_strong const& o) const { return v_ <= o.v_; }
-  constexpr bool operator>=(gpu_strong const& o) const { return v_ >= o.v_; }
-  constexpr bool operator<(gpu_strong const& o) const { return v_ < o.v_; }
-  constexpr bool operator>(gpu_strong const& o) const { return v_ > o.v_; }
-
-  constexpr bool operator==(T const& o) const { return v_ == o; }
-  constexpr bool operator!=(T const& o) const { return v_ != o; }
-  constexpr bool operator<=(T const& o) const { return v_ <= o; }
-  constexpr bool operator>=(T const& o) const { return v_ >= o; }
-  constexpr bool operator<(T const& o) const { return v_ < o; }
-  constexpr bool operator>(T const& o) const { return v_ > o; }
-
-  explicit operator T const&() const& noexcept { return v_; }
-
-  friend std::ostream& operator<<(std::ostream& o, gpu_strong const& t) {
-    return o << t.v_;
-  }
-#endif
   T v_;
 };
+
+namespace cista {
+
+template <std::size_t Size>
+struct gpu_bitset {
+  using block_t = std::uint64_t;
+  static constexpr auto const bits_per_block = sizeof(block_t) * 8U;
+  static constexpr auto const num_blocks =
+      Size / bits_per_block + (Size % bits_per_block == 0U ? 0U : 1U);
+
+  __host__ __device__ constexpr gpu_bitset() noexcept = default;
+  __host__ __device__ constexpr gpu_bitset(std::string_view s) noexcept { set(s); }
+  __host__ __device__ static constexpr gpu_bitset max() {
+    gpu_bitset ret;
+    for (auto& b : ret.blocks_) {
+      b = std::numeric_limits<block_t>::max();
+    }
+    return ret;
+  }
+
+  __host__ __device__ auto cista_members() noexcept { return std::tie(blocks_); }
+
+  __host__ __device__ constexpr void set(std::string_view s) noexcept {
+    for (std::size_t i = 0U; i != std::min(Size, s.size()); ++i) {
+      set(i, s[s.size() - i - 1U] != '0');
+    }
+  }
+
+  __host__ __device__ constexpr void set(std::size_t const i, bool const val = true) noexcept {
+    assert((i / bits_per_block) < num_blocks);
+    auto& block = blocks_[i / bits_per_block];
+    auto const bit = i % bits_per_block;
+    auto const mask = block_t{1U} << bit;
+    if (val) {
+      block |= mask;
+    } else {
+      block &= (~block_t{0U} ^ mask);
+    }
+  }
+
+  void reset() noexcept { blocks_ = {}; }
+
+  bool operator[](std::size_t const i) const noexcept { return test(i); }
+
+  __host__ __device__ std::size_t count() const noexcept {
+    std::size_t sum = 0U;
+    for (std::size_t i = 0U; i != num_blocks - 1U; ++i) {
+      sum += popcount(blocks_[i]);
+    }
+    return sum + popcount(sanitized_last_block());
+  }
+
+  __host__ __device__ bool test(std::size_t const i) const noexcept {
+    if (i >= Size) {
+      return false;
+    }
+    auto const block = blocks_[i / bits_per_block];
+    auto const bit = (i % bits_per_block);
+    return (block & (block_t{1U} << bit)) != 0U;
+  }
+
+  __host__ __device__ std::size_t size() const noexcept { return Size; }
+
+  __host__ __device__ bool any() const noexcept {
+    for (std::size_t i = 0U; i != num_blocks - 1U; ++i) {
+      if (blocks_[i] != 0U) {
+        return true;
+      }
+    }
+    return sanitized_last_block() != 0U;
+  }
+
+  __host__ __device__ bool none() const noexcept { return !any(); }
+
+  __host__ __device__ block_t sanitized_last_block() const noexcept {
+    if constexpr ((Size % bits_per_block) != 0U) {
+      return blocks_[num_blocks - 1U] &
+             ~((~block_t{0U}) << (Size % bits_per_block));
+    } else {
+      return blocks_[num_blocks - 1U];
+    }
+  }
+
+  __host__ __device__ std::string to_string() const {
+    std::string s{};
+    s.resize(Size);
+    for (std::size_t i = 0U; i != Size; ++i) {
+      s[i] = test(Size - i - 1U) ? '1' : '0';
+    }
+    return s;
+  }
+
+  __host__ __device__ friend bool operator==(gpu_bitset const& a, gpu_bitset const& b) noexcept {
+    for (std::size_t i = 0U; i != num_blocks - 1U; ++i) {
+      if (a.blocks_[i] != b.blocks_[i]) {
+        return false;
+      }
+    }
+    return a.sanitized_last_block() == b.sanitized_last_block();
+  }
+
+  __host__ __device__ friend bool operator<(gpu_bitset const& a, gpu_bitset const& b) noexcept {
+    auto const a_last = a.sanitized_last_block();
+    auto const b_last = b.sanitized_last_block();
+    if (a_last < b_last) {
+      return true;
+    }
+    if (b_last < a_last) {
+      return false;
+    }
+
+    for (int i = num_blocks - 2; i != -1; --i) {
+      auto const x = a.blocks_[i];
+      auto const y = b.blocks_[i];
+      if (x < y) {
+        return true;
+      }
+      if (y < x) {
+        return false;
+      }
+    }
+
+    return false;
+  }
+  __host__ __device__ friend bool operator!=(gpu_bitset const& a, gpu_bitset const& b) noexcept {
+    return !(a == b);
+  }
+
+  __host__ __device__ friend bool operator>(gpu_bitset const& a, gpu_bitset const& b) noexcept {
+    return b < a;
+  }
+
+  __host__ __device__ friend bool operator<=(gpu_bitset const& a, gpu_bitset const& b) noexcept {
+    return !(a > b);
+  }
+
+  __host__ __device__ friend bool operator>=(gpu_bitset const& a, gpu_bitset const& b) noexcept {
+    return !(a < b);
+  }
+
+  __host__ __device__ gpu_bitset& operator&=(gpu_bitset const& o) noexcept {
+    for (auto i = 0U; i < num_blocks; ++i) {
+      blocks_[i] &= o.blocks_[i];
+    }
+    return *this;
+  }
+
+  __host__ __device__ gpu_bitset& operator|=(gpu_bitset const& o) noexcept {
+    for (auto i = 0U; i < num_blocks; ++i) {
+      blocks_[i] |= o.blocks_[i];
+    }
+    return *this;
+  }
+
+  __host__ __device__ gpu_bitset& operator^=(gpu_bitset const& o) noexcept {
+    for (auto i = 0U; i < num_blocks; ++i) {
+      blocks_[i] ^= o.blocks_[i];
+    }
+    return *this;
+  }
+
+  __host__ __device__ gpu_bitset operator~() const noexcept {
+    auto copy = *this;
+    for (auto& b : copy.blocks_) {
+      b = ~b;
+    }
+    return copy;
+  }
+
+  __host__ __device__ friend gpu_bitset operator&(gpu_bitset const& lhs, gpu_bitset const& rhs) noexcept {
+    auto copy = lhs;
+    copy &= rhs;
+    return copy;
+  }
+
+  __host__ __device__ friend gpu_bitset operator|(gpu_bitset const& lhs, gpu_bitset const& rhs) noexcept {
+    auto copy = lhs;
+    copy |= rhs;
+    return copy;
+  }
+
+  __host__ __device__ friend gpu_bitset operator^(gpu_bitset const& lhs, gpu_bitset const& rhs) noexcept {
+    auto copy = lhs;
+    copy ^= rhs;
+    return copy;
+  }
+
+  __host__ __device__ gpu_bitset& operator>>=(std::size_t const shift) noexcept {
+    if (shift >= Size) {
+      reset();
+      return *this;
+    }
+
+    if constexpr ((Size % bits_per_block) != 0U) {
+      blocks_[num_blocks - 1U] = sanitized_last_block();
+    }
+
+    if constexpr (num_blocks == 1U) {
+      blocks_[0U] >>= shift;
+      return *this;
+    } else {
+      if (shift == 0U) {
+        return *this;
+      }
+
+      auto const shift_blocks = shift / bits_per_block;
+      auto const shift_bits = shift % bits_per_block;
+      auto const border = num_blocks - shift_blocks - 1U;
+
+      if (shift_bits == 0U) {
+        for (std::size_t i = 0U; i <= border; ++i) {
+          blocks_[i] = blocks_[i + shift_blocks];
+        }
+      } else {
+        for (std::size_t i = 0U; i < border; ++i) {
+          blocks_[i] =
+              (blocks_[i + shift_blocks] >> shift_bits) |
+              (blocks_[i + shift_blocks + 1] << (bits_per_block - shift_bits));
+        }
+        blocks_[border] = (blocks_[num_blocks - 1] >> shift_bits);
+      }
+
+      for (auto i = border + 1U; i != num_blocks; ++i) {
+        blocks_[i] = 0U;
+      }
+
+      return *this;
+    }
+  }
+
+  __host__ __device__ gpu_bitset& operator<<=(std::size_t const shift) noexcept {
+    if (shift >= Size) {
+      reset();
+      return *this;
+    }
+
+    if constexpr (num_blocks == 1U) {
+      blocks_[0U] <<= shift;
+      return *this;
+    } else {
+      if (shift == 0U) {
+        return *this;
+      }
+
+      auto const shift_blocks = shift / bits_per_block;
+      auto const shift_bits = shift % bits_per_block;
+
+      if (shift_bits == 0U) {
+        for (auto i = std::size_t{num_blocks - 1}; i >= shift_blocks; --i) {
+          blocks_[i] = blocks_[i - shift_blocks];
+        }
+      } else {
+        for (auto i = std::size_t{num_blocks - 1}; i != shift_blocks; --i) {
+          blocks_[i] =
+              (blocks_[i - shift_blocks] << shift_bits) |
+              (blocks_[i - shift_blocks - 1U] >> (bits_per_block - shift_bits));
+        }
+        blocks_[shift_blocks] = blocks_[0U] << shift_bits;
+      }
+
+      for (auto i = 0U; i != shift_blocks; ++i) {
+        blocks_[i] = 0U;
+      }
+
+      return *this;
+    }
+  }
+
+  __host__ __device__ gpu_bitset operator>>(std::size_t const i) const noexcept {
+    auto copy = *this;
+    copy >>= i;
+    return copy;
+  }
+
+  __host__ __device__ gpu_bitset operator<<(std::size_t const i) const noexcept {
+    auto copy = *this;
+    copy <<= i;
+    return copy;
+  }
+
+  __host__ __device__ friend std::ostream& operator<<(std::ostream& out, gpu_bitset const& b) {
+    return out << b.to_string();
+  }
+
+  cuda::std::array<block_t, num_blocks> blocks_{};
+};
+
+}  // namespace cista
+
 
 template <typename T>
 struct gpu_base_type {
@@ -273,9 +437,12 @@ struct gpu_base_type<gpu_strong<T, Tag>> {
 template <typename T>
 using gpu_base_t = typename gpu_base_type<T>::type;
 
-#ifdef NIGIRI_CUDA
 template <typename T, typename Tag>
-__host__ __device__ inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(const gpu_strong<T, Tag>& s) {
+__host__ __device__ inline const typename gpu_strong<T, Tag>::value_t  gpu_to_idx(const gpu_strong<T, Tag>& s) {
+  return s.v_;
+}
+template <typename T, typename Tag>
+__host__ __device__ inline typename gpu_strong<T, Tag>::value_t  gpu_to_idx(gpu_strong<T, Tag>& s) {
   return s.v_;
 }
 template <typename T>
@@ -283,13 +450,7 @@ __host__ __device__ T gpu_to_idx(T const& t) {
   return t;
 }
 
-#else
-template <typename T, typename Tag>
-inline constexpr typename gpu_strong<T, Tag>::value_t gpu_to_idx(
-    gpu_strong<T, Tag> const& s) {
-  return s.v_;
-}
-#endif
+
 
 //TODO: später raus kicken was nicht brauchen
 using gpu_delta_t = int16_t;
@@ -306,14 +467,14 @@ using gpu_transport_idx_t = gpu_strong<std::uint32_t, struct _transport_idx>;
 using gpu_source_idx_t = gpu_strong<std::uint16_t, struct _source_idx>;
 using gpu_day_idx_t = gpu_strong<std::uint16_t, struct _day_idx>;
 template <size_t Size>
-using bitset = cista::bitset<Size>;
+using gpu_bitset = cista::gpu_bitset<Size>;
 constexpr auto const kMaxDays = 512;
-using gpu_bitfield = bitset<kMaxDays>;
+using gpu_bitfield = gpu_bitset<kMaxDays>;
 using gpu_timezone_idx_t = gpu_strong<std::uint16_t, struct _timezone_idx>;
 using gpu_clasz_mask_t = std::uint16_t;
 using gpu_profile_idx_t = std::uint8_t;
 using gpu_stop_idx_t = std::uint16_t;
-using i16_minutes = std::chrono::duration<std::int16_t, std::ratio<60>>;
+using i16_minutes = cuda::std::chrono::duration<std::int16_t, cuda::std::ratio<60>>;
 using gpu_duration_t = i16_minutes;
 using gpu_minutes_after_midnight_t = gpu_duration_t;
 
@@ -335,19 +496,24 @@ enum class gpu_clasz : std::uint8_t {
 };
 
 template <typename R1, typename R2>
-using gpu_ratio_multiply = decltype(std::ratio_multiply<R1, R2>{});
-using gpu_days = std::chrono::duration<int, gpu_ratio_multiply<std::ratio<24>, std::chrono::hours::period>>;
+using gpu_ratio_multiply = decltype(cuda::std::ratio_multiply<R1, R2>{});
+using gpu_days = cuda::std::chrono::duration<int, gpu_ratio_multiply<cuda::std::ratio<24>, cuda::std::chrono::hours::period>>;
 enum class gpu_event_type { kArr, kDep };
 enum class gpu_direction { kForward, kBackward };
 
 template <typename T>
 using ptr = T*;
-using gpu_i32_minutes = std::chrono::duration<int32_t, std::ratio<60>>;
-using gpu_u8_minutes = std::chrono::duration<std::uint8_t, std::ratio<60>>;
-using gpu_unixtime_t = std::chrono::sys_time<gpu_i32_minutes>;
-template <class Duration>
-using gpu_sys_time = std::chrono::time_point<std::chrono::system_clock, Duration>;
+using gpu_i32_minutes = cuda::std::chrono::duration<int32_t, cuda::std::ratio<60>>;
+using gpu_u8_minutes = cuda::std::chrono::duration<std::uint8_t, cuda::std::ratio<60>>;
+
+template <typename D>
+using gpu_sys_time = cuda::std::chrono::time_point<cuda::std::chrono::system_clock, D>;
+using gpu_unixtime_t = gpu_sys_time<gpu_i32_minutes>;
 using gpu_sys_days    = gpu_sys_time<gpu_days>;
+
+__host__ __device__ inline std::ostream& operator<<(std::ostream& out, const gpu_duration_t& duration) {
+  return out << duration.count() << " minute(s)";
+}
 struct gpu_delta{
   std::uint16_t days_ : 5;
   std::uint16_t mam_ : 11;
@@ -358,9 +524,14 @@ struct gpu_delta{
     return !(operator==(a));
   }
 #ifdef NIGIRI_CUDA
+
   __host__ __device__ std::int16_t count() const { return days_ * 1440U + mam_; }
 #endif
 };
+template<typename T>
+__host__ __device__ T gpu_clamp(T value, T low, T high) {
+  return (value < low) ? low : (value > high) ? high : value;
+}
 #ifdef NIGIRI_CUDA
 template <typename T>
 __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
@@ -373,15 +544,15 @@ __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
   }
 #endif
   return static_cast<gpu_delta_t>(
-      std::clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
-                 static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
+      gpu_clamp(t, static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::min()),
+                 static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::max())));
 }
 
 __host__ __device__ inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base, gpu_unixtime_t const t) {
   return gpu_clamp(
-      (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
+      (t - cuda::std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
 }
-__host__ __device__ inline std::pair<gpu_day_idx_t, gpu_minutes_after_midnight_t> gpu_split_day_mam(
+__host__ __device__ inline cuda::std::pair<gpu_day_idx_t, gpu_minutes_after_midnight_t> gpu_split_day_mam(
     gpu_day_idx_t const base, gpu_delta_t const x) {
   assert(x != std::numeric_limits<gpu_delta_t>::min());
   assert(x != std::numeric_limits<gpu_delta_t>::max());
@@ -408,12 +579,12 @@ inline gpu_delta_t gpu_clamp(T t) {
   }
 #endif
   return static_cast<gpu_delta_t>(
-      std::clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
+      gpu_clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
                  static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));
 }
 inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base, gpu_unixtime_t const t) {
   return gpu_clamp(
-      (t - std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
+      (t - cuda::std::chrono::time_point_cast<gpu_unixtime_t::duration>(base)).count());
 }
 #endif
 template <gpu_direction SearchDir>
@@ -421,7 +592,7 @@ inline constexpr auto const kInvalidGpuDelta =
     SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::min()
                                          : std::numeric_limits<gpu_delta_t>::max();
 inline gpu_unixtime_t gpu_delta_to_unix(gpu_sys_days const base, gpu_delta_t const d) {
-  return std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
+  return cuda::std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
          d * gpu_unixtime_t::duration{1};
 }
 
@@ -459,7 +630,7 @@ struct basic_gpu_vecvec {
       return std::string_view{begin(), size()};
     }
 
-    __host__ __device__ value_type& front() {
+    __host__ __device__ const value_type& front() const{
       assert(!empty());
       return operator[](0);
     }
@@ -824,21 +995,13 @@ struct basic_gpu_vecvec {
 struct gpu_transport {
   CISTA_FRIEND_COMPARABLE(gpu_transport)
   CISTA_PRINTABLE(gpu_transport, "idx", "day")
-#ifdef NIGIRI_CUDA
+
   __host__ __device__ static gpu_transport invalid() noexcept {
     return gpu_transport{};
   }
   __host__ __device__ bool is_valid() const {
     return day_ != gpu_day_idx_t::invalid();
   }
-#else
-  static gpu_transport invalid() noexcept {
-    return gpu_transport{};
-  }
-  constexpr bool is_valid() const {
-    return day_ != gpu_day_idx_t::invalid();
-  }
-#endif
   gpu_transport_idx_t t_idx_{gpu_transport_idx_t::invalid()};
   gpu_day_idx_t day_{gpu_day_idx_t::invalid()};
 };
@@ -861,7 +1024,7 @@ struct gpu_basic_vector {
   using iterator = T*;
   using const_iterator = T const*;
   using allocator_type = Allocator;
-#ifdef NIGIRI_CUDA
+
   __host__ __device__ explicit gpu_basic_vector(allocator_type const&) noexcept {}
   __host__ __device__ gpu_basic_vector() noexcept = default;
 
@@ -1163,7 +1326,6 @@ struct gpu_basic_vector {
     allocated_size_ = {};
     self_allocated_ = false;
   }
-#endif
   Ptr<T> el_{nullptr};
   size_type used_size_{0U};
   size_type allocated_size_{0U};
@@ -1248,7 +1410,7 @@ struct gpu_interval {
     return {from_, to_};
   }
 
-  __host__ __device__ T clamp(T const x) const { return std::clamp(x, from_, to_); }
+  __host__ __device__ T clamp(T const x) const { return gpu_clamp(x, from_, to_); }
 
   __host__ __device__ bool contains(T const t) const { return t >= from_ && t < to_; }
 
@@ -1334,7 +1496,7 @@ struct gpu_interval {
     return {from_, to_};
   }
 
-  T clamp(T const x) const { return std::clamp(x, from_, to_); }
+  T clamp(T const x) const { return gpu_clamp(x, from_, to_); }
 
   bool contains(T const t) const { return t >= from_ && t < to_; }
 
@@ -1392,8 +1554,6 @@ using gpu_interval = nigiri::gpu_interval<T>;
 template <typename K, typename V, typename SizeType = gpu_base_t<K>>
 using gpu_vecvec = cista::raw::gpu_vecvec<K, V, SizeType>;
 
-template <typename V, std::size_t SIZE>
-using array = cista::raw::array<V, SIZE>;
 namespace nigiri{
 
 struct gpu_footpath {
@@ -1402,36 +1562,35 @@ struct gpu_footpath {
   static constexpr auto const kTargetBits = 22U;
   static constexpr auto const kDurationBits = kTotalBits - kTargetBits;
   static constexpr auto const kMaxDuration = gpu_duration_t{
-      std::numeric_limits<gpu_location_idx_t::value_t>::max() >> kTargetBits};
+      cuda::std::numeric_limits<gpu_location_idx_t::value_t>::max()>> kTargetBits};
   
   gpu_footpath() = default;
 
-  gpu_footpath(gpu_location_idx_t::value_t const val) {
+  __host__ __device__ gpu_footpath(gpu_location_idx_t::value_t const val) {
     std::memcpy(this, &val, sizeof(value_type));
   }
 
-  gpu_footpath(gpu_location_idx_t const target, gpu_duration_t const duration)
+  __host__ __device__ gpu_footpath(gpu_location_idx_t const target, gpu_duration_t const duration)
       : target_{target},
         duration_{static_cast<value_type>(
             (duration > kMaxDuration ? kMaxDuration : duration).count())} {
   }
 
-  gpu_location_idx_t target() const { return gpu_location_idx_t{target_}; }
-  gpu_duration_t duration() const { return gpu_duration_t{duration_}; }
+  __host__ __device__ gpu_location_idx_t target() const { return gpu_location_idx_t{target_}; }
+  __host__ __device__ gpu_duration_t duration() const { return gpu_duration_t{duration_}; }
 
-  gpu_location_idx_t::value_t value() const {
+  __host__ __device__ gpu_location_idx_t::value_t value() const {
     return *reinterpret_cast<gpu_location_idx_t::value_t const*>(this);
   }
-
-  friend std::ostream& operator<<(std::ostream& out, gpu_footpath const& fp) {
+  __host__ __device__ friend std::ostream& operator<<(std::ostream& out, gpu_footpath const& fp) {
     return out << "(" << fp.target() << ", " << fp.duration() << ")";
   }
 
-  friend bool operator==(gpu_footpath const& a, gpu_footpath const& b) {
+  __host__ __device__ friend bool operator==(gpu_footpath const& a, gpu_footpath const& b) {
     return a.value() == b.value();
   }
 
-  friend bool operator<(gpu_footpath const& a, gpu_footpath const& b) {
+  __host__ __device__ friend bool operator<(gpu_footpath const& a, gpu_footpath const& b) {
     return a.value() < b.value();
   }
 
@@ -1453,7 +1612,7 @@ struct gpu_locations_device {
 }//namespace: nigiri
 using gpu_locations = nigiri::gpu_locations_device;
 
-constexpr gpu_duration_t operator""_gpu_days(unsigned long long n) {
+gpu_duration_t constexpr operator""_gpu_days(unsigned long long n) {
   return gpu_duration_t{n * 1440U};
 }
 static constexpr auto const gpu_kMaxTransfers = std::uint8_t{7U};
@@ -1472,20 +1631,20 @@ enum class gpu_special_station : gpu_location_idx_t::value_t {
   kSpecialStationsSize
 };
 
-constexpr bool is_special(gpu_location_idx_t const l) {
+inline bool is_special(gpu_location_idx_t const l) {
   constexpr auto const max =
       static_cast<std::underlying_type_t<gpu_special_station>>(
           gpu_special_station::kSpecialStationsSize);
   return gpu_to_idx(l) < max;
 }
 
-constexpr auto const gpu_special_stations_names =
-    cista::array<std::string_view,
+auto const gpu_special_stations_names =
+    cuda::std::array<std::string_view,
                  static_cast<std::underlying_type_t<gpu_special_station>>(
                      gpu_special_station::kSpecialStationsSize)>{
         "START", "END", "VIA0", "VIA1", "VIA2", "VIA3", "VIA4", "VIA5", "VIA6"};
 
-constexpr gpu_location_idx_t get_gpu_special_station(gpu_special_station const x) {
+inline gpu_location_idx_t const get_gpu_special_station(gpu_special_station const x) {
   return gpu_location_idx_t{
       static_cast<std::underlying_type_t<gpu_special_station>>(x)};
 }
@@ -1496,7 +1655,7 @@ constexpr std::string_view get_gpu_special_station_name(gpu_special_station cons
 }
 struct gpu_stop {
   using value_type = gpu_location_idx_t::value_t;
-#ifdef __CUDA_ARCH__
+
   __host__ __device__ gpu_stop(gpu_location_idx_t::value_t const val) {
     *reinterpret_cast<value_type*>(this) = val;
   }
@@ -1516,9 +1675,9 @@ struct gpu_stop {
   __host__ __device__ gpu_location_idx_t::value_t value() const {
     return *reinterpret_cast<gpu_location_idx_t::value_t const*>(this);
   }
-
   __host__ __device__ friend auto operator<=>(gpu_stop const&, gpu_stop const&) = default;
-#endif
+
+  __host__ __device__ gpu_stop() = default;
   gpu_location_idx_t::value_t location_ : 30;
   gpu_location_idx_t::value_t in_allowed_ : 1;
   gpu_location_idx_t::value_t out_allowed_ : 1;

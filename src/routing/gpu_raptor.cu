@@ -3,7 +3,6 @@
 
 #include <cooperative_groups.h>
 using namespace cooperative_groups;
-
 // leader type must be unsigned 32bit
 // no leader is a zero ballot vote (all 0) minus 1 => with underflow all 1's
 constexpr unsigned int FULL_MASK = 0xFFFFffff;
@@ -150,15 +149,7 @@ __device__ It linear_lb(It from, End to, Key&& key, Cmp&& cmp) {
 template <gpu_direction SearchDir, bool Rt>
 __device__ bool is_transport_active(gpu_transport_idx_t const t,
                                     std::size_t const day , gpu_timetable* gtt_)  {
-  const auto traffic_day = (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]];
-  // test(i=day) methode
-  if (day >= traffic_day.size()) {
-    return false;
-  }
-  const auto bitfields_data = (*gtt_->bitfields_data_)[(*gtt_->transport_traffic_days_)[t]];
-  auto const block = bitfields_data[day / traffic_day.bits_per_block];
-  auto const bit = (day % traffic_day.bits_per_block);
-  return (block & (std::uint64_t{1U} << bit)) != 0U;
+  return (*gtt_->bitfields_)[(*gtt_->transport_traffic_days_)[t]].test(day);
 }
 
 
@@ -179,7 +170,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   gpu_stop stp{};
   unsigned int l_idx;
   bool is_last;
-  gpu_delta_t prev_round_time = std::numeric_limits<gpu_delta_t>::max();
+  gpu_delta_t prev_round_time = cuda::std::numeric_limits<gpu_delta_t>::max();
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
   if(t_id == 0){
@@ -190,12 +181,12 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     stop_idx = static_cast<gpu_stop_idx_t>(
         (SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
     stp = gpu_stop{stop_seq[stop_idx]};
-    l_idx = gpu_to_idx(gpu_location_idx_t{stp.location_});
+    l_idx = gpu_to_idx(stp.gpu_location_idx());
     is_last = t_id == stop_seq.size() - 1U;
     // ist äquivalent zu prev_arrival
     prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
   }
-  if (!__any_sync(FULL_MASK, prev_round_time!=std::numeric_limits<gpu_delta_t>::max())) {
+  if (!__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())) {
     return any_station_marked_;
   }
 
@@ -267,8 +258,8 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         // & also works as a barrier, d.h. we have to wait for all threads to cast their vote
         // predicate is true if it is possible to enter current trip at station
         unsigned ballot = __ballot_sync(
-            FULL_MASK, (t_id < active_stop_count) && prev_round_time!=std::numeric_limits<gpu_delta_t>::max() &&
-                        et_time_at_stop!=std::numeric_limits<gpu_delta_t>::max() &&
+            FULL_MASK, (t_id < active_stop_count) && prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max() &&
+                        et_time_at_stop!=cuda::std::numeric_limits<gpu_delta_t>::max() &&
                         (prev_round_time <= et_time_at_stop));
         leader = __ffs(ballot) - 1; // returns smallest thread, for which predicate is true
         // jeder thread, dessen station nach der von leader liegt,
@@ -535,13 +526,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       return;
     }
     // swap
-    uint32_t const size = *gtt_->n_locations_;
-    uint32_t dummy_marks[size];
-    for(int i=0; i < *gtt_->n_locations_; i++){
-      dummy_marks[i] = station_mark_[i];
-      station_mark_[i] = prev_station_mark_[i];
-      prev_station_mark_[i] = station_mark_[i];
-    }
+    cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
     for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF;
@@ -570,13 +555,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       route_mark_[i] = 0xFFFF;
     }
     // swap
-    uint32_t const size = *gtt_->n_locations_;
-    uint32_t dummy_marks[size];
-    for(int i=0; i < *gtt_->n_locations_; i++){
-      dummy_marks[i] = station_mark_[i];
-      station_mark_[i] = prev_station_mark_[i];
-      prev_station_mark_[i] = station_mark_[i];
-    }
+    cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
     for(int j = 0; j < *gtt_->n_locations_; j++){
       station_mark_[j] = 0xFFFF; // soll es auf false setzen
@@ -692,7 +671,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & lb_,
                      int* & n_days_,
                      std::uint16_t* & kUnreachable_,
-                     unsigned int* & kIntermodalTarget_,
+                     gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
@@ -739,7 +718,7 @@ void copy_to_device_destroy(
     std::uint16_t* & lb_,
     int* & n_days_,
     std::uint16_t* & kUnreachable_,
-    unsigned int* & kIntermodalTarget_,
+    gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_){
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
@@ -759,11 +738,12 @@ void copy_to_device_destroy(
   }
 };
 
-void inline launch_kernel(void** args,
+void launch_kernel(void** args,
                           device_context const& device,
                           cudaStream_t s,
                           gpu_direction search_dir,
                           bool rt) {
+
   cudaSetDevice(device.id_);
   if(search_dir == gpu_direction::kForward && rt == true){
   cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,
@@ -778,6 +758,7 @@ void inline launch_kernel(void** args,
     cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kBackward,false>, device.grid_,
                                 device.threads_per_block_, args, 0, s);
   }
+
   cuda_check();
 }
 

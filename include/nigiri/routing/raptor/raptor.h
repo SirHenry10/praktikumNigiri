@@ -494,7 +494,7 @@ private:
               location{tt_, stp.location_idx()});
 
           // dann wird frühste Ankunftszeit an dieser Station aktualisiert
-          // hier einziger Punkt, wo gemeinsame Variablen verändert werden
+          // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
           ++stats_.n_earliest_arrival_updated_by_route_;
           state_.tmp_[l_idx] = get_best(by_transport, state_.tmp_[l_idx]);
           state_.station_mark_[l_idx] = true;
