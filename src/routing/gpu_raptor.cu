@@ -643,7 +643,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
 
 #define CUDA_CALL(call) \
     if ((code = (call)) != cudaSuccess) {                     \
-      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
+      printf("CUDA error: %s at " XSTR(call) " %s:%d\n",     \
              cudaGetErrorString(code), __FILE__, __LINE__); \
       goto fail;                                            \
     }
@@ -861,18 +861,6 @@ mem* gpu_mem(
   return mem;
 }
 
-#define CUDA_CALL_ARGS(call) \
-    if ((code = (call)) != cudaSuccess) {                     \
-      printf("CUDA error: %s at " STR(call) " %s:%d\n",     \
-             cudaGetErrorString(code), __FILE__, __LINE__); \
-      goto fail_args;                                            \
-    }
-
-#define CUDA_COPY_TO_DEVICE_ARGS(type, target, source, size)                        \
-    CUDA_CALL_ARGS(cudaMalloc(&(target), (size) * sizeof(type)))                          \
-    CUDA_CALL_ARGS(                                                                   \
-        cudaMemcpy(target, source, (size) * sizeof(type), cudaMemcpyHostToDevice))
-
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
                       gpu_profile_idx_t const* prf_idx,
@@ -880,10 +868,10 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t* worst_time_at_dest_ptr,
                       gpu_profile_idx_t* prf_idx_ptr){
   cudaError_t code;
-  CUDA_COPY_TO_DEVICE_ARGS(gpu_unixtime_t,start_time_ptr,start_time,1);
-  CUDA_COPY_TO_DEVICE_ARGS(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
-  CUDA_COPY_TO_DEVICE_ARGS(gpu_profile_idx_t ,prf_idx_ptr,prf_idx,1);
-  fail_args:
+  CUDA_COPY_TO_DEVICE(gpu_unixtime_t,start_time_ptr,start_time,1);
+  CUDA_COPY_TO_DEVICE(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
+  CUDA_COPY_TO_DEVICE(gpu_profile_idx_t ,prf_idx_ptr,prf_idx,1);
+  fail:
     cudaFree(start_time_ptr);
     cudaFree(worst_time_at_dest_ptr);
     cudaFree(prf_idx_ptr);
