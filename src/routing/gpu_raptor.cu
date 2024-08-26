@@ -197,7 +197,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     auto const mam = splitter.second;
     auto et = gpu_transport{};
 
-    //Anfang get_earliest_transport Methode
+    /*Anfang get_earliest_transport Methode
     ++stats_[l_idx>>5].n_earliest_trip_calls_;
     auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
                                                (SearchDir == gpu_direction::kForward) ?
@@ -205,13 +205,13 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     auto const event_times =
         gtt_->event_times_at_stop(r, stop_idx, (SearchDir == gpu_direction::kForward) ?
                                                 gpu_event_type::kDep : gpu_event_type::kArr);
-    /*auto const seek_first_day = [&]() {
+    auto const seek_first_day = [&]() {
       return linear_lb(gpu_get_begin_it<SearchDir>(event_times),
                        gpu_get_end_it<SearchDir>(event_times), mam,
                        [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
                          return is_better<SearchDir>(a.mam_, b.count());
                        });
-    };*/
+    };
     auto const seek_first_day = [&]() {
       auto* begin = &event_times[0]; // Zeiger auf den ersten Eintrag
       auto* end = begin + event_times.size(); // Zeiger auf das Ende (past-the-end)
@@ -301,7 +301,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         }
         leader = NO_LEADER;
       }
-    }
+    }*/
   }
 
   return any_station_marked_;
