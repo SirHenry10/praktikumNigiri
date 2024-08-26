@@ -177,8 +177,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   if(t_id == 0){
     any_station_marked_= false;
   }
-
-  if(t_id < active_stop_count) {  // wir gehen durch alle Stops der Route r
+  if(t_id < active_stop_count) {
     stop_idx = static_cast<gpu_stop_idx_t>(
         (SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
     stp = gpu_stop{stop_seq[stop_idx]};
@@ -192,7 +191,13 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   }
 
   if(t_id < active_stop_count) {
-    //zuerst müssen wir earliest transport für jede station/thread berechnen
+    //hier glaub ich nicht relevant
+    auto const to = (*gtt_->route_transport_ranges_)[r].to_.v_; //Anzahl an eingehenden transports
+    auto const from = (*gtt_->route_transport_ranges_)[r].from_.v_; // Anzahl ausgehender transports
+
+    auto const trips = (*gtt_->route_stop_time_ranges_)[r];
+    auto const trips_from = trips.from_; // wir haben hier wieder from_ und to_
+    auto const trip_stop = (gtt_->route_stop_times_[t_id].days_); // hier steckt ein delta drin
     auto const splitter = gpu_split_day_mam(*base_, prev_round_time);
     auto const day_at_stop = splitter.first;
     auto const mam = splitter.second;
@@ -889,3 +894,111 @@ void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
   cudaFree(prf_idx_ptr);
   cuda_check();
 }
+
+
+
+/* DUMP Anfang get_earliest_transport Methode
+    ++stats_[l_idx>>5].n_earliest_trip_calls_;
+    auto const n_days_to_iterate = get_smaller(*kMaxTravelTimeTicks_/1440 +1,
+                                               (SearchDir == gpu_direction::kForward) ?
+                                                                                      n_days_ - as_int(day_at_stop) : as_int(day_at_stop)+1);
+    auto const event_times =
+        gtt_->event_times_at_stop(r, stop_idx, (SearchDir == gpu_direction::kForward) ?
+                                                gpu_event_type::kDep : gpu_event_type::kArr);
+    auto const seek_first_day = [&]() {
+      return linear_lb(gpu_get_begin_it<SearchDir>(event_times),
+                       gpu_get_end_it<SearchDir>(event_times), mam,
+                       [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
+                         return is_better<SearchDir>(a.mam_, b.count());
+                       });
+    };
+    auto const seek_first_day = [&]() {
+      auto* begin = &event_times[0]; // Zeiger auf den ersten Eintrag
+      auto* end = begin + event_times.size(); // Zeiger auf das Ende (past-the-end)
+      return linear_lb(begin, end, mam,
+                       [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
+                         return is_better<SearchDir>(a.mam_, b.count());
+                       });
+    };
+
+for(auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i){
+  auto const ev_time_range = gpu_it_range{i==0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(event_times), gpu_get_end_it<SearchDir>(event_times)};
+  if(ev_time_range.empty()){
+    continue;
+  }
+  auto const day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
+  auto* begin = event_times.data();
+  auto* end = event_times.data() + event_times.size();
+
+  for(auto* current = begin; current != end; ++current){ // hier werden alle trips/transports durchgangen
+    auto const t_offset = static_cast<std::size_t>(current - begin);
+    auto const ev = *current;
+    auto const ev_mam = ev.mam_;
+    auto const t = (*gtt_->route_transport_ranges_)[r][t_offset];
+    auto const ev_day_offset = ev.days_;
+    auto const start_day = static_cast<std::size_t>(as_int(day) - ev_day_offset);
+    if(is_better_or_eq<SearchDir>(time_at_dest_[k], to_gpu_delta(day, ev_mam, base_)+dir<SearchDir>(lb_[l_idx]))){
+      et = {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
+    }
+    else if(i == 0U && !is_better_or_eq<SearchDir>(mam.count(), ev_mam)){
+      et = gpu_transport{};
+    }
+    else if(!is_transport_active<SearchDir, Rt>(t, start_day, gtt_)){
+      et= gpu_transport{};
+    }
+    else {
+      et = {t, static_cast<gpu_day_idx_t>(as_int(day) - ev_day_offset)};
+    }
+    auto const et_time_at_stop = et.is_valid()
+                                     ? time_at_stop<SearchDir, Rt>(r, et, stop_idx, (SearchDir == gpu_direction::kForward) ?
+                                                                                                                           gpu_event_type::kDep : gpu_event_type::kArr, gtt_, *base_) : kInvalidGpuDelta<SearchDir>;
+    // hier leader election? -> jeder thread hat zu diesem Punkt sein et von diesem trip/transport bekommen
+    // elect leader via two CUDA functions
+    // every participating thread (1.parameter) evaluates predicate (2.parameter)
+    // & also works as a barrier, d.h. we have to wait for all threads to cast their vote
+    // predicate is true if it is possible to enter current trip at station
+    unsigned ballot = __ballot_sync(
+        FULL_MASK, (t_id < active_stop_count) && prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max() &&
+                       et_time_at_stop!=cuda::std::numeric_limits<gpu_delta_t>::max() &&
+                       (prev_round_time <= et_time_at_stop));
+    leader = __ffs(ballot) - 1; // returns smallest thread, for which predicate is true
+    // jeder thread, dessen station nach der von leader liegt,
+    // kann jetzt seine jeweilige trip arrival time versuchen zu aktualisieren
+    if (t_id > leader && t_id < active_stop_count){
+      if (et.is_valid() || marked(prev_station_mark_, l_idx)) {
+        auto current_best = kInvalidGpuDelta<SearchDir>;
+        if(et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed_ : stp.in_allowed_)){
+          auto const by_transport = time_at_stop<SearchDir, Rt>(
+              r, et, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kArr : gpu_event_type::kDep, gtt_, *base_);
+          current_best = get_best<SearchDir>(round_times_[(k - 1)*row_count_round_times_ + l_idx],
+                                             tmp_[l_idx], best_[l_idx]);
+
+          if (is_better<SearchDir>(by_transport, current_best) &&
+              is_better<SearchDir>(by_transport, time_at_dest_[k]) &&
+              lb_[l_idx] != kUnreachable &&
+              is_better<SearchDir>(by_transport + dir<SearchDir>(lb_[l_idx]), time_at_dest_[k])){
+            ++stats_[get_global_thread_id()>>5].n_earliest_arrival_updated_by_route_;
+            tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
+            mark(station_mark_, l_idx);
+            current_best = by_transport;
+            atomicOr(reinterpret_cast<int*>(any_station_marked_), true); // keine Ahnung, ob das hier mit dem cast korrekt funktioniert
+          }
+        }
+        if(!is_last && ((SearchDir == gpu_direction::kForward) ? (stp.in_allowed_!=0U) : (stp.out_allowed_!=0U)) && marked(prev_station_mark_, l_idx)){ //wieder umgekehrte Bedingung
+          if(lb_[l_idx] == kUnreachable) {
+            return any_station_marked_;
+          }
+          if(is_better_or_eq<SearchDir>(prev_round_time, et_time_at_stop)){
+
+          }
+        }
+      }
+    }
+
+
+    if (leader != NO_LEADER) {
+      active_stop_count = leader;
+    }
+    leader = NO_LEADER;
+  }
+}*/
