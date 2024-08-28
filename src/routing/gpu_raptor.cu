@@ -680,6 +680,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
   cudaError_t code;
+  std::cerr << "copy_to_device start" << std::endl;
   auto dist_to_end_size = dist_to_dest.size();
   allowed_claszes_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t, allowed_claszes_, &allowed_claszes, 1);
@@ -703,6 +704,8 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                       &kIntermodalTarget, 1);
   kMaxTravelTimeTicks_ = nullptr;
   CUDA_COPY_TO_DEVICE(short, kMaxTravelTimeTicks_, &kMaxTravelTimeTicks, 1);
+  std::cerr << "copy_to_device end" << std::endl;
+  return;
 fail:
   cudaFree(allowed_claszes_);
   cudaFree(dist_to_end_);
@@ -714,6 +717,7 @@ fail:
   cudaFree(kUnreachable_);
   cudaFree(kIntermodalTarget_);
   cudaFree(kMaxTravelTimeTicks_);
+  return;
 };
 void copy_to_device_destroy(
     gpu_clasz_mask_t*& allowed_claszes_,
@@ -821,13 +825,12 @@ void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,
   cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cudaMemcpy(mem_->device_.station_mark_, gpu_station_mark.data(), mem_->device_.n_locations_*sizeof(uint32_t), cudaMemcpyHostToDevice);
 }
-
-mem* gpu_mem(
-    std::vector<gpu_delta_t> tmp,
-    std::vector<gpu_delta_t> best,
-    std::vector<bool> station_mark,
-    std::vector<bool> prev_station_mark,
-    std::vector<bool> route_mark,
+std::unique_ptr<mem> gpu_mem(
+    std::vector<gpu_delta_t>& tmp,
+    std::vector<gpu_delta_t>& best,
+    std::vector<bool>& station_mark,
+    std::vector<bool>& prev_station_mark,
+    std::vector<bool>& route_mark,
     gpu_direction search_dir,
     gpu_timetable* gtt){
   std::cerr << "Test gpu_raptor::gpu_mem()" << std::endl;
@@ -837,11 +840,6 @@ mem* gpu_mem(
   } else{
     kInvalid = kInvalidGpuDelta<gpu_direction::kBackward>;
   }
-  gpu_raptor_state state;
-  std::cerr << "Test gpu_raptor::gpu_mem() 1" << std::endl;
-  state.init(*gtt, kInvalid);
-  loaned_mem loan(state,kInvalid);
-  mem* mem = loan.mem_;
   std::vector<uint32_t> gpu_station_mark(gtt->n_locations_);
   for (size_t i = 0; i < station_mark.size(); ++i) {
     gpu_station_mark[i] = station_mark[i];
@@ -854,20 +852,24 @@ mem* gpu_mem(
   for (size_t i = 0; i < route_mark.size(); ++i) {
     gpu_route_mark[i] = route_mark[i];
   }
+  gpu_raptor_state state;
+  std::cerr << "Test gpu_raptor::gpu_mem() 1" << std::endl;
+  state.init(*gtt, kInvalid);
+  loaned_mem loan(state,kInvalid);
+  std::unique_ptr<mem> mem = std::move(loan.mem_);
 
-    std::cerr << "Test gpu_raptor::gpu_mem() 2" << std::endl;
-
-  //TODO: Maybe tmp und best entfernen da eh überschieben???
-    cudaMemcpy(mem->device_.tmp_, tmp.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.get()->device_.tmp_, tmp.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.best_, best.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.get()->device_.best_, best.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.station_mark_, gpu_station_mark.data(), (gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.get()->device_.station_mark_, gpu_station_mark.data(), (gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.prev_station_mark_, gpu_prev_station_mark.data(), (gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.get()->device_.prev_station_mark_, gpu_prev_station_mark.data(), (gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.route_mark_, gpu_route_mark.data(), (gtt->n_routes_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.get()->device_.route_mark_, gpu_route_mark.data(), (gtt->n_routes_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
+  cudaDeviceSynchronize();
+  std::cerr << "Test gpu_raptor::gpu_mem() ende" << std::endl;
   return mem;
 }
 
@@ -881,10 +883,12 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,start_time_ptr,start_time,1);
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
   CUDA_COPY_TO_DEVICE(gpu_profile_idx_t ,prf_idx_ptr,prf_idx,1);
+  return;
   fail:
     cudaFree(start_time_ptr);
     cudaFree(worst_time_at_dest_ptr);
     cudaFree(prf_idx_ptr);
+    return;
 }
 void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
                               gpu_unixtime_t* worst_time_at_dest_ptr,

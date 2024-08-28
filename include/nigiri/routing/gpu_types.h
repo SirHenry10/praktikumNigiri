@@ -1615,8 +1615,8 @@ using gpu_locations = nigiri::gpu_locations_device;
 gpu_duration_t constexpr operator""_gpu_days(unsigned long long n) {
   return gpu_duration_t{n * 1440U};
 }
-static constexpr auto const gpu_kMaxTransfers = std::uint8_t{7U};
-static constexpr auto const gpu_kMaxTravelTime = 1_gpu_days;
+constexpr auto const gpu_kMaxTransfers = std::uint8_t{7U};
+constexpr auto const gpu_kMaxTravelTime = 1_gpu_days;
 
 enum class gpu_special_station : gpu_location_idx_t::value_t {
   kStart,

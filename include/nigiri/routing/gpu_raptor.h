@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iostream>
 #include <cinttypes>
 #include "nigiri/common/linear_lower_bound.h"
 #include "nigiri/routing/gpu_raptor_state.h"
@@ -49,12 +50,12 @@ void launch_kernel(void** args,
                           bool rt);
 void copy_back(mem* mem);
 
-mem* gpu_mem(
-    std::vector<gpu_delta_t> tmp,
-    std::vector<gpu_delta_t> best,
-    std::vector<bool> station_mark,
-    std::vector<bool> prev_station_mark,
-    std::vector<bool> route_mark,
+std::unique_ptr<mem> gpu_mem(
+    std::vector<gpu_delta_t>& tmp,
+    std::vector<gpu_delta_t>& best,
+    std::vector<bool>& station_mark,
+    std::vector<bool>& prev_station_mark,
+    std::vector<bool>& route_mark,
     gpu_direction search_dir,
     gpu_timetable* gtt);
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t* base_,short const kInvalid);
@@ -128,29 +129,34 @@ struct gpu_raptor {
 
 
   gpu_raptor(gpu_timetable* gtt,
-         mem* mem,
+             std::unique_ptr<mem> mem,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
          std::vector<std::uint16_t>& lb,
-         gpu_day_idx_t const base,
-         gpu_clasz_mask_t const allowed_claszes)
+         gpu_day_idx_t const& base,
+         gpu_clasz_mask_t const& allowed_claszes,
+             int const& n_days)
       : gtt_{gtt},
-        mem_{mem}
+        mem_{mem.get()}//ToDO: verwaltung von mem nicht übergebn drausen lassen...
         {
+    std::cerr << "gpu_raptor()" << std::endl;
     mem_->reset_arrivals_async();
+    std::cerr << "gpu_raptor() before copy_array" << std::endl;
     std::unique_ptr<bool[]> copy_array(new bool[is_dest.size()]);
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
     }
+    std::cerr << "gpu_raptor() 1" << std::endl;
     auto const kIntermodalTarget  =
         gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
+    std::cerr << "gpu_raptor() before copy_to_Devices" << std::endl;
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
                     copy_array,
                     is_dest.size(),
                     lb,
-                    gtt_->gpu_internal_interval_days().size().count(),
+                    n_days,//error,
                     kUnreachable,
                     kMaxTravelTimeTicks,
                     kIntermodalTarget,
@@ -166,6 +172,8 @@ struct gpu_raptor {
                     kMaxTravelTimeTicks_);
   }
   ~gpu_raptor(){
+
+    std::cerr << "gpu_raptor() destroy" << std::endl;
       copy_to_device_destroy(allowed_claszes_,
                            dist_to_end_,
                            dist_to_end_size_,
@@ -177,11 +185,6 @@ struct gpu_raptor {
                            kIntermodalTarget_,
                            kMaxTravelTimeTicks_);
       destroy_gpu_timetable(gtt_);
-      if (mem_ != nullptr) {
-        delete mem_;
-        mem_ = nullptr;
-      }
-
   }
   algo_stats_t get_stats() const {
     return stats_;
@@ -237,16 +240,16 @@ struct gpu_raptor {
     return mem_->host_.round_times_.data();
   }
   gpu_timetable* gtt_{nullptr};
-  mem* mem_;
-  bool* is_dest_;
-  uint16_t* dist_to_end_;
-  uint32_t* dist_to_end_size_;
-  uint16_t* lb_;
-  gpu_day_idx_t* base_;
-  int* n_days_;
+  mem* mem_{nullptr};
+  bool* is_dest_{nullptr};
+  uint16_t* dist_to_end_{nullptr};
+  uint32_t* dist_to_end_size_{nullptr};
+  uint16_t* lb_{nullptr};
+  gpu_day_idx_t* base_{nullptr};
+  int* n_days_{nullptr};
   gpu_raptor_stats stats_;
-  gpu_clasz_mask_t* allowed_claszes_;
-  std::uint16_t* kUnreachable_;
-  gpu_location_idx_t* kIntermodalTarget_;
-  short* kMaxTravelTimeTicks_;
+  gpu_clasz_mask_t* allowed_claszes_{nullptr};
+  std::uint16_t* kUnreachable_{nullptr};
+  gpu_location_idx_t* kIntermodalTarget_{nullptr};
+  short* kMaxTravelTimeTicks_{nullptr};
 };

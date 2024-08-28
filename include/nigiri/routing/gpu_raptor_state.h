@@ -179,7 +179,7 @@ struct loaned_mem {
 
   ~loaned_mem();
 
-  mem* mem_{nullptr};
+  std::unique_ptr<mem> mem_{nullptr};
   std::unique_lock<std::mutex> lock_{};
 };
 

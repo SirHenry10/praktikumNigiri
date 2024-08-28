@@ -31,7 +31,8 @@ struct gpu_raptor_translator {
       std::unique_ptr<gpu_raptor<gpu_direction::kBackward, true>>,
       std::unique_ptr<gpu_raptor<gpu_direction::kBackward, false>>
       > gpu_r_;
-  mem* mem_;
+  std::unique_ptr<mem> mem_;
+  std::unique_ptr<loaned_mem> loaned_mem_;
 
   gpu_raptor_translator(nigiri::timetable const& tt,
                         nigiri::rt_timetable const* rtt,
@@ -42,7 +43,10 @@ struct gpu_raptor_translator {
                         nigiri::day_idx_t const base,
                         nigiri::routing::clasz_mask_t const allowed_claszes);
   algo_stats_t get_stats();
-
+  //TODO: destructor bauen mit: if (mem_ != nullptr) {
+  //         delete mem_;
+  //         mem_ = nullptr;
+  //       }
   void reset_arrivals();
 
   void next_start_time();
@@ -77,7 +81,7 @@ private:
                                   uint8_t const max_transfers,
                                   nigiri::unixtime_t const worst_time_at_dest,
                                   nigiri::profile_idx_t const prf_idx);
-  mem* get_gpu_mem(gpu_timetable* gtt);
+  std::unique_ptr<mem> get_gpu_mem(gpu_timetable* gtt);
   void gpu_covert_to_r_state();
 };
 #pragma once
@@ -213,12 +217,12 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
       n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
       allowed_claszes_{allowed_claszes}{
   std::cerr << "Test gpu_raptor_translator()" << std::endl;
-  auto gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
-  auto gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
+  auto& gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
+  auto& gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
   auto gtt = translate_tt_in_gtt(tt_);
-  mem_ = get_gpu_mem(gtt);
+  mem_ = std::move(get_gpu_mem(gtt));
   std::cerr << "Test gpu_raptor_translator() std::make_unique" << std::endl;
-  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt,mem_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes);
+  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt,mem_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes,tt_.internal_interval_days().size().count()); //TODO: next SEH error also falscher pointer oder so...
   std::cerr << "Test gpu_raptor_translator() ende" << std::endl;
 }
 using algo_stats_t = gpu_raptor_stats;
@@ -313,14 +317,12 @@ gpu_delta_t* gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
 }
 
 template <nigiri::direction SearchDir, bool Rt>
-mem* gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable* gtt) {
+std::unique_ptr<mem> gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable* gtt) {
   std::cerr << "Test gpu_raptor_translator::get_gpu_mem()" << std::endl;
   state_.resize(n_locations_,n_routes_,n_rt_transports_);
-  auto tmp = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.tmp_);
-  auto best = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.best_);
-  auto returner = gpu_mem(tmp,best,state_.station_mark_,state_.prev_station_mark_,state_.route_mark_,gpu_direction_,gtt);
-  std::cerr << "Test gpu_raptor_translator::get_gpu_mem() ende" << std::endl;
-  return returner;
+  auto& tmp = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.tmp_);
+  auto& best = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.best_);
+  return gpu_mem(tmp,best,state_.station_mark_,state_.prev_station_mark_,state_.route_mark_,gpu_direction_,gtt);
 }
 
 template <nigiri::direction SearchDir, bool Rt>
