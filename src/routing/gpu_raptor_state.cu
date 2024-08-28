@@ -3,23 +3,25 @@
 #include "nigiri/routing/gpu_raptor_state.h"
 #include <iostream>
 
+
 #include <cuda_runtime.h>
 
 std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
-  int32_t block_dim_x = 32;  // must always be 32!
-  int32_t block_dim_y = 32;  // range [1, ..., 32]
-  int32_t block_size = block_dim_x * block_dim_y;
-  int32_t max_blocks_per_sm = prop.maxThreadsPerMultiProcessor / block_size;
+   //TODO: funktioniert nicht wie bei julian
+   int32_t block_dim_x = 32;  // must always be 32!
+   int32_t block_dim_y = 32;  // range [1, ..., 32]
+   int32_t block_size = block_dim_x * block_dim_y;
+   int32_t max_blocks_per_sm = prop.maxThreadsPerMultiProcessor / block_size;
 
-  auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
+   auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
 
-  int32_t num_blocks = mp_count * max_blocks_per_sm;
+   int32_t num_blocks = mp_count * max_blocks_per_sm;
 
-  dim3 threads_per_block(block_dim_x, block_dim_y, 1);
-  dim3 grid(num_blocks, 1, 1);
+   dim3 threads_per_block(block_dim_x, block_dim_y, 1);
+   dim3 grid(num_blocks, 1, 1);
 
-  return {threads_per_block, grid};
+   return {threads_per_block, grid};
 }
 
 device_context::device_context(device_id const device_id)
@@ -206,8 +208,11 @@ loaned_mem::~loaned_mem() {
 }
 void mem::reset_arrivals_async(){
   device_.reset_arrivals_async(context_.proc_stream_);
+  cuda_sync_stream(context_.proc_stream_);
+  //TODO: weiß nicht ob ucda_sync_stream?
   std::cerr << "reset_arrivals async ende ende" << std::endl;
 }
 void mem::next_start_time_async(){
   device_.next_start_time_async(context_.proc_stream_);
+  cuda_sync_stream(context_.proc_stream_);
 }

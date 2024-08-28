@@ -753,10 +753,11 @@ void launch_kernel(void** args,
                           cudaStream_t s,
                           gpu_direction search_dir,
                           bool rt) {
-
+  std::cerr << "Test gpu_raptor::launch_kernel() start" << std::endl;
   cudaSetDevice(device.id_);
+  //TODO: Invalid arguments für cudaLaunchCooperativeKernel
   if(search_dir == gpu_direction::kForward && rt == true){
-  cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,
+    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,
                               device.threads_per_block_, args, 0, s);
   } else if(search_dir == gpu_direction::kForward && rt == false){
     cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,false>, device.grid_,
@@ -768,11 +769,11 @@ void launch_kernel(void** args,
     cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kBackward,false>, device.grid_,
                                 device.threads_per_block_, args, 0, s);
   }
-
   cuda_check();
+  std::cerr << "Test gpu_raptor::launch_kernel() ende" << std::endl;
 }
 
-inline void fetch_arrivals_async(mem* mem, cudaStream_t s) {
+inline void fetch_arrivals_async(mem*& mem, cudaStream_t s) {
   cudaMemcpyAsync(
       mem->host_.round_times_.data(), mem->device_.round_times_,
       sizeof(gpu_delta_t)*mem->host_.row_count_round_times_*mem->host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
@@ -883,9 +884,9 @@ std::unique_ptr<mem> gpu_mem(
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
                       gpu_profile_idx_t const* prf_idx,
-                      gpu_unixtime_t* start_time_ptr,
-                      gpu_unixtime_t* worst_time_at_dest_ptr,
-                      gpu_profile_idx_t* prf_idx_ptr){
+                      gpu_unixtime_t*& start_time_ptr,
+                      gpu_unixtime_t*& worst_time_at_dest_ptr,
+                      gpu_profile_idx_t*& prf_idx_ptr){
   cudaError_t code;
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,start_time_ptr,start_time,1);
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
@@ -897,9 +898,9 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
     cudaFree(prf_idx_ptr);
     return;
 }
-void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
-                              gpu_unixtime_t* worst_time_at_dest_ptr,
-                              gpu_profile_idx_t* prf_idx_ptr){
+void destroy_copy_to_gpu_args(gpu_unixtime_t*& start_time_ptr,
+                              gpu_unixtime_t*& worst_time_at_dest_ptr,
+                              gpu_profile_idx_t*& prf_idx_ptr){
   cudaFree(start_time_ptr);
   cudaFree(worst_time_at_dest_ptr);
   cudaFree(prf_idx_ptr);

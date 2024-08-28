@@ -77,7 +77,7 @@ struct gpu_raptor_translator {
   static bool test(bool hi);
 private:
   date::sys_days base() const;
-  gpu_delta_t* get_gpu_roundtimes(nigiri::unixtime_t const start_time,
+  void get_gpu_roundtimes(nigiri::unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   nigiri::unixtime_t const worst_time_at_dest,
                                   nigiri::profile_idx_t const prf_idx);
@@ -105,7 +105,7 @@ void gpu_raptor_translator<SearchDir, Rt>::execute(
     profile_idx_t const prf_idx,
     nigiri::pareto_set<journey>& results) {
   std::cerr << "Test gpu_raptor_translator::execute()" << std::endl;
-  gpu_delta_t* gpu_round_times = get_gpu_roundtimes(start_time,max_transfers,worst_time_at_dest,prf_idx);
+  get_gpu_roundtimes(start_time,max_transfers,worst_time_at_dest,prf_idx);
   // Konstruktion der Ergebnis-Journey
   //TODO: kann wieder die normale round_times aus dem raptor_state verwenden da ich ja zurück übersetzen
   auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
@@ -116,15 +116,10 @@ void gpu_raptor_translator<SearchDir, Rt>::execute(
     }
 
     for (auto k = 1U; k != end_k; ++k) {
-      auto const dest_time = *reinterpret_cast<delta_t*>(
-          &gpu_round_times[k * (gpu_kMaxTransfers + 1U) + i]);
+      auto const dest_time = state_.round_times_[k][i];
       if (dest_time != kInvalid) {
         trace("ADDING JOURNEY: start={}, dest={} @ {}, transfers={}\n",
-              start_time,
-              delta_to_unix(
-                  base(),
-                  (*reinterpret_cast<delta_t*>(
-                      &gpu_round_times[k * (gpu_kMaxTransfers + 1U) + i]))),
+              start_time, delta_to_unix(base(), state_.round_times_[k][i]),
               location{tt_, location_idx_t{i}}, k - 1);
         auto const [optimal, it, dominated_by] = results.add(
             journey{.legs_ = {},
@@ -290,30 +285,30 @@ void gpu_raptor_translator<SearchDir, Rt>::add_start(nigiri::location_idx_t cons
 
 // hier wird Kernel aufgerufen
 template <nigiri::direction SearchDir, bool Rt>
-gpu_delta_t* gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
+void gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
     nigiri::unixtime_t const start_time,
     uint8_t const max_transfers,
     nigiri::unixtime_t const worst_time_at_dest,
     nigiri::profile_idx_t const prf_idx) {
   std::cerr << "Test gpu_raptor_translator::get_gpu_roundtimes()" << std::endl;
-  gpu_unixtime_t gpu_start_time = *reinterpret_cast<gpu_unixtime_t const*>(&start_time);
+  auto& gpu_start_time = *reinterpret_cast<gpu_unixtime_t const*>(&start_time);
 
-  gpu_unixtime_t gpu_worst_time_at_dest = *reinterpret_cast<gpu_unixtime_t const*>(&worst_time_at_dest);;
+  auto& gpu_worst_time_at_dest = *reinterpret_cast<gpu_unixtime_t const*>(&worst_time_at_dest);;
 
-  auto gpu_prf_idx = *reinterpret_cast<gpu_profile_idx_t const*>(&prf_idx);
-  gpu_delta_t* gpu_round_times;
-  if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(&gpu_r_)->get()) {
-    gpu_round_times = gpu_r->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
-  } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kForward,false>>>(&gpu_r_)->get()) {
-    gpu_round_times = gpu_r->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
-  } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kBackward, true>>>(&gpu_r_)->get()) {
-    gpu_round_times = gpu_r->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
-  } else if (auto gpu_r = get_if<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(&gpu_r_)->get()) {
-    gpu_round_times = gpu_r->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
+  auto& gpu_prf_idx = *reinterpret_cast<gpu_profile_idx_t const*>(&prf_idx);
+
+  std::cerr << "Test gpu_raptor_translator::get_gpu_roundtimes() mid" << std::endl;
+  if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
+  } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,false>>>(gpu_r_)->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == true) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,true>>>(gpu_r_)->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
+  } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
+    get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
   }
   gpu_covert_to_r_state();
   std::cerr << "Test gpu_raptor_translator::get_gpu_roundtimes() ende" << std::endl;
-  return gpu_round_times;
 }
 
 template <nigiri::direction SearchDir, bool Rt>

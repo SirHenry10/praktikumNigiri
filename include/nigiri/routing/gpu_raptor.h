@@ -63,12 +63,12 @@ void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
                       gpu_profile_idx_t const* prf_idx,
-                      gpu_unixtime_t* start_time_ptr,
-                      gpu_unixtime_t* worst_time_at_dest_ptr,
-                      gpu_profile_idx_t* prf_idx_ptr);
-void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
-                              gpu_unixtime_t* worst_time_at_dest_ptr,
-                              gpu_profile_idx_t* prf_idx_ptr);
+                      gpu_unixtime_t*& start_time_ptr,
+                      gpu_unixtime_t*& worst_time_at_dest_ptr,
+                      gpu_profile_idx_t*& prf_idx_ptr);
+void destroy_copy_to_gpu_args(gpu_unixtime_t*& start_time_ptr,
+                              gpu_unixtime_t*& worst_time_at_dest_ptr,
+                              gpu_profile_idx_t*& prf_idx_ptr);
 template<gpu_direction SearchDir>
 __host__ __device__ static bool is_better(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a < b : a > b; }
 __host__ __device__ static auto get_smaller(auto a, auto b) { return a < b ? a : b ;}
@@ -212,20 +212,21 @@ struct gpu_raptor {
 
 
   // hier wird Kernel aufgerufen
-  gpu_delta_t* execute(gpu_unixtime_t const start_time,
-             uint8_t const max_transfers,
-             gpu_unixtime_t const worst_time_at_dest,
-             gpu_profile_idx_t const prf_idx){
+  void execute(gpu_unixtime_t const& start_time,
+             uint8_t const& max_transfers,
+             gpu_unixtime_t const& worst_time_at_dest,
+             gpu_profile_idx_t const& prf_idx){
+    std::cerr << "Test gpu_raptor::execute() start" << std::endl;
     //start_time muss rüber das bei trace,max_transfers muss nicht malloced werden, worst_time_at_Dest muss rüber kopiert werden, prf_idx muss kopiert werden
     gpu_unixtime_t* start_time_ptr = nullptr;
     gpu_unixtime_t* worst_time_at_dest_ptr = nullptr;
     gpu_profile_idx_t* prf_idx_ptr = nullptr;
     copy_to_gpu_args(&start_time,
-                      &worst_time_at_dest,
-                         &prf_idx,
-                          start_time_ptr,
-                          worst_time_at_dest_ptr,
-                            prf_idx_ptr);
+                     &worst_time_at_dest,
+                     &prf_idx,
+                     start_time_ptr,
+                     worst_time_at_dest_ptr,
+                     prf_idx_ptr);
     void* kernel_args[] = {(void*)start_time_ptr, (void*)&max_transfers, (void*)worst_time_at_dest_ptr, (void*)prf_idx_ptr, (void*)this};
     launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
     copy_back(mem_);
@@ -244,7 +245,7 @@ struct gpu_raptor {
     }
     stats_ = tmp;
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
-    return mem_->host_.round_times_.data();
+    std::cerr << "Test gpu_raptor::execute() ende" << std::endl;
   }
   gpu_timetable* gtt_{nullptr};
   mem* mem_{nullptr};
