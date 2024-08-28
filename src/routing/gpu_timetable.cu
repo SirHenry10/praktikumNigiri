@@ -263,6 +263,10 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
     std::cerr << "something went wrong, one attribute ist nullptr" << std::endl;
     goto fail;
   }
+  gtt->cpu_date_range_ = date_range;
+  device_bytes += sizeof(gpu_interval<gpu_sys_days> const*);
+  //TODO: muss ich auch auf device_bytes drauf rechnen cpu_date_range_???
+  //TODO: für was werden device bytse genutzt?
   return gtt;
 
 

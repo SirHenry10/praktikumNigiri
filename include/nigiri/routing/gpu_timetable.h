@@ -16,9 +16,10 @@ extern "C"{
     gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>* bitfields_{nullptr};
     gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>* transport_traffic_days_{nullptr};
     gpu_interval<gpu_sys_days>* date_range_{nullptr};
+    gpu_interval<gpu_sys_days> const* cpu_date_range_{nullptr};
     gpu_locations* locations_{nullptr};
     gpu_vector_map<gpu_route_idx_t, gpu_clasz>* route_clasz_{nullptr};
-#ifdef NIGIRI_CUDA
+
     __host__ __device__ cuda::std::span<gpu_delta const> event_times_at_stop(gpu_route_idx_t const r,
                                                gpu_stop_idx_t const stop_idx,
                                                gpu_event_type const ev_type) const {
@@ -30,21 +31,18 @@ extern "C"{
           n_transports * (stop_idx * 2 - (ev_type == gpu_event_type::kArr ? 1 : 0)));
       return  cuda::std::span<gpu_delta const>{&route_stop_times_[idx], n_transports};
     }
-    __host__ __device__ gpu_interval<gpu_sys_days> gpu_internal_interval_days() const {
+    __device__ gpu_interval<gpu_sys_days> gpu_internal_interval_days() const {
       auto date_range = *date_range_;
       return {date_range.from_ - (gpu_days{1} + gpu_days{4}),
               date_range.to_ + gpu_days{1}};
     }
-#else
-    gpu_interval<gpu_sys_days> gpu_internal_interval_days() const {
-      auto date_range = *date_range_;
+    gpu_interval<gpu_sys_days> cpu_internal_interval_days() const {
+      auto date_range = *cpu_date_range_;
       return {date_range.from_ - (gpu_days{1} + gpu_days{4}),
               date_range.to_ + gpu_days{1}};
     }
 
 
-
-#endif
 
   };
 

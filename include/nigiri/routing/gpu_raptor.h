@@ -58,7 +58,7 @@ std::unique_ptr<mem> gpu_mem(
     std::vector<bool>& route_mark,
     gpu_direction search_dir,
     gpu_timetable* gtt);
-void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t* base_,short const kInvalid);
+void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t base_,short const kInvalid);
 
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
@@ -88,8 +88,12 @@ __host__ __device__ static auto get_best(auto x, auto... y) {
 
 __host__ __device__ inline int as_int(gpu_location_idx_t d) { return static_cast<int>(d.v_); }
 __host__ __device__ inline int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
-__host__ __device__ inline gpu_sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
+//TODO: base funktioniert nur auf device!!
+__device__ inline gpu_sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
   return gtt->gpu_internal_interval_days().from_ + as_int(*base) * gpu_days{1};
+}
+__host__ inline gpu_sys_days cpu_base(gpu_timetable const* gtt, gpu_day_idx_t base) {
+  return gtt->cpu_internal_interval_days().from_ + as_int(base) * gpu_days{1};
 }
 template<gpu_direction SearchDir>
 __host__ __device__ static auto dir(auto a) { return (SearchDir==gpu_direction::kForward ? 1 : -1) * a; }
@@ -129,7 +133,7 @@ struct gpu_raptor {
 
 
   gpu_raptor(gpu_timetable* gtt,
-             std::unique_ptr<mem> mem,
+             mem* mem,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
          std::vector<std::uint16_t>& lb,
@@ -137,7 +141,7 @@ struct gpu_raptor {
          gpu_clasz_mask_t const& allowed_claszes,
              int const& n_days)
       : gtt_{gtt},
-        mem_{mem.get()}//ToDO: verwaltung von mem nicht übergebn drausen lassen...
+        mem_{mem}//ToDO: verwaltung von mem nicht übergebn drausen lassen...
         {
     std::cerr << "gpu_raptor()" << std::endl;
     mem_->reset_arrivals_async();
@@ -150,6 +154,7 @@ struct gpu_raptor {
     auto const kIntermodalTarget  =
         gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
     std::cerr << "gpu_raptor() before copy_to_Devices" << std::endl;
+    cpu_base_ = base;
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
@@ -200,7 +205,9 @@ struct gpu_raptor {
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
-      add_start_gpu(l,t,mem_,gtt_,base_,kInvalid);
+    std::cerr << "Test gpu_raptor::add_start() start" << std::endl;
+      add_start_gpu(l,t,mem_,gtt_,cpu_base_,kInvalid);
+      std::cerr << "Test gpu_raptor::add_start() end" << std::endl;
   }
 
 
@@ -246,6 +253,7 @@ struct gpu_raptor {
   uint32_t* dist_to_end_size_{nullptr};
   uint16_t* lb_{nullptr};
   gpu_day_idx_t* base_{nullptr};
+  gpu_day_idx_t cpu_base_;
   int* n_days_{nullptr};
   gpu_raptor_stats stats_;
   gpu_clasz_mask_t* allowed_claszes_{nullptr};

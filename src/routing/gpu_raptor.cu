@@ -812,18 +812,25 @@ void copy_back(mem* mem){
   cuda_check();
 }
 
-void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t* base_,short const kInvalid){
+void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t base_,short const kInvalid){
+  std::cerr << "Test gpu_raptor::add_start_gpu() start" << std::endl;
   trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
   std::vector<gpu_delta_t> best_new(mem_->device_.n_locations_,kInvalid);
+  std::cerr << "Test gpu_raptor::add_start_gpu() 1" << std::endl;
   std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
-  best_new[gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
-  round_times_new[0U*mem_->device_.row_count_round_times_+ gpu_to_idx(l)] = unix_to_gpu_delta(base(gtt_,base_), t);
+  std::cerr << "Test gpu_raptor::add_start_gpu() 1.5" << std::endl;
+  best_new[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_,base_), t);
+  std::cerr << "Test gpu_raptor::add_start_gpu() 2" << std::endl;
+  //TODO: hier fehler da base nur auf device funktioniert!
+  round_times_new[0U*mem_->device_.row_count_round_times_+ gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_,base_), t);
   //TODO: fix station_mark ist kein bool!
   std::vector<uint32_t> gpu_station_mark(mem_->device_.n_locations_,0);
   gpu_station_mark[gpu_to_idx(l)] = 1;
+  std::cerr << "Test gpu_raptor::add_start_gpu() 3" << std::endl;
   cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.n_locations_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cudaMemcpy(mem_->device_.station_mark_, gpu_station_mark.data(), mem_->device_.n_locations_*sizeof(uint32_t), cudaMemcpyHostToDevice);
+  std::cerr << "Test gpu_raptor::add_start_gpu() end" << std::endl;
 }
 std::unique_ptr<mem> gpu_mem(
     std::vector<gpu_delta_t>& tmp,
