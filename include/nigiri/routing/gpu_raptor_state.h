@@ -125,8 +125,8 @@ struct device_memory {
   bool* any_station_marked_{};
   uint32_t n_locations_{};
   uint32_t n_routes_{};
-  uint32_t row_count_round_times_{}
-  ;uint32_t column_count_round_times_{};
+  uint32_t row_count_round_times_{};
+  uint32_t column_count_round_times_{};
   gpu_raptor_stats* stats_{};
 };
 

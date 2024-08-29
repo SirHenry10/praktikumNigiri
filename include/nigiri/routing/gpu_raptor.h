@@ -227,7 +227,34 @@ struct gpu_raptor {
                      start_time_ptr,
                      worst_time_at_dest_ptr,
                      prf_idx_ptr);
-    void* kernel_args[] = {(void*)&start_time_ptr, (void*)&max_transfers,(void*)&worst_time_at_dest_ptr,(void*)&prf_idx_ptr, (void*)this, (void*)&mem_->device_.time_at_dest_,(void*)&gtt_->route_stop_times_,(void*)&gtt_->route_transport_ranges_,(void*)&gtt_->date_range_};
+    void* kernel_args[] = {(void*)&start_time_ptr,
+                           (void*)&max_transfers,
+                           (void*)&worst_time_at_dest_ptr,
+                           (void*)&prf_idx_ptr,
+                           (void*)this,
+                           (void*)&mem_->device_.tmp_,
+                           (void*)&mem_->device_.best_,
+                           (void*)&mem_->device_.round_times_,
+                           (void*)&mem_->device_.time_at_dest_,
+                           (void*)&mem_->device_.station_mark_,
+                           (void*)&mem_->device_.prev_station_mark_,
+                           (void*)&mem_->device_.route_mark_,
+                           (void*)&mem_->device_.any_station_marked_,
+                           (void*)&mem_->device_.row_count_round_times_,
+                           (void*)&mem_->device_.column_count_round_times_,
+                           (void*)&mem_->device_.stats_,
+                           (void*)&gtt_->route_stop_times_,
+                           (void*)&gtt_->route_location_seq_,
+                           (void*)&gtt_->location_routes_,
+                           (void*)&gtt_->n_locations_,
+                           (void*)&gtt_->n_routes_,
+                           (void*)&gtt_->route_stop_time_ranges_,
+                           (void*)&gtt_->route_transport_ranges_,
+                           (void*)&gtt_->bitfields_,
+                           (void*)&gtt_->transport_traffic_days_,
+                           (void*)&gtt_->date_range_,
+                           (void*)&gtt_->locations_,
+                           (void*)&gtt_->route_clasz_};
     launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
     copy_back(mem_);
 
