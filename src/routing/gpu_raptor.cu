@@ -236,20 +236,21 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         auto const t_offset = static_cast<std::size_t>(&*it - departure_times.data());
         auto const dep = *it;
         auto const dep_mam = dep.mam();
-
+        auto const dep_t = to_gpu_delta(day, dep_mam, base_);
         // election of leader
         unsigned ballot = __ballot_sync(
             FULL_MASK, (t_id < active_stop_count) && is_valid<SearchDir>(prev_round_time)  &&
-                           is_valid<SearchDir>(dep) &&
-                           (prev_round_time <= dep));
+                           is_valid<SearchDir>(dep_t) &&
+                           (prev_round_time <= dep_t));
         leader = __ffs(ballot) - 1;
       }
       if(t_id > leader && t_id < active_stop_count){
         auto const t_offset = static_cast<std::size_t>(&*it - arrival_times.data());
         auto const arr = *it;
         auto const arr_mam = arr.mam();
+        auto const arr_t = to_gpu_delta(day, arr_mam, base_);
 
-        bool updated = update_arrival(tmp_, stop_idx, arr);
+        bool updated = update_arrival(tmp_, stop_idx, arr_t);
         if(updated){
           mark(station_mark_, stop_idx);
         }
@@ -274,7 +275,21 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
                                       gpu_delta_t* time_at_dest_,
                                       uint32_t* station_mark_, gpu_day_idx_t* base_,
                                       unsigned short kUnreachable, bool any_station_marked_){
-  return false;
+  auto const t_id = threadIdx.x;
+
+  unsigned int leader = NO_LEADER;
+  unsigned int any_arrival = 0;
+
+  auto const stop_seq = (*gtt_->route_location_seq_)[r];
+  auto stop_idx = -1;
+  gpu_stop stp{};
+  unsigned int l_idx;
+  //bool is_last;
+  gpu_delta_t prev_round_time = ((SearchDir == gpu_direction::kForward) ? std::numeric_limits<gpu_delta_t>::max()
+                                                                        : std::numeric_limits<gpu_delta_t>::min());
+  unsigned int active_stop_count = stop_seq.size();
+  int const stage_count = (stop_seq.size() + (32 - 1)) >> 5;
+  int active_stage_count = stage_count;
 }
 
 template <gpu_direction SearchDir, bool Rt, bool WithClaszFilter>
