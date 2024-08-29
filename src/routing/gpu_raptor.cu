@@ -755,20 +755,63 @@ void launch_kernel(void** args,
                           bool rt) {
   std::cerr << "Test gpu_raptor::launch_kernel() start" << std::endl;
   cudaSetDevice(device.id_);
-  //TODO: Invalid arguments für cudaLaunchCooperativeKernel
-  if(search_dir == gpu_direction::kForward && rt == true){
-    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,
-                              device.threads_per_block_, args, 0, s);
-  } else if(search_dir == gpu_direction::kForward && rt == false){
-    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,false>, device.grid_,
-                                device.threads_per_block_, args, 0, s);
-  } else if(search_dir == gpu_direction::kBackward && rt == true){
-    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kBackward,true>, device.grid_,
-                                device.threads_per_block_, args, 0, s);
-  }else if(search_dir == gpu_direction::kBackward && rt == false){
-    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kBackward,false>, device.grid_,
-                                device.threads_per_block_, args, 0, s);
+
+  int max_coop_blocks_per_sm;
+  int max_active_blocks;
+  int block_size = device.threads_per_block_.x * device.threads_per_block_.y;  // Assuming threads_per_block_ is dim3(32, 32, 1)
+
+  // Select the kernel function based on the parameters
+  void* kernel_func = nullptr;
+  if (search_dir == gpu_direction::kForward && rt == true) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kForward, true>;
+  } else if (search_dir == gpu_direction::kForward && rt == false) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kForward, false>;
+  } else if (search_dir == gpu_direction::kBackward && rt == true) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, true>;
+  } else if (search_dir == gpu_direction::kBackward && rt == false) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, false>;
   }
+
+  // Check if kernel_func is not nullptr
+  if (kernel_func == nullptr) {
+    std::cerr << "Error: Kernel function is nullptr" << std::endl;
+    return;
+  }
+
+  // Get the maximum number of active blocks per SM for cooperative launch
+  cudaError_t err = cudaOccupancyMaxActiveBlocksPerMultiprocessor(&max_coop_blocks_per_sm,
+                                                                  kernel_func,
+                                                                  block_size,
+                                                                  0);
+  if (err != cudaSuccess) {
+    std::cerr << "cudaOccupancyMaxActiveBlocksPerMultiprocessor failed: "
+              << cudaGetErrorString(err) << std::endl;
+    return;
+  }
+
+  // Calculate the maximum number of blocks for cooperative launch
+  max_active_blocks = max_coop_blocks_per_sm * device.props_.multiProcessorCount; // Use props_ from device_context
+
+  // Adjust grid size based on the cooperative limit
+  // Debugging statements to understand why max_active_blocks might be zero
+  std::cerr << "max_coop_blocks_per_sm: " << max_coop_blocks_per_sm << std::endl;
+  std::cerr << "multiProcessorCount: " << device.props_.multiProcessorCount << std::endl;
+
+  // Calculate the maximum number of blocks for cooperative launch
+  max_active_blocks = max_coop_blocks_per_sm * device.props_.multiProcessorCount; // Use props_ from device_context
+
+  // If max_active_blocks is zero, set grid.x to at least 1 to avoid invalid configuration
+  dim3 grid = device.grid_;
+  if (max_active_blocks > 0) {
+    grid.x = std::min(static_cast<unsigned int>(device.grid_.x), static_cast<unsigned int>(max_active_blocks));
+  } else {
+    grid.x = 1;  // Set to at least 1 to ensure valid configuration
+  }
+
+  std::cerr << "grid: (" << grid.x << ", " << grid.y << ", " << grid.z << ")" << std::endl;
+  std::cerr << "threads_per_block: (" << device.threads_per_block_.x << ", " << device.threads_per_block_.y << ", " << device.threads_per_block_.z << ")" << std::endl;
+  // Launch the cooperative kernel
+  cudaLaunchCooperativeKernel(kernel_func, grid, device.threads_per_block_, args, 0, s);
   cuda_check();
   std::cerr << "Test gpu_raptor::launch_kernel() ende" << std::endl;
 }
@@ -803,7 +846,7 @@ inline void fetch_arrivals_async(mem*& mem, cudaStream_t s) {
       sizeof(uint32_t)*mem->device_.n_routes_, cudaMemcpyDeviceToHost, s);
   cuda_check();
 }
-void copy_back(mem* mem){
+void copy_back(mem*& mem){
   cuda_check();
   cuda_sync_stream(mem->context_.proc_stream_);
   cuda_check();
