@@ -182,8 +182,8 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   gpu_stop stp{};
   unsigned int l_idx;
   //bool is_last;
-  gpu_delta_t prev_round_time = ((SearchDir == gpu_direction::kForward) ? std::numeric_limits<gpu_delta_t>::max()
-                                                                 : std::numeric_limits<gpu_delta_t>::min());
+  gpu_delta_t prev_round_time = ((SearchDir == gpu_direction::kForward) ? cuda::std::numeric_limits<gpu_delta_t>::max()
+                                                                 : cuda::std::numeric_limits<gpu_delta_t>::min());
 
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
@@ -212,8 +212,8 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   auto const n_days_to_iterate = get_smaller(
       gpu_kMaxTravelTime.count() / 1440 + 1,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
-  auto const arrival_times = *gtt_->gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr);
-  auto const departure_times = *gtt_->gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep);
+  auto const arrival_times = gtt_->gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr);
+  auto const departure_times = gtt_->gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep);
   auto const seek_first_day = [&]() {
     return linear_lb(gpu_get_begin_it<SearchDir>(departure_times),
                      gpu_get_end_it<SearchDir>(departure_times), mam,
@@ -224,18 +224,18 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
 
   for (auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i){ // die Schleife geht durch alle Tage
     auto const ev_time_range =
-        gpu_it_range{i == 0U ? seek_first_day() : get_begin_it(departure_times),
-                 get_end_it(departure_times)};
+        gpu_it_range{i == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
+                 gpu_get_end_it<SearchDir>(departure_times)};
     if (ev_time_range.empty()) {
       return any_station_marked_;
     }
-    auto constexpr day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
+    auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
     for (auto it = begin(ev_time_range); it != end(ev_time_range); ++it){ // die Schleife geht durch alle Zeiten
       if(t_id < active_stop_count){
         ++stats_[l_idx>>5].n_earliest_trip_calls_;
-        auto const t_offset = static_cast<std::size_t>(&*it - departure_times.data());
+        auto const t_offset = static_cast<cuda::std::size_t>(&*it - departure_times.data());
         auto const dep = *it;
-        auto const dep_mam = dep.mam();
+        auto const dep_mam = dep.mam_;
         auto const dep_t = to_gpu_delta(day, dep_mam, base_);
         // election of leader
         unsigned ballot = __ballot_sync(
@@ -245,9 +245,9 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         leader = __ffs(ballot) - 1;
       }
       if(t_id > leader && t_id < active_stop_count){
-        auto const t_offset = static_cast<std::size_t>(&*it - arrival_times.data());
+        auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
         auto const arr = *it;
-        auto const arr_mam = arr.mam();
+        auto const arr_mam = arr.mam_;
         auto const arr_t = to_gpu_delta(day, arr_mam, base_);
 
         bool updated = update_arrival(tmp_, stop_idx, arr_t);
@@ -285,8 +285,8 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
   gpu_stop stp{};
   unsigned int l_idx;
   //bool is_last;
-  gpu_delta_t prev_round_time = ((SearchDir == gpu_direction::kForward) ? std::numeric_limits<gpu_delta_t>::max()
-                                                                        : std::numeric_limits<gpu_delta_t>::min());
+  gpu_delta_t prev_round_time = ((SearchDir == gpu_direction::kForward) ? cuda::std::numeric_limits<gpu_delta_t>::max()
+                                                                        : cuda::std::numeric_limits<gpu_delta_t>::min());
   unsigned int active_stop_count = stop_seq.size();
   int const stage_count = (stop_seq.size() + (32 - 1)) >> 5;
   int active_stage_count = stage_count;

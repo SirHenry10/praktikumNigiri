@@ -517,10 +517,10 @@ __host__ __device__ inline std::ostream& operator<<(std::ostream& out, const gpu
 struct gpu_delta{
   std::uint16_t days_ : 5;
   std::uint16_t mam_ : 11;
-  bool operator== (gpu_delta const& a) const{
+  __host__ __device__ bool operator== (gpu_delta const& a) const{
     return (a.days_== this->days_ && a.mam_==this->mam_);
   }
-  bool operator!= (gpu_delta const& a) const{
+  __host__ __device__ bool operator!= (gpu_delta const& a) const{
     return !(operator==(a));
   }
 #ifdef NIGIRI_CUDA
