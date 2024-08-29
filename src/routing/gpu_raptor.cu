@@ -469,13 +469,37 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_, uint32_t
       if((*gtt_).route_location_seq_[r_idx].size() <= 32){ // die Route hat <= 32 stops
         any_station_marked_ = update_route_smaller32<SearchDir, Rt>(k, r, stats_, prev_station_mark_, best_,
                                                       round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
-                                                      lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
+                                                      lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_,
+                                                                    route_stop_times,
+                                                                    route_location_seq,
+                                                                    location_routes,
+                                                                    n_locations,
+                                                                    n_routes,
+                                                                    route_stop_time_ranges,
+                                                                    route_transport_ranges,
+                                                                    bitfields,
+                                                                    transport_traffic_days,
+                                                                    date_range,
+                                                                    locations,
+                                                                    route_clasz);
       }
       else{ // diese Route hat > 32 Stops
         any_station_marked_ = update_route_bigger32<SearchDir, Rt>(k, r, stats_, prev_station_mark_, best_,
         /*any_station_marked_ = update_route_bigger32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
         */                                             round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
-                                                     lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
+                                                     lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_,
+                                                                   route_stop_times,
+                                                                   route_location_seq,
+                                                                   location_routes,
+                                                                   n_locations,
+                                                                   n_routes,
+                                                                   route_stop_time_ranges,
+                                                                   route_transport_ranges,
+                                                                   bitfields,
+                                                                   transport_traffic_days,
+                                                                   date_range,
+                                                                   locations,
+                                                                   route_clasz);
       }
 
     }
@@ -666,11 +690,35 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                          ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, row_count_round_times_, tmp_, lb_, n_days_,
-                                                             time_at_dest_, station_mark_, base_, kUnreachable)
+                                                             time_at_dest_, station_mark_, base_, kUnreachable,
+                                                                 route_stop_times,
+                                                                 route_location_seq,
+                                                                 location_routes,
+                                                                 n_locations,
+                                                                 n_routes,
+                                                                 route_stop_time_ranges,
+                                                                 route_transport_ranges,
+                                                                 bitfields,
+                                                                 transport_traffic_days,
+                                                                 date_range,
+                                                                 locations,
+                                                                 route_clasz)
                            : loop_routes<SearchDir, Rt, true>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, row_count_round_times_, tmp_, lb_, n_days_,
-                                                             time_at_dest_, station_mark_, base_, kUnreachable);
+                                                             time_at_dest_, station_mark_, base_, kUnreachable,
+                                                                route_stop_times,
+                                                                route_location_seq,
+                                                                location_routes,
+                                                                n_locations,
+                                                                n_routes,
+                                                                route_stop_time_ranges,
+                                                                route_transport_ranges,
+                                                                bitfields,
+                                                                transport_traffic_days,
+                                                                date_range,
+                                                                locations,
+                                                                route_clasz);
 
   this_grid().sync();
   if(get_global_thread_id()==0){
@@ -783,7 +831,18 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
                                 round_times, tmp,
                                 row_count_round_times,
                                 column_count_round_times,
-                 gr.kIntermodalTarget_, stats, gr.kMaxTravelTimeTicks_);
+                 gr.kIntermodalTarget_, stats, gr.kMaxTravelTimeTicks_,route_stop_times,
+                                route_location_seq,
+                                location_routes,
+                                n_locations,
+                                n_routes,
+                                route_stop_time_ranges,
+                                route_transport_ranges,
+                                bitfields,
+                                transport_traffic_days,
+                                date_range,
+                                locations,
+                                route_clasz);
     this_grid().sync();
   }
   this_grid().sync();
