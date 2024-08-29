@@ -89,8 +89,8 @@ __host__ __device__ static auto get_best(auto x, auto... y) {
 __host__ __device__ inline int as_int(gpu_location_idx_t d) { return static_cast<int>(d.v_); }
 __host__ __device__ inline int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
 //TODO: base funktioniert nur auf device!!
-__device__ inline gpu_sys_days base(gpu_timetable const* gtt, gpu_day_idx_t* base) {
-  return gtt->gpu_internal_interval_days().from_ + as_int(*base) * gpu_days{1};
+__device__ inline gpu_sys_days base(gpu_day_idx_t* base,gpu_interval<gpu_sys_days>* date_range_ptr) {
+  return gpu_internal_interval_days(date_range_ptr).from_ + as_int(*base) * gpu_days{1};
 }
 __host__ inline gpu_sys_days cpu_base(gpu_timetable const* gtt, gpu_day_idx_t base) {
   return gtt->cpu_internal_interval_days().from_ + as_int(base) * gpu_days{1};
@@ -227,7 +227,7 @@ struct gpu_raptor {
                      start_time_ptr,
                      worst_time_at_dest_ptr,
                      prf_idx_ptr);
-    void* kernel_args[] = {(void*)&start_time_ptr, (void*)&max_transfers,(void*)&worst_time_at_dest_ptr,(void*)&prf_idx_ptr, (void*)this};
+    void* kernel_args[] = {(void*)&start_time_ptr, (void*)&max_transfers,(void*)&worst_time_at_dest_ptr,(void*)&prf_idx_ptr, (void*)this, (void*)&mem_->device_.time_at_dest_,(void*)&gtt_->route_stop_times_,(void*)&gtt_->route_transport_ranges_,(void*)&gtt_->date_range_};
     launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
     copy_back(mem_);
 

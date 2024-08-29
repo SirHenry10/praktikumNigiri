@@ -171,7 +171,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                                        gpu_raptor_stats* stats_,
                                        uint32_t* prev_station_mark_, gpu_delta_t* best_,
                                        gpu_delta_t* round_times_, uint32_t row_count_round_times_,
-                                       gpu_delta_t* tmp_, short const* kMaxTravelTimeTicks_,
+                                       gpu_delta_t* tmp_,short const* kMaxTravelTimeTicks_,
                                        uint16_t* lb_, int n_days_,
                                        gpu_delta_t* time_at_dest_,
                                        uint32_t* station_mark_, gpu_day_idx_t* base_,
@@ -212,6 +212,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   auto const n_days_to_iterate = get_smaller(
       gpu_kMaxTravelTime.count() / 1440 + 1,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
+  /*
   auto const arrival_times = gtt_->gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr);
   auto const departure_times = gtt_->gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep);
   auto const seek_first_day = [&]() {
@@ -261,6 +262,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
       leader = NO_LEADER;
     }
   }
+   */
   return any_station_marked_;
 }
 
@@ -326,15 +328,17 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_,
       // TODO hier in smaller32 und bigger32 aufteilen? → aber hier geht nur ein thread rein...
       // also sollte vielleicht diese Schleife mit allen auf einmal durchgangen werden???
       // parameter stimmen noch nicht
+      printf("gpu_raptor_kernel: bevor update_route");
       if((*gtt_).route_location_seq_[r_idx].size() <= 32){ // die Route hat <= 32 stops
-        any_station_marked_ |= update_route_smaller32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
+        any_station_marked_ = update_route_smaller32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
                                                       round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
                                                       lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
       }
       else{ // diese Route hat > 32 Stops
-        any_station_marked_ |= update_route_bigger32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
+        /*any_station_marked_ = update_route_bigger32<SearchDir, Rt>(k, r, gtt_, stats_, prev_station_mark_, best_,
                                                      round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
                                                      lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_);
+      */
       }
 
     }
@@ -472,6 +476,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                              gpu_raptor_stats* stats_, short* kMaxTravelTimeTicks_){
 
   // update_time_at_dest für alle locations
+  printf("raptor_round");
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   //TODO sicher, dass man über n_locations iterieren muss? -> aufpassen, dass round_times nicht out of range zugegriffen wird
@@ -506,6 +511,8 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
+
+  printf("gpu_raptor_kernel loop_routes");
   *any_station_marked_ = (allowed_claszes_ == 0xffff)
                          ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, gtt_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
@@ -553,20 +560,23 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void init_arrivals(gpu_delta_t d_worst_at_dest,
-                              gpu_unixtime_t const worst_time_at_dest,
+__device__ void init_arrivals(gpu_unixtime_t const worst_time_at_dest,
                               gpu_day_idx_t* base_, gpu_delta_t* time_at_dest,
-                              gpu_timetable* gtt_){
+                              gpu_delta* route_stop_times,
+                              gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >>* route_transport_ranges,
+                              gpu_interval<gpu_sys_days>* date_range){
   auto const t_id = get_global_thread_id();
-
-  if(t_id==0){
-    d_worst_at_dest = unix_to_gpu_delta(base(gtt_, base_), worst_time_at_dest);
-  }
-
   if(t_id < gpu_kMaxTransfers+1){
-    time_at_dest[t_id] = get_best<SearchDir>(d_worst_at_dest, time_at_dest[t_id]);
+    printf("test haengen start -1");
+    auto test0 = base(base_,date_range);
+    printf("test haengen start");
+    auto test1 = unix_to_gpu_delta(test0, worst_time_at_dest);
+    printf("test haengen mid");
+    auto test2 = time_at_dest[t_id];
+    printf("test haengen mid2");
+    time_at_dest[t_id] = get_best<SearchDir>(test1, test2);
+    printf("test haengen end");
   }
-
 }
 
 // größten Teil von raptor.execute() wird hierdrin ausgeführt
@@ -576,30 +586,39 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
                                   uint8_t max_transfers,
                                   gpu_unixtime_t* worst_time_at_dest,
                                   gpu_profile_idx_t* prf_idx,
-                                  gpu_raptor<SearchDir,Rt>& gr){
-  printf("gpu_raptor_kernel");
+                                  gpu_raptor<SearchDir,Rt> gr,
+                                  gpu_delta_t* time_at_dest,
+                                  gpu_delta* route_stop_times,
+                                  gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >>* route_transport_ranges,
+                                  gpu_interval<gpu_sys_days>* date_range){
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
-  gpu_delta_t d_worst_at_dest{};
-  init_arrivals<SearchDir, Rt>(d_worst_at_dest, *worst_time_at_dest, gr.base_,
-                gr.mem_->device_.time_at_dest_, gr.gtt_);
-  this_grid().sync();
+  if(date_range == nullptr){
+    printf("gpu_raptor_kernel T1 ");
+  }
+    printf("gpu_raptor_kernel2 %d", date_range);
 
+  init_arrivals<SearchDir, Rt>(*worst_time_at_dest, gr.base_,
+                time_at_dest, route_stop_times,route_transport_ranges,date_range);
+
+  this_grid().sync();
+  printf("gpu_raptor_kernel3");
   // 2. Update Routes
+  /*
   for (auto k = 1U; k != end_k; ++k) { // diese Schleife bleibt, da alle Threads in jede Runde gehen
 
     // Resultate aus lezter Runde von device in variable speichern?  //TODO: typen von kIntermodalTarget und dist_to_end_size falsch???
     raptor_round<SearchDir, Rt>(k, *prf_idx, gr.gtt_, gr.base_, *gr.allowed_claszes_,
                  gr.dist_to_end_, *gr.dist_to_end_size_, gr.is_dest_, gr.lb_, *gr.n_days_,
-                 gr.mem_->device_.time_at_dest_,
-                 gr.mem_->device_.any_station_marked_, gr.mem_->device_.route_mark_,
-                 gr.mem_->device_.station_mark_, gr.mem_->device_.best_,
-                 gr.kUnreachable, gr.mem_->device_.prev_station_mark_,
-                 gr.mem_->device_.round_times_, gr.mem_->device_.tmp_,
-                 gr.mem_->device_.row_count_round_times_,
-                 gr.mem_->device_.column_count_round_times_,
-                 gr.kIntermodalTarget_, gr.mem_->device_.stats_, gr.kMaxTravelTimeTicks_);
+                                dev->time_at_dest_,
+                                dev->any_station_marked_, dev->route_mark_,
+                                dev->station_mark_, dev->best_,
+                 gr.kUnreachable, dev->prev_station_mark_,
+                                dev->round_times_, dev->tmp_,
+                                dev->row_count_round_times_,
+                                dev->column_count_round_times_,
+                 gr.kIntermodalTarget_, dev->stats_, gr.kMaxTravelTimeTicks_);
     this_grid().sync();
   }
   this_grid().sync();
@@ -607,7 +626,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   //construct journey
 
   this_grid().sync();
-
+*/
 }
 
 #define XSTR(s) STR(s)
@@ -735,6 +754,7 @@ void launch_kernel(void** args,
 
   std::cerr << "Test gpu_raptor::launch_kernel() kernel_start" << std::endl;
   cudaLaunchCooperativeKernel(kernel_func, device.grid_, device.threads_per_block_, args, 0, s);
+  cudaDeviceSynchronize();
   cuda_check();
   std::cerr << "Test gpu_raptor::launch_kernel() ende" << std::endl;
 

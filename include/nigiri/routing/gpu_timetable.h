@@ -20,22 +20,6 @@ extern "C"{
     gpu_locations* locations_{nullptr};
     gpu_vector_map<gpu_route_idx_t, gpu_clasz>* route_clasz_{nullptr};
 
-    __device__ cuda::std::span<gpu_delta const> gpu_event_times_at_stop(gpu_route_idx_t const r,
-                                               gpu_stop_idx_t const stop_idx,
-                                               gpu_event_type const ev_type) const {
-      auto rtr = *route_transport_ranges_;
-      auto const n_transports =
-          static_cast<unsigned>(rtr[r].size());
-      auto const idx = static_cast<unsigned>(
-          rtr[r].from_ +
-          n_transports * (stop_idx * 2 - (ev_type == gpu_event_type::kArr ? 1 : 0)));
-      return  cuda::std::span<gpu_delta const>{&route_stop_times_[idx], n_transports};
-    }
-    __device__ gpu_interval<gpu_sys_days> gpu_internal_interval_days() const {
-      auto date_range = *date_range_;
-      return {date_range.from_ - (gpu_days{1} + gpu_days{4}),
-              date_range.to_ + gpu_days{1}};
-    }
     gpu_interval<gpu_sys_days> cpu_internal_interval_days() const {
       auto date_range = *cpu_date_range_;
       return {date_range.from_ - (gpu_days{1} + gpu_days{4}),
