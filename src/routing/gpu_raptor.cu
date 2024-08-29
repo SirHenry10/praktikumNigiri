@@ -170,10 +170,12 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   auto stop_idx = -1;
   gpu_stop stp{};
   unsigned int l_idx;
-  bool is_last;
+  //bool is_last;
   gpu_delta_t prev_round_time = cuda::std::numeric_limits<gpu_delta_t>::max();
+
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
+
   if(t_id == 0){
     any_station_marked_= false;
   }
@@ -182,26 +184,31 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         (SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
     stp = gpu_stop{stop_seq[stop_idx]};
     l_idx = gpu_to_idx(stp.gpu_location_idx());
-    is_last = t_id == stop_seq.size() - 1U;
+    //is_last = t_id == stop_seq.size() - 1U;
     // ist äquivalent zu prev_arrival
     prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
   }
+
   if (!__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())) {
     return any_station_marked_;
   }
 
+  //auto const n_days_to_iterate = std::min(
+      //kMaxTravelTime.count() / 1440 + 1,
+      //kFwd ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
+  //alle möglichen trips(Abfahrt-/Ankunftszeiten) von dieser station
+  auto const event_times = *gtt_->gpu_event_times_at_stop(r, stop_idx, (SearchDir == gpu_direction::kForward) ?
+                                                                        gpu_event_type::kDep : gpu_event_type::kArr);
+
   if(t_id < active_stop_count) {
     //hier glaub ich nicht relevant
-    auto const to = (*gtt_->route_transport_ranges_)[r].to_.v_; //Anzahl an eingehenden transports
-    auto const from = (*gtt_->route_transport_ranges_)[r].from_.v_; // Anzahl ausgehender transports
+    //auto const to = (*gtt_->route_transport_ranges_)[r].to_.v_; //Anzahl an eingehenden transports
+    //auto const from = (*gtt_->route_transport_ranges_)[r].from_.v_; // Anzahl ausgehender transports
 
     auto const trips = (*gtt_->route_stop_time_ranges_)[r];
     auto const trips_from = trips.from_; // wir haben hier wieder from_ und to_
     auto const trip_stop = (gtt_->route_stop_times_[t_id].days_); // hier steckt ein delta drin
-    auto const splitter = gpu_split_day_mam(*base_, prev_round_time);
-    auto const day_at_stop = splitter.first;
-    auto const mam = splitter.second;
-    auto et = gpu_transport{};
+
 
     /*Anfang get_earliest_transport Methode
     ++stats_[l_idx>>5].n_earliest_trip_calls_;

@@ -20,7 +20,7 @@ extern "C"{
     gpu_locations* locations_{nullptr};
     gpu_vector_map<gpu_route_idx_t, gpu_clasz>* route_clasz_{nullptr};
 
-    __host__ __device__ cuda::std::span<gpu_delta const> event_times_at_stop(gpu_route_idx_t const r,
+    __device__ cuda::std::span<gpu_delta const> gpu_event_times_at_stop(gpu_route_idx_t const r,
                                                gpu_stop_idx_t const stop_idx,
                                                gpu_event_type const ev_type) const {
       auto rtr = *route_transport_ranges_;
