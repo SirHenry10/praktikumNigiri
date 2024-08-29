@@ -123,6 +123,7 @@ if (NIGIRI_CUDA)
   target_compile_definitions(gpuraptor PRIVATE NIGIRI_CUDA=1)
   set_property(TARGET gpuraptor PROPERTY CUDA_STANDARD 23)
   target_link_libraries(nigiri PRIVATE gpuraptor)
+  set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -lineinfo") #TODO: maybe weg zum dbugen
 endif ()
 
 

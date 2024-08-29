@@ -227,7 +227,7 @@ struct gpu_raptor {
                      start_time_ptr,
                      worst_time_at_dest_ptr,
                      prf_idx_ptr);
-    void* kernel_args[] = {(void*)start_time_ptr, (void*)&max_transfers, (void*)worst_time_at_dest_ptr, (void*)prf_idx_ptr, (void*)this};
+    void* kernel_args[] = {(void*)&start_time_ptr, (void*)&max_transfers,(void*)&worst_time_at_dest_ptr,(void*)&prf_idx_ptr, (void*)this};
     launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
     copy_back(mem_);
 

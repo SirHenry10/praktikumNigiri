@@ -557,16 +557,17 @@ __device__ void init_arrivals(gpu_delta_t d_worst_at_dest,
 // größten Teil von raptor.execute() wird hierdrin ausgeführt
 // kernel muss sich außerhalb der gpu_raptor Klasse befinden
 template <gpu_direction SearchDir, bool Rt>
-__global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
-                                  uint8_t const max_transfers,
-                                  gpu_unixtime_t const worst_time_at_dest,
-                                  gpu_profile_idx_t const prf_idx,
+__global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
+                                  uint8_t max_transfers,
+                                  gpu_unixtime_t* worst_time_at_dest,
+                                  gpu_profile_idx_t* prf_idx,
                                   gpu_raptor<SearchDir,Rt>& gr){
+  printf("gpu_raptor_kernel");
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
   gpu_delta_t d_worst_at_dest{};
-  init_arrivals<SearchDir, Rt>(d_worst_at_dest, worst_time_at_dest, gr.base_,
+  init_arrivals<SearchDir, Rt>(d_worst_at_dest, *worst_time_at_dest, gr.base_,
                 gr.mem_->device_.time_at_dest_, gr.gtt_);
   this_grid().sync();
 
@@ -574,7 +575,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t const start_time,
   for (auto k = 1U; k != end_k; ++k) { // diese Schleife bleibt, da alle Threads in jede Runde gehen
 
     // Resultate aus lezter Runde von device in variable speichern?  //TODO: typen von kIntermodalTarget und dist_to_end_size falsch???
-    raptor_round<SearchDir, Rt>(k, prf_idx, gr.gtt_, gr.base_, *gr.allowed_claszes_,
+    raptor_round<SearchDir, Rt>(k, *prf_idx, gr.gtt_, gr.base_, *gr.allowed_claszes_,
                  gr.dist_to_end_, *gr.dist_to_end_size_, gr.is_dest_, gr.lb_, *gr.n_days_,
                  gr.mem_->device_.time_at_dest_,
                  gr.mem_->device_.any_station_marked_, gr.mem_->device_.route_mark_,
@@ -704,23 +705,24 @@ void launch_kernel(void** args,
                           gpu_direction search_dir,
                           bool rt) {
   std::cerr << "Test gpu_raptor::launch_kernel() start" << std::endl;
-
   cudaSetDevice(device.id_);
-  if(search_dir == gpu_direction::kForward && rt == true){
-    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,true>, device.grid_,
-                                device.threads_per_block_, args, 0, s);
-  } else if(search_dir == gpu_direction::kForward && rt == false){
-    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kForward,false>, device.grid_,
-                                device.threads_per_block_, args, 0, s);
-  } else if(search_dir == gpu_direction::kBackward && rt == true){
-    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kBackward,true>, device.grid_,
-                                device.threads_per_block_, args, 0, s);
-  }else if(search_dir == gpu_direction::kBackward && rt == false){
-    cudaLaunchCooperativeKernel((void*)gpu_raptor_kernel<gpu_direction::kBackward,false>, device.grid_,
-                                device.threads_per_block_, args, 0, s);
+  // Kernel-Auswahl basierend auf Parametern
+  void* kernel_func = nullptr;
+  if (search_dir == gpu_direction::kForward && rt == true) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kForward, true>;
+  } else if (search_dir == gpu_direction::kForward && rt == false) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kForward, false>;
+  } else if (search_dir == gpu_direction::kBackward && rt == true) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, true>;
+  } else if (search_dir == gpu_direction::kBackward && rt == false) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, false>;
   }
+
+  std::cerr << "Test gpu_raptor::launch_kernel() kernel_start" << std::endl;
+  cudaLaunchCooperativeKernel(kernel_func, device.grid_, device.threads_per_block_, args, 0, s);
   cuda_check();
   std::cerr << "Test gpu_raptor::launch_kernel() ende" << std::endl;
+
 }
 
 inline void fetch_arrivals_async(mem*& mem, cudaStream_t s) {
