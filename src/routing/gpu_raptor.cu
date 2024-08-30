@@ -251,7 +251,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
     auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + gpu_day_idx_t{i} : day_at_stop - gpu_day_idx_t{i};
     for (auto it = begin(ev_time_range); it < end(ev_time_range); ++it){ // die Schleife geht durch alle Zeiten
       if(t_id < active_stop_count){
-        ++stats_[l_idx>>5].n_earliest_trip_calls_;
+        ++stats_[t_id>>5].n_earliest_trip_calls_;
         auto const t_offset = static_cast<cuda::std::size_t>(&*it - departure_times.data());
         auto const t = (*route_transport_ranges)[r][t_offset];
         auto const dep = *it;
@@ -375,7 +375,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
           continue;
         }
         if(stage_id < active_stop_count){
-          ++stats_[l_idx>>5].n_earliest_trip_calls_;
+          ++stats_[t_id>>5].n_earliest_trip_calls_;
           auto const t_offset = static_cast<cuda::std::size_t>(&*it - departure_times.data());
           auto const t = (*route_transport_ranges)[r][t_offset];
           auto const dep = *it;
