@@ -1125,8 +1125,10 @@ struct gpu_basic_vector {
     assert(el_ != nullptr && index < used_size_);
     return el_[gpu_to_idx(index)];
   }
+
   __host__ __device__ T& operator[](access_type const index) noexcept {
-    assert(el_ != nullptr && index < used_size_);
+    assert(el_ != nullptr  );
+    assert(index < used_size_);
     return el_[gpu_to_idx(index)];
   }
 
@@ -1738,7 +1740,7 @@ __host__ __device__  inline gpu_delta event_mam(gpu_route_idx_t const r,
 __device__ inline cuda::std::span<gpu_delta const> gpu_event_times_at_stop(gpu_route_idx_t const r,
                                                                     gpu_stop_idx_t const stop_idx,
                                                                     gpu_event_type const ev_type,
-                                                                    gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>>* route_transport_ranges,
+                                                                    gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t>>* route_transport_ranges,
                                                                     gpu_delta* route_stop_times){
   auto rtr = *route_transport_ranges;
   auto const n_transports =

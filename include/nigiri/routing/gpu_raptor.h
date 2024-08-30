@@ -253,7 +253,9 @@ struct gpu_raptor {
                            (void*)&gtt_->bitfields_,
                            (void*)&gtt_->transport_traffic_days_,
                            (void*)&gtt_->date_range_,
-                           (void*)&gtt_->locations_,
+                           (void*)&gtt_->locations_->transfer_time_,
+                           (void*)&gtt_->locations_->gpu_footpaths_in_,
+                           (void*)&gtt_->locations_->gpu_footpaths_out_,
                            (void*)&gtt_->route_clasz_};
     launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
     copy_back(mem_);

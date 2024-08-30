@@ -228,9 +228,9 @@ private:
     // Hier geht es durch alle Routen wie in update_routes_dev von Julian
     for (auto r_idx = 0U; r_idx != n_routes_; ++r_idx) {
       auto const r = route_idx_t{r_idx};
-
       if (state_.route_mark_[r_idx]) {
         if constexpr (WithClaszFilter) {
+
           if (!is_allowed(allowed_claszes_, tt_.route_clasz_[r])) {
             continue;
           }

@@ -91,7 +91,7 @@ fail:
 void copy_gpu_locations_to_device(const gpu_locations* h_locations, gpu_locations*& d_locations, size_t& device_bytes, cudaError_t& code) {
   // Allocate memory for the `gpu_locations` structure on the GPU
   //TODO: unsicher ob die device_bytes stimmen
-  ;
+  *d_locations = gpu_locations{};
   d_locations->transfer_time_ = nullptr;
   d_locations->gpu_footpaths_in_ = nullptr;
   d_locations->gpu_footpaths_out_ = nullptr;
@@ -161,7 +161,7 @@ void free_gpu_vector_map(gpu_vector_map<KeyType, ValueType>* d_map) {
   }
 }
 
-void free_gpu_locations(gpu_locations* d_locations) {
+void free_gpu_locations(gpu_locations*& d_locations) {
   // Free each nested structure
   if (d_locations->transfer_time_) free_gpu_vector_map(d_locations->transfer_time_);
   if (d_locations->gpu_footpaths_in_) free_gpu_vecvec(d_locations->gpu_footpaths_in_);
@@ -227,6 +227,8 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
     std::cerr << "something went wrong, one attribute ist nullptr" << std::endl;
     goto fail;
   }
+
+  std::cerr << "n_routes: " << gtt->n_locations_ << std::endl;
   gtt->cpu_date_range_ = date_range;
   device_bytes += sizeof(gpu_interval<gpu_sys_days> const*);
   //TODO: muss ich auch auf device_bytes drauf rechnen cpu_date_range_???

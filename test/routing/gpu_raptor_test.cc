@@ -133,9 +133,13 @@ TEST(routing, gpu_raptor) {
   static auto algo_state = algo_state_t{};
 
 
+   std::cerr << "raptor_search_started" << std::endl;
+    auto const cpu_results =
+        raptor_search(tt, nullptr, "A", "D", sys_days{May / 2 / 2019} +23h,nonGPU);
   std::cerr << "raptor_search_started" << std::endl;
-  auto const results =
+  auto const gpu_results =
       raptor_search(tt, nullptr, "A", "D", sys_days{May / 2 / 2019} +23h,useGPU);
 
-  std::cout<<"" << results.size();
+  std::cout<<"" << cpu_results.size();
+  std::cout<<"" << gpu_results.size();
 }
