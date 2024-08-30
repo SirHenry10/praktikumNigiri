@@ -241,7 +241,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                      });
   };
 
-  for (auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i){ // die Schleife geht durch alle Tage
+  for (auto i = gpu_day_idx_t::value_t{0U}; i < n_days_to_iterate; ++i){ // die Schleife geht durch alle Tage
     auto const ev_time_range =
         gpu_it_range{i == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
                  gpu_get_end_it<SearchDir>(departure_times)};
@@ -249,10 +249,11 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
       return any_station_marked_;
     }
     auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
-    for (auto it = begin(ev_time_range); it != end(ev_time_range); ++it){ // die Schleife geht durch alle Zeiten
+    for (auto it = begin(ev_time_range); it < end(ev_time_range); ++it){ // die Schleife geht durch alle Zeiten
       if(t_id < active_stop_count){
         ++stats_[l_idx>>5].n_earliest_trip_calls_;
         auto const t_offset = static_cast<cuda::std::size_t>(&*it - departure_times.data());
+        auto const t = (*route_transport_ranges)[r][t_offset];
         auto const dep = *it;
         auto const dep_mam = dep.mam_;
         auto const dep_t = to_gpu_delta(day, dep_mam, base_);
@@ -260,12 +261,15 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
         unsigned ballot = __ballot_sync(
             FULL_MASK, (t_id < active_stop_count) && is_valid<SearchDir>(prev_round_time)  &&
                            is_valid<SearchDir>(dep_t) &&
-                           (prev_round_time <= dep_t));
+                           (prev_round_time <= dep_t) &&
+                           is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields));
         leader = __ffs(ballot) - 1;
       }
 
-      if(t_id > leader && t_id < active_stop_count){
-        auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
+      // alle station nach leader können jetzt updaten, wenn der transport an dem Tag fährt
+      auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
+      auto const t = (*route_transport_ranges)[r][t_offset];
+      if(t_id > leader && t_id < active_stop_count && is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields)){
         auto const arr = *it;
         auto const arr_mam = arr.mam_;
         auto const arr_t = to_gpu_delta(day, arr_mam, base_);
@@ -343,7 +347,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
                      });
   };
 
-  for (auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i){
+  for (auto i = gpu_day_idx_t::value_t{0U}; i < n_days_to_iterate; ++i){
     auto const ev_time_range =
         gpu_it_range{i == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
                      gpu_get_end_it<SearchDir>(departure_times)};
@@ -351,7 +355,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
       return any_station_marked_;
     }
     auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
-    for (auto it = begin(ev_time_range); it != end(ev_time_range); ++it){
+    for (auto it = begin(ev_time_range); it < end(ev_time_range); ++it){
       for(int current_stage=0; current_stage<active_stage_count; ++current_stage){
         int stage_id = (current_stage << 5) + t_id;
         if(stage_id < active_stop_count){
@@ -373,6 +377,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
         if(stage_id < active_stop_count){
           ++stats_[l_idx>>5].n_earliest_trip_calls_;
           auto const t_offset = static_cast<cuda::std::size_t>(&*it - departure_times.data());
+          auto const t = (*route_transport_ranges)[r][t_offset];
           auto const dep = *it;
           auto const dep_mam = dep.mam_;
           auto const dep_t = to_gpu_delta(day, dep_mam, base_);
@@ -380,16 +385,19 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
           unsigned ballot = __ballot_sync(
               FULL_MASK, (t_id < active_stop_count) && is_valid<SearchDir>(prev_round_time)  &&
                              is_valid<SearchDir>(dep_t) &&
-                             (prev_round_time <= dep_t));
+                             (prev_round_time <= dep_t) &&
+                             is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields));
           leader = __ffs(ballot) - 1;
         }
         if(leader != NO_LEADER){
           leader += current_stage << 5;
         }
         // zuerst current stage updaten
+
         if(leader != NO_LEADER && stage_id < active_stop_count){
-          if(stage_id > leader){
-            auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
+          auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
+          auto const t = (*route_transport_ranges)[r][t_offset];
+          if(stage_id > leader && is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields)){
             auto const arr = *it;
             auto const arr_mam = arr.mam_;
             auto const arr_t = to_gpu_delta(day, arr_mam, base_);
@@ -406,8 +414,9 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
         if(leader != NO_LEADER){
           for(int upward_stage = current_stage+1; upward_stage < active_stage_count; ++upward_stage){
             int upwards_id = (upward_stage<<5) + t_id;
-            if(upwards_id < active_stop_count){
-              auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
+            auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
+            auto const t = (*route_transport_ranges)[r][t_offset];
+            if(upwards_id < active_stop_count && is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields)){
               auto const arr = *it;
               auto const arr_mam = arr.mam_;
               auto const arr_t = to_gpu_delta(day, arr_mam, base_);
@@ -427,7 +436,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
 
     }
   }
-  return any_station_marked_; //TODO sollten wir any_station_marked_ lieber über parameter zurückgeben lassen?
+  return any_station_marked_;//TODO sollten wir any_station_marked_ lieber über parameter zurückgeben lassen?
 }
 
 template <gpu_direction SearchDir, bool Rt, bool WithClaszFilter>
@@ -501,7 +510,7 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_, uint32_t
                                                                     route_clasz);
       }
       else{ // diese Route hat > 32 Stops
-        any_station_marked_ = update_route_bigger32<SearchDir, Rt>(k, r, stats_, prev_station_mark_, best_,
+         any_station_marked_ = update_route_bigger32<SearchDir, Rt>(k, r, stats_, prev_station_mark_, best_,
                                                                    round_times_, row_count_round_times_, tmp_, kMaxTravelTimeTicks_,
                                                                    lb_, n_days_, time_at_dest_, station_mark_, base_, kUnreachable, any_station_marked_,
                                                                    route_stop_times,
