@@ -337,15 +337,21 @@ void gpu_raptor_translator<SearchDir, Rt>::gpu_covert_to_r_state() {
   matrix.entries_ = std::move(vec);
   std::vector<bool> station_mark(mem_->device_.n_locations_);
   for (int i = 0; i < station_mark.size(); ++i) {
-    station_mark[i] = gpu_station_mark[i] == 0 ? false : true;
+    size_t uint32_i = i / 32;
+    size_t bit_i = i % 32;
+    station_mark[i] = (gpu_station_mark[uint32_i] & (1u << bit_i)) != 0;
   }
   std::vector<bool> prev_station_mark(mem_->device_.n_locations_);
   for (int i = 0; i < prev_station_mark.size(); ++i) {
-    prev_station_mark[i] = gpu_prev_station_mark[i] == 0 ? false : true;
+    size_t uint32_i = i / 32;
+    size_t bit_i = i % 32;
+    prev_station_mark[i] = (gpu_prev_station_mark[uint32_i] & (1u << bit_i)) != 0;
   }
   std::vector<bool> route_mark(mem_->device_.n_routes_);
   for (int i = 0; i < route_mark.size(); ++i) {
-    route_mark[i] = gpu_route_mark[i] == 0 ? false : true;
+    size_t uint32_i = i / 32;
+    size_t bit_i = i % 32;
+    route_mark[i] = (gpu_route_mark[uint32_i] & (1u << bit_i)) != 0;
   }
 
   state_.tmp_ = gpu_tmp;

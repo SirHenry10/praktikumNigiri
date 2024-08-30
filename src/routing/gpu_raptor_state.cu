@@ -98,13 +98,13 @@ device_memory::device_memory(uint32_t n_locations,
                                 sizeof(gpu_delta_t));
   cuda_check();
   station_mark_ = nullptr;
-  cudaMalloc(&station_mark_, n_locations_ * sizeof(uint32_t));
+  cudaMalloc(&station_mark_, ((n_locations_/32)+1) * sizeof(uint32_t));
   cuda_check();
   prev_station_mark_ = nullptr;
-  cudaMalloc(&prev_station_mark_, n_locations_ * sizeof(uint32_t));
+  cudaMalloc(&prev_station_mark_, ((n_locations_/32)+1) * sizeof(uint32_t));
   cuda_check();
   route_mark_ = nullptr;
-  cudaMalloc(&route_mark_, n_routes_ * sizeof(uint32_t));
+  cudaMalloc(&route_mark_, ((n_routes_/32)+1) * sizeof(uint32_t));
   cuda_check();
   any_station_marked_ = nullptr;
   cudaMalloc(&any_station_marked_, sizeof(bool));
@@ -137,9 +137,9 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemcpyAsync(best_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   std::vector<gpu_delta_t> invalid_round_times(column_count_round_times_*row_count_round_times_, invalid_);
   cudaMemcpyAsync(round_times_,invalid_round_times.data(),column_count_round_times_*row_count_round_times_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
-  cudaMemsetAsync(station_mark_, 0, n_locations_*sizeof(uint32_t), s);
-  cudaMemsetAsync(prev_station_mark_, 0, n_locations_*sizeof(uint32_t), s);
-  cudaMemsetAsync(route_mark_, 0, n_routes_*sizeof(uint32_t), s);
+  cudaMemsetAsync(station_mark_, 0, ((n_locations_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(prev_station_mark_, 0, ((n_locations_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(route_mark_, 0, ((n_routes_/32)+1)*sizeof(uint32_t), s);
   cudaMemsetAsync(any_station_marked_, 0, sizeof(bool), s);
   gpu_raptor_stats init_value = {};
 
@@ -152,9 +152,9 @@ void device_memory::next_start_time_async(cudaStream_t s) {
   std::vector<gpu_delta_t> invalid_n_locations(n_locations_, invalid_);
   cudaMemcpyAsync(tmp_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   cudaMemcpyAsync(best_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
-  cudaMemsetAsync(station_mark_, 0, n_locations_*sizeof(uint32_t), s);
-  cudaMemsetAsync(prev_station_mark_, 0, n_locations_*sizeof(uint32_t), s);
-  cudaMemsetAsync(route_mark_, 0, n_routes_*sizeof(uint32_t), s);
+  cudaMemsetAsync(station_mark_, 0, ((n_locations_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(prev_station_mark_, 0, ((n_locations_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(route_mark_, 0, ((n_routes_/32)+1)*sizeof(uint32_t), s);
 }
 void device_memory::reset_arrivals_async(cudaStream_t s) {
   std::cerr << "reset_arrivals async start" << std::endl;

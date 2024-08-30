@@ -1060,17 +1060,29 @@ std::unique_ptr<mem> gpu_mem(
   } else{
     kInvalid = kInvalidGpuDelta<gpu_direction::kBackward>;
   }
-  std::vector<uint32_t> gpu_station_mark(gtt->n_locations_);
+  std::vector<uint32_t> gpu_station_mark(((gtt->n_locations_/32)+1));
   for (size_t i = 0; i < station_mark.size(); ++i) {
-    gpu_station_mark[i] = station_mark[i];
+    size_t uint32_i = i / 32;
+    size_t bit_i = i % 32;
+    if (station_mark[i]) {
+      gpu_station_mark[uint32_i] |= (1u << bit_i);
+    }
   }
-  std::vector<uint32_t> gpu_prev_station_mark(gtt->n_locations_);
+  std::vector<uint32_t> gpu_prev_station_mark(((gtt->n_locations_/32)+1));
   for (size_t i = 0; i < prev_station_mark.size(); ++i) {
-    gpu_prev_station_mark[i] = prev_station_mark[i];
+    size_t uint32_i = i / 32;
+    size_t bit_i = i % 32;
+    if (prev_station_mark[i]) {
+      gpu_prev_station_mark[uint32_i] |= (1u << bit_i);
+    }
   }
-  std::vector<uint32_t> gpu_route_mark(gtt->n_locations_);
+  std::vector<uint32_t> gpu_route_mark(((gtt->n_routes_/32)+1));
   for (size_t i = 0; i < route_mark.size(); ++i) {
-    gpu_route_mark[i] = route_mark[i];
+    size_t uint32_i = i / 32;
+    size_t bit_i = i % 32;
+    if (route_mark[i]) {
+      gpu_route_mark[uint32_i] |= (1u << bit_i);
+    }
   }
   gpu_raptor_state state;
   std::cerr << "Test gpu_raptor::gpu_mem() 1" << std::endl;
