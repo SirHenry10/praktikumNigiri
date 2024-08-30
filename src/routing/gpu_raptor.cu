@@ -628,7 +628,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
                                             unsigned short kUnreachable, gpu_location_idx_t* gpu_kIntermodalTarget,
                                             gpu_delta_t* best_, gpu_delta_t* tmp_,
                                             gpu_delta_t* round_times_, uint32_t row_count_round_times_){
-  if(get_global_thread_id()==0 && dist_to_end_size_==0){
+  if(dist_to_end_size_==0){
     return;
   }
   auto const global_t_id = get_global_thread_id();
@@ -685,8 +685,9 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   auto const global_stride = get_global_stride();
   //TODO sicher, dass man über n_locations iterieren muss? -> aufpassen, dass round_times nicht out of range zugegriffen wird
   for(auto idx = global_t_id; idx < n_locations; idx += global_stride){
-    best_[global_t_id] = get_best<SearchDir>
-        (round_times_[k*row_count_round_times_+idx], best_[idx]);
+    auto test =round_times_[k*column_count_round_times_+idx]; //TODO: wie berechnet man round times position
+    auto test2 = best_[idx];
+    best_[global_t_id] =get_best<SearchDir>(test, test2);
     if(is_dest_[idx]){
       update_time_at_dest<SearchDir, Rt>(k, best_[global_t_id], time_at_dest_);
     }
@@ -709,7 +710,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     // swap
     cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
-    for(int j = 0; j < n_locations; j++){
+    for(int j = 0; j < ((n_locations/32)+1); j++){
       station_mark_[j] = 0xFFFF;
     }
   }
@@ -763,13 +764,13 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       return;
     }
     // fill
-    for(int i = 0; i < n_routes; i++){
+    for(int i = 0; i < ((n_routes/32)+1); i++){
       route_mark_[i] = 0xFFFF;
     }
     // swap
     cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
-    for(int j = 0; j < n_locations; j++){
+    for(int j = 0; j < ((n_locations/32)+1); j++){
       station_mark_[j] = 0xFFFF; // soll es auf false setzen
     }
   }
@@ -821,7 +822,16 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
                                   uint8_t max_transfers,
                                   gpu_unixtime_t* worst_time_at_dest,
                                   gpu_profile_idx_t* prf_idx,
-                                  gpu_raptor<SearchDir,Rt> gr,
+                                  gpu_clasz_mask_t* allowed_claszes,
+                                  std::uint16_t* dist_to_end,
+                                  std::uint32_t* dist_to_end_size,
+                                  gpu_day_idx_t* base,
+                                  bool* is_dest,
+                                  std::uint16_t* lb,
+                                  int* n_days,
+                                  std::uint16_t* kUnreachable,
+                                  gpu_location_idx_t* kIntermodalTarget,
+                                  short* kMaxTravelTimeTicks,
                                   gpu_delta_t* tmp,
                                   gpu_delta_t* best,
                                   gpu_delta_t* round_times,
@@ -851,30 +861,30 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
 
-  init_arrivals<SearchDir, Rt>(*worst_time_at_dest, gr.base_,
+  init_arrivals<SearchDir, Rt>(*worst_time_at_dest, base,
                 time_at_dest, route_stop_times,route_transport_ranges,date_range);
 
   this_grid().sync();
   // ausprobieren, ob folgende daten noch weiter entschachtelt werden müssen
-  if(gpu_footpaths_in[1].data_.el_ == nullptr){
-    printf("fpnull");
+  if(dist_to_end_size == nullptr){
+    printf("wir sind schlau");
   }
-  printf("fpin: %d", gpu_footpaths_in[1][gpu_location_idx_t{1}].size());
+  printf("test: %d", *dist_to_end_size);
   //locations->gpu_footpaths_out_[1][1]; // hiervon sind auch gpu_footpaths_out und transfer_time betroffem
   // 2. Update Routes
 
   for (auto k = 1U; k != end_k; ++k) { // diese Schleife bleibt, da alle Threads in jede Runde gehen
 
     // Resultate aus lezter Runde von device in variable speichern?  //TODO: typen von kIntermodalTarget und dist_to_end_size falsch???
-    raptor_round<SearchDir, Rt>(k, *prf_idx, gr.base_, *gr.allowed_claszes_,
-                 gr.dist_to_end_, *gr.dist_to_end_size_, gr.is_dest_, gr.lb_, *gr.n_days_,
+    raptor_round<SearchDir, Rt>(k, *prf_idx, base, *allowed_claszes,
+                 dist_to_end, *dist_to_end_size, is_dest, lb, *n_days,
                  time_at_dest, any_station_marked, route_mark,
                  station_mark, best,
-                 gr.kUnreachable, prev_station_mark,
+                 *kUnreachable, prev_station_mark,
                  round_times, tmp,
                  row_count_round_times,
                  column_count_round_times,
-                 gr.kIntermodalTarget_, stats, gr.kMaxTravelTimeTicks_,route_stop_times,
+                 kIntermodalTarget, stats, kMaxTravelTimeTicks,route_stop_times,
                  route_location_seq,
                                 location_routes,
                                 n_locations,
@@ -930,15 +940,16 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
   cudaError_t code;
-  std::cerr << "copy_to_device start" << std::endl;
   auto dist_to_end_size = dist_to_dest.size();
+  std::cerr << "copy_to_device start" << dist_to_end_size << std::endl;
+
   allowed_claszes_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t, allowed_claszes_, &allowed_claszes, 1);
   dist_to_end_ = nullptr;
   CUDA_COPY_TO_DEVICE(std::uint16_t, dist_to_end_, dist_to_dest.data(),
                       dist_to_dest.size());
   dist_to_end_size_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint32_t, dist_to_end_size_, &dist_to_end_size_, 1);
+  CUDA_COPY_TO_DEVICE(std::uint32_t, dist_to_end_size_, &dist_to_end_size, 1);
   base_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_day_idx_t, base_, &base, 1);
   is_dest_ = nullptr;
@@ -1134,11 +1145,11 @@ std::unique_ptr<mem> gpu_mem(
   cuda_check();
   cudaMemcpy(mem.get()->device_.best_, best.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem.get()->device_.station_mark_, gpu_station_mark.data(), (gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.get()->device_.station_mark_, gpu_station_mark.data(), ((gtt->n_locations_/32)+1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem.get()->device_.prev_station_mark_, gpu_prev_station_mark.data(), (gtt->n_locations_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.get()->device_.prev_station_mark_, gpu_prev_station_mark.data(), ((gtt->n_locations_/32)+1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem.get()->device_.route_mark_, gpu_route_mark.data(), (gtt->n_routes_) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.get()->device_.route_mark_, gpu_route_mark.data(), ((gtt->n_routes_/32)+1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
   cudaDeviceSynchronize();
   std::cerr << "Test gpu_raptor::gpu_mem() ende" << std::endl;

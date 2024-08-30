@@ -88,21 +88,18 @@ fail:
     d_map = nullptr;
     return;
 }
-void copy_gpu_locations_to_device(const gpu_locations* h_locations, gpu_locations*& d_locations, size_t& device_bytes, cudaError_t& code) {
+void copy_gpu_locations_to_device(const gpu_locations* h_locations, gpu_locations& d_locations, size_t& device_bytes, cudaError_t& code) {
   // Allocate memory for the `gpu_locations` structure on the GPU
   //TODO: unsicher ob die device_bytes stimmen
-  *d_locations = gpu_locations{};
-  d_locations->transfer_time_ = nullptr;
-  d_locations->gpu_footpaths_in_ = nullptr;
-  d_locations->gpu_footpaths_out_ = nullptr;
+  d_locations = gpu_locations{nullptr, nullptr, nullptr};
 
   // Copy each nested structure individually
   // 1. Copy `transfer_time_`
-  copy_gpu_vector_map_to_device(h_locations->transfer_time_, d_locations->transfer_time_, device_bytes, code);
+  copy_gpu_vector_map_to_device(h_locations->transfer_time_, d_locations.transfer_time_, device_bytes, code);
   // 2. Copy `gpu_footpaths_in_`
-  copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_in_, d_locations->gpu_footpaths_in_, device_bytes, code);
+  copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_in_, d_locations.gpu_footpaths_in_, device_bytes, code);
   // 3. Copy `gpu_footpaths_out_`
-  copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_out_, d_locations->gpu_footpaths_out_, device_bytes, code);
+  copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_out_, d_locations.gpu_footpaths_out_, device_bytes, code);
 
   device_bytes += sizeof(gpu_locations);
 
@@ -161,11 +158,11 @@ void free_gpu_vector_map(gpu_vector_map<KeyType, ValueType>* d_map) {
   }
 }
 
-void free_gpu_locations(gpu_locations*& d_locations) {
+void free_gpu_locations(gpu_locations& d_locations) {
   // Free each nested structure
-  if (d_locations->transfer_time_) free_gpu_vector_map(d_locations->transfer_time_);
-  if (d_locations->gpu_footpaths_in_) free_gpu_vecvec(d_locations->gpu_footpaths_in_);
-  if (d_locations->gpu_footpaths_out_) free_gpu_vecvec(d_locations->gpu_footpaths_out_);
+  if (d_locations.transfer_time_) free_gpu_vector_map(d_locations.transfer_time_);
+  if (d_locations.gpu_footpaths_in_) free_gpu_vecvec(d_locations.gpu_footpaths_in_);
+  if (d_locations.gpu_footpaths_out_) free_gpu_vecvec(d_locations.gpu_footpaths_out_);
 }
 
 struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
@@ -223,7 +220,7 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
 
   cudaDeviceSynchronize();
   if(!gtt->route_stop_times_||!gtt->route_location_seq_ || !gtt->location_routes_||!gtt->n_locations_||!gtt->n_routes_||!gtt->route_stop_time_ranges_||!gtt->route_transport_ranges_||!gtt->bitfields_||
-      !gtt->transport_traffic_days_||! gtt->date_range_||!gtt->locations_||!gtt->route_clasz_){
+      !gtt->transport_traffic_days_||! gtt->date_range_||!gtt->route_clasz_){
     std::cerr << "something went wrong, one attribute ist nullptr" << std::endl;
     goto fail;
   }
@@ -301,10 +298,8 @@ void destroy_gpu_timetable(gpu_timetable*& gtt) {
   }
 
   // Free locations_ (complex nested structure)
-  if (gtt->locations_) {
-    free_gpu_locations(gtt->locations_);
-    gtt->locations_ = nullptr;
-  }
+
+  free_gpu_locations(gtt->locations_);
 
   // Free route_clasz_ (complex nested structure)
   if (gtt->route_clasz_) {

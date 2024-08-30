@@ -271,6 +271,7 @@ private:
       if (!state_.prev_station_mark_[i]) {
         continue;
       }
+
       auto const is_dest = is_dest_[i];
       auto const transfer_time =
           (!is_intermodal_dest() && is_dest)

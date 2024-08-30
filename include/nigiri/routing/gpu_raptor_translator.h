@@ -217,7 +217,7 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
   auto gtt = translate_tt_in_gtt(tt_);
   mem_ = std::move(get_gpu_mem(gtt));
   std::cerr << "tt clasz:"<< tt.route_clasz_.used_size_ << std::endl;
-  std::cerr << "Test gpu_raptor_translator() std::make_unique" << std::endl;
+  std::cerr << "Test gpu_raptor_translator() std::make_unique "<< dist_to_end_.size() << std::endl;
   gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt,mem_.get(), is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes,tt_.internal_interval_days().size().count()); //TODO: next SEH error also falscher pointer oder so...
   std::cerr << "Test gpu_raptor_translator() ende" << std::endl;
 }

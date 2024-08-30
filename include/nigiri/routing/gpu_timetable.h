@@ -17,7 +17,7 @@ extern "C"{
     gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t>* transport_traffic_days_{nullptr};
     gpu_interval<gpu_sys_days>* date_range_{nullptr};
     gpu_interval<gpu_sys_days> const* cpu_date_range_{nullptr};
-    gpu_locations* locations_{nullptr};
+    gpu_locations locations_;
     gpu_vector_map<gpu_route_idx_t, gpu_clasz>* route_clasz_{nullptr};
 
     gpu_interval<gpu_sys_days> cpu_internal_interval_days() const {

@@ -150,7 +150,7 @@ struct gpu_raptor {
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
     }
-    std::cerr << "gpu_raptor() 1" << std::endl;
+    std::cerr << "gpu_raptor() 1 " << dist_to_dest.size() << std::endl;
     auto const kIntermodalTarget  =
         gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
     std::cerr << "gpu_raptor() before copy_to_Devices" << std::endl;
@@ -231,7 +231,16 @@ struct gpu_raptor {
                            (void*)&max_transfers,
                            (void*)&worst_time_at_dest_ptr,
                            (void*)&prf_idx_ptr,
-                           (void*)this,
+                           (void*)&allowed_claszes_,
+                           (void*)&dist_to_end_,
+                           (void*)&dist_to_end_size_,
+                           (void*)&base_,
+                           (void*)&is_dest_,
+                           (void*)&lb_,
+                           (void*)&n_days_,
+                           (void*)&kUnreachable_,
+                           (void*)&kIntermodalTarget_,
+                           (void*)&kMaxTravelTimeTicks_,
                            (void*)&mem_->device_.tmp_,
                            (void*)&mem_->device_.best_,
                            (void*)&mem_->device_.round_times_,
@@ -253,9 +262,9 @@ struct gpu_raptor {
                            (void*)&gtt_->bitfields_,
                            (void*)&gtt_->transport_traffic_days_,
                            (void*)&gtt_->date_range_,
-                           (void*)&gtt_->locations_->transfer_time_,
-                           (void*)&gtt_->locations_->gpu_footpaths_in_,
-                           (void*)&gtt_->locations_->gpu_footpaths_out_,
+                           (void*)&gtt_->locations_.transfer_time_,
+                           (void*)&gtt_->locations_.gpu_footpaths_in_,
+                           (void*)&gtt_->locations_.gpu_footpaths_out_,
                            (void*)&gtt_->route_clasz_};
     launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
     copy_back(mem_);
