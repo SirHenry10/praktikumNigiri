@@ -91,38 +91,21 @@ fail:
 void copy_gpu_locations_to_device(const gpu_locations* h_locations, gpu_locations*& d_locations, size_t& device_bytes, cudaError_t& code) {
   // Allocate memory for the `gpu_locations` structure on the GPU
   //TODO: unsicher ob die device_bytes stimmen
-  d_locations = nullptr;
-  gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>* d_transfer_time = nullptr;
-  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>* d_gpu_footpaths_in = nullptr;
-  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>* d_gpu_footpaths_out = nullptr;
-
-  CUDA_CALL(cudaMalloc(&d_locations, sizeof(gpu_locations)));
+  ;
+  d_locations->transfer_time_ = nullptr;
+  d_locations->gpu_footpaths_in_ = nullptr;
+  d_locations->gpu_footpaths_out_ = nullptr;
 
   // Copy each nested structure individually
   // 1. Copy `transfer_time_`
-  copy_gpu_vector_map_to_device(h_locations->transfer_time_, d_transfer_time, device_bytes, code);
-  CUDA_CALL(cudaMemcpy(&(d_locations->transfer_time_), &d_transfer_time, sizeof(gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*), cudaMemcpyHostToDevice));
-
+  copy_gpu_vector_map_to_device(h_locations->transfer_time_, d_locations->transfer_time_, device_bytes, code);
   // 2. Copy `gpu_footpaths_in_`
-  copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_in_, d_gpu_footpaths_in, device_bytes, code);
-  CUDA_CALL(cudaMemcpy(&(d_locations->gpu_footpaths_in_), &d_gpu_footpaths_in, sizeof(gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*), cudaMemcpyHostToDevice));
-
+  copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_in_, d_locations->gpu_footpaths_in_, device_bytes, code);
   // 3. Copy `gpu_footpaths_out_`
-  copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_out_, d_gpu_footpaths_out, device_bytes, code);
-  CUDA_CALL(cudaMemcpy(&(d_locations->gpu_footpaths_out_), &d_gpu_footpaths_out, sizeof(gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*), cudaMemcpyHostToDevice));
+  copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_out_, d_locations->gpu_footpaths_out_, device_bytes, code);
 
   device_bytes += sizeof(gpu_locations);
 
-  return;
-
-fail:
-  std::cerr << "ERROR LOCATIONS" << std::endl;
-  // Free allocated GPU memory if something goes wrong
-  if (d_transfer_time) cudaFree(d_transfer_time);
-  if (d_gpu_footpaths_in) cudaFree(d_gpu_footpaths_in);
-  if (d_gpu_footpaths_out) cudaFree(d_gpu_footpaths_out);
-  if (d_locations) cudaFree(d_locations);
-  d_locations = nullptr;
   return;
 }
 template <typename KeyType, typename ValueType>
@@ -179,29 +162,10 @@ void free_gpu_vector_map(gpu_vector_map<KeyType, ValueType>* d_map) {
 }
 
 void free_gpu_locations(gpu_locations* d_locations) {
-  if (!d_locations) return;
-
-  cudaError_t code;
-
-  // Retrieve pointers to nested structures
-  gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>* d_transfer_time = nullptr;
-  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>* d_gpu_footpaths_in = nullptr;
-  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>* d_gpu_footpaths_out = nullptr;
-
-  cudaMemcpy(&d_transfer_time, &(d_locations->transfer_time_), sizeof(gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes>*), cudaMemcpyDeviceToHost);
-  cudaMemcpy(&d_gpu_footpaths_in, &(d_locations->gpu_footpaths_in_), sizeof(gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*), cudaMemcpyDeviceToHost);
-  cudaMemcpy(&d_gpu_footpaths_out, &(d_locations->gpu_footpaths_out_), sizeof(gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>*), cudaMemcpyDeviceToHost);
-
   // Free each nested structure
-  if (d_transfer_time) free_gpu_vector_map(d_transfer_time);
-  if (d_gpu_footpaths_in) free_gpu_vecvec(d_gpu_footpaths_in);
-  if (d_gpu_footpaths_out) free_gpu_vecvec(d_gpu_footpaths_out);
-
-  // Free the `gpu_locations` structure itself
-  code = cudaFree(d_locations);
-  if (code != cudaSuccess) {
-    std::cerr << "Error freeing gpu_locations: " << cudaGetErrorString(code) << std::endl;
-  }
+  if (d_locations->transfer_time_) free_gpu_vector_map(d_locations->transfer_time_);
+  if (d_locations->gpu_footpaths_in_) free_gpu_vecvec(d_locations->gpu_footpaths_in_);
+  if (d_locations->gpu_footpaths_out_) free_gpu_vecvec(d_locations->gpu_footpaths_out_);
 }
 
 struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
