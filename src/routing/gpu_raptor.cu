@@ -241,14 +241,14 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                      });
   };
 
-  for (auto i = gpu_day_idx_t::value_t{0U}; i < n_days_to_iterate; ++i){ // die Schleife geht durch alle Tage
+  for (auto i = 0U; i < n_days_to_iterate; ++i){ // die Schleife geht durch alle Tage
     auto const ev_time_range =
-        gpu_it_range{i == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
+        gpu_it_range{gpu_day_idx_t{i} == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
                  gpu_get_end_it<SearchDir>(departure_times)};
     if (ev_time_range.empty()) {
       return any_station_marked_;
     }
-    auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
+    auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + gpu_day_idx_t{i} : day_at_stop - gpu_day_idx_t{i};
     for (auto it = begin(ev_time_range); it < end(ev_time_range); ++it){ // die Schleife geht durch alle Zeiten
       if(t_id < active_stop_count){
         ++stats_[l_idx>>5].n_earliest_trip_calls_;
@@ -347,14 +347,14 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
                      });
   };
 
-  for (auto i = gpu_day_idx_t::value_t{0U}; i < n_days_to_iterate; ++i){
+  for (auto i = 0U; i < n_days_to_iterate; ++i){
     auto const ev_time_range =
-        gpu_it_range{i == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
+        gpu_it_range{gpu_day_idx_t{i} == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
                      gpu_get_end_it<SearchDir>(departure_times)};
     if (ev_time_range.empty()) {
       return any_station_marked_;
     }
-    auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
+    auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + gpu_day_idx_t{i} : day_at_stop - gpu_day_idx_t{i};
     for (auto it = begin(ev_time_range); it < end(ev_time_range); ++it){
       for(int current_stage=0; current_stage<active_stage_count; ++current_stage){
         int stage_id = (current_stage << 5) + t_id;
