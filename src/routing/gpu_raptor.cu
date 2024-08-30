@@ -500,6 +500,7 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_, uint32_t
                                                                    date_range,
                                                                    locations,
                                                                    route_clasz);
+
       }
 
     }
