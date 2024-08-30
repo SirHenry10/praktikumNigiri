@@ -66,9 +66,9 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t*& start_time_ptr,
                       gpu_unixtime_t*& worst_time_at_dest_ptr,
                       gpu_profile_idx_t*& prf_idx_ptr);
-void destroy_copy_to_gpu_args(gpu_unixtime_t*& start_time_ptr,
-                              gpu_unixtime_t*& worst_time_at_dest_ptr,
-                              gpu_profile_idx_t*& prf_idx_ptr);
+void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
+                              gpu_unixtime_t* worst_time_at_dest_ptr,
+                              gpu_profile_idx_t* prf_idx_ptr);
 template<gpu_direction SearchDir>
 __host__ __device__ static bool is_better(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a < b : a > b; }
 __host__ __device__ static auto get_smaller(auto a, auto b) { return a < b ? a : b ;}
@@ -267,8 +267,9 @@ struct gpu_raptor {
                            (void*)&gtt_->locations_.gpu_footpaths_out_,
                            (void*)&gtt_->route_clasz_};
     launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
+    std::cerr << "Test gpu_raptor::launch_kernel() bevor mem" << std::endl;
     copy_back(mem_);
-
+    std::cerr << "Test gpu_raptor::launch_kernel() bevor mem2" << std::endl;
     //copy stats from host to raptor attribute
     gpu_raptor_stats tmp{};
     for (int i = 0; i<32; ++i) {
@@ -281,7 +282,9 @@ struct gpu_raptor {
       tmp.fp_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].fp_update_prevented_by_lower_bound_;
       tmp.route_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].route_update_prevented_by_lower_bound_;
     }
+    std::cerr << "n_routing_time"<<tmp.n_routes_visited_ << std::endl;
     stats_ = tmp;
+    std::cerr << "Test gpu_raptor::execute() bevor destroy" << std::endl;
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
     std::cerr << "Test gpu_raptor::execute() ende" << std::endl;
   }

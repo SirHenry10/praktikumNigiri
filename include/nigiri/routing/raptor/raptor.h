@@ -211,6 +211,7 @@ struct raptor {
         }
       }
     }
+    std::cerr << "n_routing_time" <<stats_.n_routes_visited_<< std::endl;
   }
 
   void reconstruct(query const& q, journey& j) {

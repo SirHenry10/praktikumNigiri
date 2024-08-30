@@ -262,14 +262,14 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
             FULL_MASK, (t_id < active_stop_count) && is_valid<SearchDir>(prev_round_time)  &&
                            is_valid<SearchDir>(dep_t) &&
                            (prev_round_time <= dep_t) &&
-                           is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields));
+                           is_transport_active<SearchDir, Rt>(t, as_int(day), transport_traffic_days, bitfields));
         leader = __ffs(ballot) - 1;
       }
 
       // alle station nach leader können jetzt updaten, wenn der transport an dem Tag fährt
       auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
       auto const t = (*route_transport_ranges)[r][t_offset];
-      if(t_id > leader && t_id < active_stop_count && is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields)){
+      if(t_id > leader && t_id < active_stop_count && is_transport_active<SearchDir, Rt>(t, as_int(day), transport_traffic_days, bitfields)){
         auto const arr = *it;
         auto const arr_mam = arr.mam_;
         auto const arr_t = to_gpu_delta(day, arr_mam, base_);
@@ -386,7 +386,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
               FULL_MASK, (t_id < active_stop_count) && is_valid<SearchDir>(prev_round_time)  &&
                              is_valid<SearchDir>(dep_t) &&
                              (prev_round_time <= dep_t) &&
-                             is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields));
+                             is_transport_active<SearchDir, Rt>(t, as_int(day), transport_traffic_days, bitfields));
           leader = __ffs(ballot) - 1;
         }
         if(leader != NO_LEADER){
@@ -397,7 +397,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
         if(leader != NO_LEADER && stage_id < active_stop_count){
           auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
           auto const t = (*route_transport_ranges)[r][t_offset];
-          if(stage_id > leader && is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields)){
+          if(stage_id > leader && is_transport_active<SearchDir, Rt>(t, as_int(day), transport_traffic_days, bitfields)){
             auto const arr = *it;
             auto const arr_mam = arr.mam_;
             auto const arr_t = to_gpu_delta(day, arr_mam, base_);
@@ -416,7 +416,7 @@ __device__ bool update_route_bigger32(unsigned const k, gpu_route_idx_t r,
             int upwards_id = (upward_stage<<5) + t_id;
             auto const t_offset = static_cast<cuda::std::size_t>(&*it - arrival_times.data());
             auto const t = (*route_transport_ranges)[r][t_offset];
-            if(upwards_id < active_stop_count && is_transport_active<SearchDir, Rt>(t, day, transport_traffic_days, bitfields)){
+            if(upwards_id < active_stop_count && is_transport_active<SearchDir, Rt>(t,as_int(day), transport_traffic_days, bitfields)){
               auto const arr = *it;
               auto const arr_mam = arr.mam_;
               auto const arr_t = to_gpu_delta(day, arr_mam, base_);
@@ -476,6 +476,7 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_, uint32_t
   //Hier gehen wir durch alle Routen wie in update_routes_dev von Julian
   for(auto r_idx = global_t_id;
        r_idx < n_routes; r_idx += global_stride){
+    printf("loop routes mid %d",get_global_thread_id());
     auto const r = gpu_route_idx_t{r_idx};
     if(marked(route_mark_, r_idx)){
       if constexpr (WithClaszFilter){
@@ -707,7 +708,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if(get_global_thread_id()==0){
     *any_station_marked_ = false;
   }
-  printf("test1");
   convert_station_to_route_marks<SearchDir, Rt>(station_mark_, route_mark_,
                                  any_station_marked_, location_routes, n_locations);
   this_grid().sync();
@@ -875,10 +875,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
 
   this_grid().sync();
   // ausprobieren, ob folgende daten noch weiter entschachtelt werden müssen
-  if(dist_to_end_size == nullptr){
-    printf("wir sind schlau");
-  }
-  printf("test: %d", *dist_to_end_size);
+
   //locations->gpu_footpaths_out_[1][1]; // hiervon sind auch gpu_footpaths_out und transfer_time betroffem
   // 2. Update Routes
 
@@ -907,9 +904,12 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
                                 gpu_footpaths_in,
                                 gpu_footpaths_out,
                                 route_clasz);
+
     this_grid().sync();
   }
+  printf("Testerin1");
   this_grid().sync();
+  printf("Testerin2");
 
 }
 
@@ -1039,7 +1039,7 @@ void launch_kernel(void** args,
 
   std::cerr << "Test gpu_raptor::launch_kernel() kernel_start" << std::endl;
   cudaLaunchCooperativeKernel(kernel_func, device.grid_, device.threads_per_block_, args, 0, s);
-  cudaDeviceSynchronize();
+  std::cerr << "Test gpu_raptor::launch_kernel() ende1" << std::endl;
   cuda_check();
   std::cerr << "Test gpu_raptor::launch_kernel() ende" << std::endl;
 
@@ -1077,11 +1077,14 @@ inline void fetch_arrivals_async(mem*& mem, cudaStream_t s) {
 }
 void copy_back(mem*& mem){
   cuda_check();
-  cuda_sync_stream(mem->context_.proc_stream_);
+  std::cerr << "Test gpu_raptor::launch_kernel() bevor proc" << std::endl;
+  //cuda_sync_stream(mem->context_.proc_stream_);
   cuda_check();
+  std::cerr << "Test gpu_raptor::launch_kernel() bevor transfer" << std::endl;
   fetch_arrivals_async(mem,mem->context_.transfer_stream_);
   cuda_check();
-  cuda_sync_stream(mem->context_.transfer_stream_);
+  std::cerr << "Test gpu_raptor::launch_kernel() sync_stream" << std::endl;
+  //cuda_sync_stream(mem->context_.transfer_stream_);
   cuda_check();
 }
 
@@ -1182,11 +1185,14 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
     cudaFree(prf_idx_ptr);
     return;
 }
-void destroy_copy_to_gpu_args(gpu_unixtime_t*& start_time_ptr,
-                              gpu_unixtime_t*& worst_time_at_dest_ptr,
-                              gpu_profile_idx_t*& prf_idx_ptr){
+void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
+                              gpu_unixtime_t* worst_time_at_dest_ptr,
+                              gpu_profile_idx_t* prf_idx_ptr){
+  std::cerr << "Test gpu_raptor::launch_kernel() start_time" << std::endl;
   cudaFree(start_time_ptr);
+  std::cerr << "Test gpu_raptor::launch_kernel() worst_time" << std::endl;
   cudaFree(worst_time_at_dest_ptr);
+  std::cerr << "Test gpu_raptor::launch_kernel() prf" << std::endl;
   cudaFree(prf_idx_ptr);
   cuda_check();
 }
