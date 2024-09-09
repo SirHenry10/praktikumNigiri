@@ -109,10 +109,11 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
                                                std::uint32_t const n_locations) {
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
+  if(global_t_id == 0)printf("test_convert\n"); //ToDo: nur test delete later
   // anstatt stop_count_ brauchen wir location_routes ?location_idx_{n_locations}?
-  for (uint32_t idx = global_t_id;
-       idx < n_locations; idx += global_stride) {
+  for (uint32_t idx = global_t_id; idx < n_locations; idx += global_stride) {
     if (marked(station_marks, idx)) {
+      printf("marked"); //ToDo: nur test delete later
       if (!*any_station_marked) {
         *any_station_marked = true;
       }
@@ -465,7 +466,8 @@ __device__ bool loop_routes(unsigned const k, bool any_station_marked_, uint32_t
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>* gpu_footpaths_out,
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath>* gpu_footpaths_in,
                             gpu_vector_map<gpu_route_idx_t, gpu_clasz>* route_clasz){
-  printf("loop routs intern");
+
+  //printf("loop routs intern");
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
 
@@ -691,17 +693,20 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if(get_global_thread_id() ==0){
   printf("raptor_round: %d \n",k);
   }
+  printf("station marked? %d \n",marked(station_mark_,0)) ;
+
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   //TODO sicher, dass man über n_locations iterieren muss? -> aufpassen, dass round_times nicht out of range zugegriffen wird
   for(auto idx = global_t_id; idx < n_locations; idx += global_stride){
-    auto test =round_times_[k*column_count_round_times_+idx]; //TODO: wie berechnet man round times position
+    auto test =round_times_[k*row_count_round_times_+idx]; //TODO: wie berechnet man round times position
     auto test2 = best_[idx];
     best_[global_t_id] =get_best<SearchDir>(test, test2);
     if(is_dest_[idx]){
       update_time_at_dest<SearchDir, Rt>(k, best_[global_t_id], time_at_dest_);
     }
   }
+
   this_grid().sync();
 
   // für jede location & für jede location_route state_.route_mark_
@@ -713,22 +718,29 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
 
   if(get_global_thread_id()==0){
-    if(!*any_station_marked_){
-      return;
-    }
     // swap
     cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
+
     for(int j = 0; j < ((n_locations/32)+1); j++){
       station_mark_[j] = 0xFFFF;
     }
   }
+
+  if(global_t_id == 0)printf("waiting %d\n",k);
   this_grid().sync();
+  //ToDo: ich hab return raus gezogen da sonst endlosschleife...
+  if(!*any_station_marked_){
+    return;
+  }
+  printf("waiting finished %d\n",k);
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
 
-  //(*route_clasz)[gpu_route_idx_t{9999999}];
-  //printf("gpu_raptor_kernel loop_routes");
+  if (get_global_thread_id() == 0) {
+         printf("Before loop_routes: any_station_marked_: %d\n", *any_station_marked_);
+  }
+
   *any_station_marked_ = (allowed_claszes_ == 0xffff)
                          ? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
@@ -768,10 +780,16 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                                                                 route_clasz);
 
   this_grid().sync();
+
+  if (get_global_thread_id() == 0) {
+    printf("raptor_round: any_station_marked_ after loop_routes: %d\n",
+           *any_station_marked_);
+  }
+
+  //ToDo: ICH habe mal das return raus geschoben weil warum sollte nur der 0 thread returnen
+
   if(get_global_thread_id()==0){
-    if(!*any_station_marked_){
-      return;
-    }
+
     // fill
     for(int i = 0; i < ((n_routes/32)+1); i++){
       route_mark_[i] = 0xFFFF;
@@ -782,8 +800,13 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     for(int j = 0; j < ((n_locations/32)+1); j++){
       station_mark_[j] = 0xFFFF; // soll es auf false setzen
     }
+
   }
   this_grid().sync();
+  //TODO: warum hier eigentlich noch ein check?
+  if(!*any_station_marked_){
+    return;
+  }
   // update_transfers
   update_transfers<SearchDir, Rt>(k, is_dest_, dist_to_end_, dist_to_end_size_,
                    tmp_, best_, time_at_dest_, kUnreachable, lb_, round_times_,
@@ -874,6 +897,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
                 time_at_dest, route_stop_times,route_transport_ranges,date_range);
 
   this_grid().sync();
+  ++stats[get_global_thread_id()>>5].n_routes_visited_;
   // ausprobieren, ob folgende daten noch weiter entschachtelt werden müssen
 
   //locations->gpu_footpaths_out_[1][1]; // hiervon sind auch gpu_footpaths_out und transfer_time betroffem
@@ -907,10 +931,8 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
 
     this_grid().sync();
   }
-  printf("Testerin1");
   this_grid().sync();
-  printf("Testerin2");
-
+  if(get_global_thread_id() == 0)printf("Testerin2");
 }
 
 #define XSTR(s) STR(s)
@@ -1036,11 +1058,12 @@ void launch_kernel(void** args,
   } else if (search_dir == gpu_direction::kBackward && rt == false) {
     kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, false>;
   }
-
-  std::cerr << "Test gpu_raptor::launch_kernel() kernel_start" << std::endl;
   cudaLaunchCooperativeKernel(kernel_func, device.grid_, device.threads_per_block_, args, 0, s);
+  cudaError_t err = cudaDeviceSynchronize();
+  if (err != cudaSuccess) {
+    printf("CUDA error after cudaDeviceSynchronize: %s\n", cudaGetErrorString(err));
+  }
   std::cerr << "Test gpu_raptor::launch_kernel() ende1" << std::endl;
-  cuda_check();
   std::cerr << "Test gpu_raptor::launch_kernel() ende" << std::endl;
 
 }
@@ -1049,43 +1072,36 @@ inline void fetch_arrivals_async(mem*& mem, cudaStream_t s) {
   cudaMemcpyAsync(
       mem->host_.round_times_.data(), mem->device_.round_times_,
       sizeof(gpu_delta_t)*mem->host_.row_count_round_times_*mem->host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.stats_.data(), mem->device_.stats_,
       sizeof(gpu_raptor_stats)*32, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.tmp_.data(), mem->device_.tmp_,
       sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.best_.data(), mem->device_.best_,
       sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.station_mark_.data(), mem->device_.station_mark_,
       sizeof(uint32_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.prev_station_mark_.data(), mem->device_.prev_station_mark_,
       sizeof(uint32_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.route_mark_.data(), mem->device_.route_mark_,
       sizeof(uint32_t)*mem->device_.n_routes_, cudaMemcpyDeviceToHost, s);
-  cuda_check();
+  //cuda_check(); TODO: keine ahnung warum hier kein cuda check geht
 }
 void copy_back(mem*& mem){
-  cuda_check();
   std::cerr << "Test gpu_raptor::launch_kernel() bevor proc" << std::endl;
   //cuda_sync_stream(mem->context_.proc_stream_);
-  cuda_check();
+  //cuda_check();
   std::cerr << "Test gpu_raptor::launch_kernel() bevor transfer" << std::endl;
   fetch_arrivals_async(mem,mem->context_.transfer_stream_);
-  cuda_check();
+  //cuda_check(); TODO: warum geht cuda_check nicht
   std::cerr << "Test gpu_raptor::launch_kernel() sync_stream" << std::endl;
   //cuda_sync_stream(mem->context_.transfer_stream_);
-  cuda_check();
+  //cuda_check();
 }
 
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t base_,short const kInvalid){
@@ -1100,12 +1116,22 @@ void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,
   //TODO: hier fehler da base nur auf device funktioniert!
   round_times_new[0U*mem_->device_.row_count_round_times_+ gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_,base_), t);
   //TODO: fix station_mark ist kein bool!
-  std::vector<uint32_t> gpu_station_mark(mem_->device_.n_locations_,0);
-  gpu_station_mark[gpu_to_idx(l)] = 1;
+  std::vector<uint32_t> gpu_station_mark((( mem_->device_.n_locations_/32)+1),0);
+  unsigned int const store_idx = (gpu_to_idx(l) >> 5);  // divide by 32
+  unsigned int const mask = 1 << (gpu_to_idx(l) % 32);
+  gpu_station_mark[store_idx] |= mask; //TODO: das ist bullshit so makiert man keine station also mit nur l
+  unsigned int const store_idx2 = (gpu_to_idx(l) >> 5);  // divide by 32
+  unsigned int const val = gpu_station_mark[store_idx];
+  unsigned int const mask2 = 1 << (gpu_to_idx(l) % 32);
+  auto testerina = (bool)(val & mask2);
+  std::cerr << "Test if marked: " << testerina << "l: "<<gpu_to_idx(l)<< std::endl;
   std::cerr << "Test gpu_raptor::add_start_gpu() 3" << std::endl;
   cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.n_locations_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cuda_check();
   cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem_->device_.station_mark_, gpu_station_mark.data(), mem_->device_.n_locations_*sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cuda_check();
+  cudaMemcpy(mem_->device_.station_mark_, gpu_station_mark.data(), ((mem_->device_.n_locations_/32)+1)*sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cuda_check();
   std::cerr << "Test gpu_raptor::add_start_gpu() end" << std::endl;
 }
 std::unique_ptr<mem> gpu_mem(
@@ -1194,5 +1220,5 @@ void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
   cudaFree(worst_time_at_dest_ptr);
   std::cerr << "Test gpu_raptor::launch_kernel() prf" << std::endl;
   cudaFree(prf_idx_ptr);
-  cuda_check();
+  //cuda_check();
 }
