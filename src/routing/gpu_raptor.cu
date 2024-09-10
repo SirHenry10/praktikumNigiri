@@ -227,6 +227,7 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   printf("smaller 2");
   // berechnen von allen möglichen trips(Abfahrt-/Ankunftszeiten) von dieser station
   auto const splitter = gpu_split_day_mam(*base_, prev_round_time);
+  //TODO: hier ist prev_round_time numeric_limit need fix
   auto const day_at_stop = splitter.first;
   auto const mam = splitter.second;
   auto const n_days_to_iterate = get_smaller(
@@ -693,7 +694,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if(get_global_thread_id() ==0){
   printf("raptor_round: %d \n",k);
   }
-  printf("station marked? %d \n",marked(station_mark_,0)) ;
+  if(get_global_thread_id() == 0)printf("station marked? %d \n",marked(station_mark_,0)) ;
 
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
@@ -733,7 +734,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if(!*any_station_marked_){
     return;
   }
-  printf("waiting finished %d\n",k);
+  if(global_t_id == 0)printf("waiting finished %d\n",k);
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
 
@@ -897,9 +898,9 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
                 time_at_dest, route_stop_times,route_transport_ranges,date_range);
 
   this_grid().sync();
-  ++stats[get_global_thread_id()>>5].n_routes_visited_;
+  //++stats[get_global_thread_id()>>5].n_routes_visited_; TODO: so ist out of range
   // ausprobieren, ob folgende daten noch weiter entschachtelt werden müssen
-
+  if(get_global_thread_id() == 0) printf("is marked? %d \n", marked(station_mark,0));
   //locations->gpu_footpaths_out_[1][1]; // hiervon sind auch gpu_footpaths_out und transfer_time betroffem
   // 2. Update Routes
 

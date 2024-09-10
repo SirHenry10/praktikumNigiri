@@ -554,8 +554,8 @@ __host__ __device__ inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base
 }
 __host__ __device__ inline cuda::std::pair<gpu_day_idx_t, gpu_minutes_after_midnight_t> gpu_split_day_mam(
     gpu_day_idx_t const base, gpu_delta_t const x) {
-  assert(x != std::numeric_limits<gpu_delta_t>::min());
-  assert(x != std::numeric_limits<gpu_delta_t>::max());
+  assert(x != cuda::std::numeric_limits<gpu_delta_t>::min());
+  assert(x != cuda::std::numeric_limits<gpu_delta_t>::max());
   if (x < 0) {
     auto const t = -x / 1440 + 1;
     auto const min = x + (t * 1440);
