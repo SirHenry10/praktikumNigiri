@@ -282,7 +282,7 @@ struct gpu_raptor {
       tmp.fp_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].fp_update_prevented_by_lower_bound_;
       tmp.route_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].route_update_prevented_by_lower_bound_;
     }
-    std::cerr << "n_routing_time"<<tmp.n_routes_visited_ << std::endl;
+    std::cerr << "n_routing_time gpu:"<<tmp.n_routes_visited_ << std::endl;
     stats_ = tmp;
     std::cerr << "Test gpu_raptor::execute() bevor destroy" << std::endl;
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);

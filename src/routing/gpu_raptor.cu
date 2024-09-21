@@ -211,17 +211,29 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   if(t_id == 0){
     any_station_marked_= false;
   }
-  if(t_id < active_stop_count) {
+  //TODO: muss eigentlich hier weil prev_round_time falsch wird
+  if(t_id >= active_stop_count) { //solte doch eigentlich egal sein da wir smaller sind oder?
+    return any_station_marked_;
+  }
     stop_idx = static_cast<gpu_stop_idx_t>(
         (SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
     stp = gpu_stop{stop_seq[stop_idx]};
     l_idx = gpu_to_idx(stp.gpu_location_idx());
-    //is_last = t_id == stop_seq.size() - 1U;
+    auto is_last = t_id == stop_seq.size() - 1U;
     // ist äquivalent zu prev_arrival
-    prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
-  }
+    if (is_last || !(SearchDir == gpu_direction::kForward ? stp.in_allowed() : stp.out_allowed()) ||
+        !marked(prev_station_mark_,l_idx)) {
+      //dann wird diese übersprungen
+      return any_station_marked_; //übersprungen ist gleich dieser thread returned
+    }
+    if (lb_[l_idx] == kUnreachable) { //TODO: maybe kucken ob richtig? bzw. ob weg
+      // dann wird Durchgehen dieser Route abgebrochen
+      return any_station_marked_; //break ist gleich alle thread returnen
+    }
+    prev_round_time = round_times_[(k-1) * row_count_round_times_ + l_idx];
 
-  if (!__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())) {
+  if (!__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())||
+        !__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::min())) { //TODO: so läuft es durch aber eigentlich sollte nur max oder min gefrag sein also je nach direction
     return any_station_marked_;
   }
   printf("smaller 2");
@@ -724,7 +736,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     // fill
 
     for(int j = 0; j < ((n_locations/32)+1); j++){
-      station_mark_[j] = 0xFFFF;
+      station_mark_[j] = 0x0000;
     }
   }
 
@@ -793,13 +805,13 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
 
     // fill
     for(int i = 0; i < ((n_routes/32)+1); i++){
-      route_mark_[i] = 0xFFFF;
+      route_mark_[i] = 0x0000;
     }
     // swap
     cuda::std::swap(prev_station_mark_,station_mark_);
     // fill
     for(int j = 0; j < ((n_locations/32)+1); j++){
-      station_mark_[j] = 0xFFFF; // soll es auf false setzen
+      station_mark_[j] = 0x0000; // soll es auf false setzen
     }
 
   }
