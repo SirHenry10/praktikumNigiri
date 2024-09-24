@@ -124,12 +124,44 @@ TEST(routing, gpu_types) {
   EXPECT_EQ(gpu_direction_kBackward, gpu_direction::kBackward);
   //TODO: mehr typen noch test...
 }
+void merge_file(const std::string& output_file, int num_parts) {
+  std::ofstream outfile(output_file, std::ios::binary);
+  if (!outfile.is_open()) {
+    std::cerr << "Fehler beim Erstellen der Ausgabedatei: " << output_file << std::endl;
+    return;
+  }
 
+  char buffer[1024];  // Ein kleiner Puffer, um die Teile zu lesen
+  for (int part = 0; part < num_parts; ++part) {
+    std::string part_file = output_file + ".part" + std::to_string(part);
+    std::ifstream infile(part_file, std::ios::binary);
+
+    if (!infile.is_open()) {
+      std::cerr << "Fehler beim Öffnen des Teils: " << part_file << std::endl;
+      return;
+    }
+
+    // Lese den Teil und füge ihn in die Ausgangsdatei ein
+    while (!infile.eof()) {
+      infile.read(buffer, sizeof(buffer));
+      outfile.write(buffer, infile.gcount());
+    }
+
+    infile.close();
+  }
+
+  outfile.close();
+  std::cout << "Datei erfolgreich zusammengefügt: " << output_file << std::endl;
+}
 std::filesystem::path project_root = std::filesystem::current_path().parent_path();
 std::filesystem::path test_path_germany(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs"); //Alle nicht ASCII zeichen entfernt.
 fs_dir test_files_germany(test_path_germany);
 
 TEST(routing, gpu_raptor_germany) {
+  std::filesystem::path filePath = "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs/stop_times.txt";
+  if (!std::filesystem::exists(filePath)) {
+    merge_file("test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs/stop_times.txt",5);
+  }
   timetable tt;
   std::cout << "Lade Fahrplan..." << std::endl;
   tt.date_range_ = {date::sys_days{2024_y / September / 25},
