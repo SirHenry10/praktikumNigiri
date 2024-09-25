@@ -10,24 +10,20 @@ std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
    //TODO: funktioniert nicht wie bei julian
    int32_t block_dim_x = 32;  // must always be 32!
-   int32_t block_dim_y = 16;  // range [1, ..., 32]
+   int32_t block_dim_y = 8;  // range [1, ..., 32]
    int32_t block_size = block_dim_x * block_dim_y;
-   int32_t max_blocks_per_sm = prop.maxThreadsPerMultiProcessor / block_size;
 
    auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
 
+     //TODO: Changed for GTX 1080 herausfinden wie allgemein halten
+   int32_t max_blocks_per_sm = 2;
    int32_t num_blocks = mp_count * max_blocks_per_sm;
 
-   dim3 threads_per_block(block_dim_x, block_dim_y, 1);
-   dim3 grid(num_blocks, 1, 1);
-   grid.x = std::min(static_cast<unsigned int>(grid.x), static_cast<unsigned int>(max_blocks_per_sm));
-   std::cerr << "Max Threads Per Block: " << prop.maxThreadsPerBlock << std::endl;
-   std::cerr << "Max Threads Per MultiProcessor: " << prop.maxThreadsPerMultiProcessor << std::endl;
-   std::cerr << "Multi Processor Count: " << prop.multiProcessorCount << std::endl;
-   std::cerr << "mp_count: " << mp_count << std::endl;
-   std::cerr << "max_blocks_per_sm: " << max_blocks_per_sm << std::endl;
-   std::cerr << "num_blocks: " << num_blocks << std::endl;
+   int32_t num_sms = prop.multiProcessorCount;  // 20 SMs bei GTX 1080
+   int32_t total_blocks = num_sms * max_blocks_per_sm;
 
+   dim3 threads_per_block(block_dim_x, block_dim_y, 1);
+   dim3 grid(total_blocks, 1, 1);  // Grid auf 40 Blöcke setzen
    return {threads_per_block, grid};
 }
 
