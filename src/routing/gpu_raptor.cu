@@ -230,19 +230,11 @@ __device__ bool update_route_smaller32(unsigned const k, gpu_route_idx_t r,
       // dann wird Durchgehen dieser Route abgebrochen
       return any_station_marked_; //break ist gleich alle thread returnen
     }
-    auto rt = round_times_[(k-1) * row_count_round_times_ + l_idx];
-    printf("rt value: %d",rt);
-    if(!__any_sync(FULL_MASK, rt!=cuda::std::numeric_limits<gpu_delta_t>::max())||
-        !__any_sync(FULL_MASK, rt!=cuda::std::numeric_limits<gpu_delta_t>::min())){
-
-      printf("round_times_max/min %d",(k-1) * row_count_round_times_ + l_idx);
-    }
     prev_round_time = round_times_[(k-1) * row_count_round_times_ + l_idx];
 
-  if (!__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())||
-        !__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::min())) { //TODO: so läuft es durch aber eigentlich sollte nur max oder min gefrag sein also je nach direction
-    return any_station_marked_;
-  }
+  assert(__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())&&
+        __any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::min()));
+
   printf("smaller 2");
   // berechnen von allen möglichen trips(Abfahrt-/Ankunftszeiten) von dieser station
   auto const splitter = gpu_split_day_mam(*base_, prev_round_time);
@@ -923,6 +915,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
 
+  assert(!(*location_routes).empty());
   init_arrivals<SearchDir, Rt>(*worst_time_at_dest, base,
                 time_at_dest, route_stop_times,route_transport_ranges,date_range);
 

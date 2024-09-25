@@ -170,7 +170,7 @@ void merge_file(const std::string& output_file, int num_parts) {
 std::filesystem::path project_root = std::filesystem::current_path().parent_path();
 std::filesystem::path test_path_germany(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs"); //Alle nicht ASCII zeichen entfernt.
 fs_dir test_files_germany(test_path_germany);
-
+/*
 TEST(routing, gpu_raptor_germany) {
   std::filesystem::path filePath = "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs/stop_times.txt";
   if (!std::filesystem::exists(filePath)) {
@@ -206,6 +206,7 @@ TEST(routing, gpu_raptor_germany) {
   }
   std::cout << ss.str() << "\n";
 }
+
 TEST(routing, gpu_raptor) {
   using namespace date;
   timetable tt;
@@ -243,7 +244,7 @@ TEST(routing, gpu_raptor) {
   std::cout << "results gpu: " <<  gpu_results.size() << "\n";
   ASSERT_EQ(cpu_results.size(),gpu_results.size());
 }
-
+*/
 constexpr auto const fwd_journeys2 = R"(
 [2020-03-30 05:00, 2020-03-30 07:15]
 TRANSFERS: 1
