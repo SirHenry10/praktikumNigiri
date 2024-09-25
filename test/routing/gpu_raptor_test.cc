@@ -110,6 +110,11 @@ TEST(routing, gpu_timetable) {
   EXPECT_EQ(nullptr, gtt);
 }
 TEST(routing, gpu_types) {
+  constexpr auto const src = source_idx_t{0U};
+  timetable tt;
+  tt.date_range_ = full_period();
+  load_timetable(src, loader::hrd::hrd_5_20_26, files_abc(), tt);
+  finalize(tt);
   auto SearchDir_kForward = direction::kForward;
   auto gpu_direction_kForward = *reinterpret_cast<const gpu_direction*>(&SearchDir_kForward);
   auto SearchDir_kBackward = direction::kBackward;
@@ -123,6 +128,15 @@ TEST(routing, gpu_types) {
   EXPECT_EQ(gpu_direction_kForward, gpu_direction::kForward);
   EXPECT_EQ(gpu_direction_kBackward, gpu_direction::kBackward);
   //TODO: mehr typen noch test...
+  auto gpu_date_ranges = reinterpret_cast<nigiri::gpu_interval<gpu_sys_days>*>(&tt.date_range_);
+  auto val0 = gpu_date_ranges->from_;
+  auto val1 = tt.date_range_.from_;
+  auto val3 = gpu_date_ranges->to_;
+  auto val4 = tt.date_range_.to_;
+  printf("val0: %d",val0);
+  printf("val1: %d",val1);
+  printf("val3: %d",val3);
+  printf("val4: %d",val4);
 }
 void merge_file(const std::string& output_file, int num_parts) {
   std::ofstream outfile(output_file, std::ios::binary);
@@ -182,7 +196,7 @@ TEST(routing, gpu_raptor_germany) {
   std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
   auto const results_gpu = raptor_search(tt, nullptr, "de:01001:27334::1", "de:09780:9256:0:1",
                                          sys_days{September / 28 / 2024} + 2h,
-                                         nigiri::direction::kBackward,useGPU);
+                                         nigiri::direction::kBackward);
 
   std::cout << "Raptor-Suche abgeschlossen." << std::endl;
   std::stringstream ss;
@@ -215,8 +229,8 @@ TEST(routing, gpu_raptor) {
                         10_minutes, 77U}}};
   generate_ontrip_train_query(tt, t->first, 1, q);
 
-  auto const cpu_results = raptor_search(tt, nullptr, std::move(q),nonGPU);
-  auto const gpu_results = raptor_search(tt, nullptr, std::move(q),useGPU);
+  auto const cpu_results = raptor_search(tt, nullptr, std::move(q));
+  auto const gpu_results = raptor_search(tt, nullptr, std::move(q));
 
   std::stringstream ss;
   ss << "\n";
@@ -267,17 +281,16 @@ leg 3: (C, 0000003) [2020-03-30 07:45] -> (C, 0000003) [2020-03-30 07:45]
 
 TEST(routing, gpu_raptor_forward) {
   constexpr auto const src = source_idx_t{0U};
-
   timetable tt;
   tt.date_range_ = full_period();
   load_timetable(src, loader::hrd::hrd_5_20_26, files_abc(), tt);
   finalize(tt);
-
+  auto gtt = translate_tt_in_gtt(tt);
 
   auto const results_cpu = raptor_search(
       tt, nullptr, "0000001", "0000003",
       interval{unixtime_t{sys_days{2020_y / March / 30}} + 5_hours,
-               unixtime_t{sys_days{2020_y / March / 30}} + 6_hours},nonGPU);
+               unixtime_t{sys_days{2020_y / March / 30}} + 6_hours});
   std::stringstream ss1;
   ss1 << "\n";
   for (auto const& x :  results_cpu) {
@@ -286,10 +299,11 @@ TEST(routing, gpu_raptor_forward) {
     ss1 << "\n\n";
   }
   auto const results_gpu = raptor_search(
-      tt, nullptr, "0000001", "0000003",
+      tt, nullptr,gtt, "0000001", "0000003",
       interval{unixtime_t{sys_days{2020_y / March / 30}} + 5_hours,
-               unixtime_t{sys_days{2020_y / March / 30}} + 6_hours},useGPU);
-  std::stringstream ss2;
+               unixtime_t{sys_days{2020_y / March / 30}} + 6_hours});
+
+   std::stringstream ss2;
   ss2 << "\n";
   for (auto const& x :  results_gpu) {
     std::cout << "result gpu\n";

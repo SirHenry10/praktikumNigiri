@@ -57,8 +57,8 @@ std::unique_ptr<mem> gpu_mem(
     std::vector<bool>& prev_station_mark,
     std::vector<bool>& route_mark,
     gpu_direction search_dir,
-    gpu_timetable* gtt);
-void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable* gtt_,gpu_day_idx_t base_,short const kInvalid);
+    gpu_timetable const* gtt);
+void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable const* gtt_,gpu_day_idx_t base_,short const kInvalid);
 
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
@@ -93,6 +93,7 @@ __device__ inline gpu_sys_days base(gpu_day_idx_t* base,gpu_interval<gpu_sys_day
   return gpu_internal_interval_days(date_range_ptr).from_ + as_int(*base) * gpu_days{1};
 }
 __host__ inline gpu_sys_days cpu_base(gpu_timetable const* gtt, gpu_day_idx_t base) {
+  printf("internal: %d", gtt->cpu_internal_interval_days().from_);
   return gtt->cpu_internal_interval_days().from_ + as_int(base) * gpu_days{1};
 }
 template<gpu_direction SearchDir>
@@ -132,7 +133,7 @@ struct gpu_raptor {
       std::numeric_limits<std::uint16_t>::max();
 
 
-  gpu_raptor(gpu_timetable* gtt,
+  gpu_raptor(gpu_timetable const* gtt,
              mem* mem,
          std::vector<bool>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
@@ -143,6 +144,7 @@ struct gpu_raptor {
       : gtt_{gtt},
         mem_{mem}//ToDO: verwaltung von mem nicht übergebn drausen lassen...
         {
+
     std::cerr << "gpu_raptor()" << std::endl;
     mem_->reset_arrivals_async();
     std::cerr << "gpu_raptor() before copy_array" << std::endl;
@@ -188,8 +190,7 @@ struct gpu_raptor {
                            n_days_,
                            kUnreachable_,
                            kIntermodalTarget_,
-                           kMaxTravelTimeTicks_);
-      destroy_gpu_timetable(gtt_);
+                           kMaxTravelTimeTicks_);//TODO: destroy gpu_timetable
   }
   algo_stats_t get_stats() const {
     return stats_;
@@ -206,8 +207,8 @@ struct gpu_raptor {
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
     std::cerr << "Test gpu_raptor::add_start() start" << std::endl;
-      add_start_gpu(l,t,mem_,gtt_,cpu_base_,kInvalid);
-      std::cerr << "Test gpu_raptor::add_start() end" << std::endl;
+    add_start_gpu(l,t,mem_,gtt_,cpu_base_,kInvalid);
+    std::cerr << "Test gpu_raptor::add_start() end" << std::endl;
   }
 
 
@@ -288,7 +289,7 @@ struct gpu_raptor {
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
     std::cerr << "Test gpu_raptor::execute() ende" << std::endl;
   }
-  gpu_timetable* gtt_{nullptr};
+  gpu_timetable const* gtt_{nullptr};
   mem* mem_{nullptr};
   bool* is_dest_{nullptr};
   uint16_t* dist_to_end_{nullptr};

@@ -226,7 +226,13 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   }
 
   std::cerr << "n_routes: " << gtt->n_locations_ << std::endl;
+
+  printf("from %d",date_range->from_);
+  printf("to %d",date_range->to_);
   gtt->cpu_date_range_ = date_range;
+
+  printf("from2 %d",gtt->cpu_date_range_->from_);
+  printf("to2 %d",gtt->cpu_date_range_->to_);
   device_bytes += sizeof(gpu_interval<gpu_sys_days> const*);
   //TODO: muss ich auch auf device_bytes drauf rechnen cpu_date_range_???
   //TODO: für was werden device bytse genutzt?

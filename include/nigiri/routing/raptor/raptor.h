@@ -96,6 +96,10 @@ struct raptor {
     trace_upd("adding start {}: {}\n", location{tt_, l}, t);
     state_.best_[to_idx(l)] = unix_to_delta(base(), t);
     state_.round_times_[0U][to_idx(l)] = unix_to_delta(base(), t);
+    printf("rt cpu: %d",unix_to_delta(base(), t));
+    printf("internal cpu: %d",tt_.internal_interval_days());
+    printf("from cpu %d",tt_.date_range_.from_);
+    printf("to cpu %d",tt_.date_range_.to_);
     state_.station_mark_[to_idx(l)] = true;
   }
 
@@ -211,7 +215,7 @@ struct raptor {
         }
       }
     }
-    std::cerr << "n_routing_time cpu: "<<stats_.n_routes_visited_ << std::endl;
+    std::cerr << "n_routing_visited cpu: "<<stats_.n_routes_visited_ << std::endl;
   }
 
   void reconstruct(query const& q, journey& j) {
