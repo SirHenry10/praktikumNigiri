@@ -117,7 +117,6 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
       if (!*any_station_marked) {
         *any_station_marked = true;
       }
-      assert((*location_routes_)[gpu_location_idx_t{idx}] != nullptr);
       auto const& location_routes = (*location_routes_)[gpu_location_idx_t{idx}];
       for (auto r : location_routes) {
         mark(route_marks, gpu_to_idx(r));
@@ -915,8 +914,16 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
-
+  assert(!(*route_location_seq).empty());
   assert(!(*location_routes).empty());
+  assert(!(*route_stop_time_ranges).empty());
+  assert(!(*route_transport_ranges).empty());
+  assert(!(*bitfields).empty());
+  assert(!(*transport_traffic_days).empty());
+  assert(!(*transfer_time).empty());
+  assert(!(*gpu_footpaths_in).empty());
+  assert(!(*gpu_footpaths_out).empty());
+  assert(!(*route_clasz).empty());
   init_arrivals<SearchDir, Rt>(*worst_time_at_dest, base,
                 time_at_dest, route_stop_times,route_transport_ranges,date_range);
 

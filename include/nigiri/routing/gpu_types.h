@@ -1740,8 +1740,8 @@ __host__ __device__  inline gpu_delta event_mam(gpu_route_idx_t const r,
 __device__ inline cuda::std::span<gpu_delta const> gpu_event_times_at_stop(gpu_route_idx_t const r,
                                                                     gpu_stop_idx_t const stop_idx,
                                                                     gpu_event_type const ev_type,
-                                                                    gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t>>* route_transport_ranges,
-                                                                    gpu_delta* route_stop_times){
+                                                                    gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t>> const* route_transport_ranges,
+                                                                    gpu_delta const* route_stop_times){
   auto rtr = *route_transport_ranges;
   auto const n_transports =
       static_cast<unsigned>(rtr[r].size());
@@ -1750,7 +1750,7 @@ __device__ inline cuda::std::span<gpu_delta const> gpu_event_times_at_stop(gpu_r
       n_transports * (stop_idx * 2 - (ev_type == gpu_event_type::kArr ? 1 : 0)));
   return  cuda::std::span<gpu_delta const>{&route_stop_times[idx], n_transports};
 }
-__device__ inline gpu_interval<gpu_sys_days> gpu_internal_interval_days(gpu_interval<gpu_sys_days>* date_range_ptr){
+__device__ inline gpu_interval<gpu_sys_days> gpu_internal_interval_days(gpu_interval<gpu_sys_days> const* date_range_ptr){
   auto date_range = *date_range_ptr;
   return {date_range.from_ - (gpu_days{1} + gpu_days{4}),
           date_range.to_ + gpu_days{1}};

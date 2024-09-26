@@ -206,7 +206,7 @@ TEST(routing, gpu_raptor_germany) {
   }
   std::cout << ss.str() << "\n";
 }
-
+*/
 TEST(routing, gpu_raptor) {
   using namespace date;
   timetable tt;
@@ -230,8 +230,9 @@ TEST(routing, gpu_raptor) {
                         10_minutes, 77U}}};
   generate_ontrip_train_query(tt, t->first, 1, q);
 
+  auto gtt = translate_tt_in_gtt(tt);
   auto const cpu_results = raptor_search(tt, nullptr, std::move(q));
-  auto const gpu_results = raptor_search(tt, nullptr, std::move(q));
+  auto const gpu_results = raptor_search(tt, nullptr,gtt, std::move(q));
 
   std::stringstream ss;
   ss << "\n";
@@ -244,7 +245,6 @@ TEST(routing, gpu_raptor) {
   std::cout << "results gpu: " <<  gpu_results.size() << "\n";
   ASSERT_EQ(cpu_results.size(),gpu_results.size());
 }
-*/
 constexpr auto const fwd_journeys2 = R"(
 [2020-03-30 05:00, 2020-03-30 07:15]
 TRANSFERS: 1
