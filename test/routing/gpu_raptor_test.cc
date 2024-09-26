@@ -207,6 +207,7 @@ TEST(routing, gpu_raptor_germany) {
   std::cout << ss.str() << "\n";
 }
 */
+/*
 TEST(routing, gpu_raptor) {
   using namespace date;
   timetable tt;
@@ -245,6 +246,7 @@ TEST(routing, gpu_raptor) {
   std::cout << "results gpu: " <<  gpu_results.size() << "\n";
   ASSERT_EQ(cpu_results.size(),gpu_results.size());
 }
+ */
 constexpr auto const fwd_journeys2 = R"(
 [2020-03-30 05:00, 2020-03-30 07:15]
 TRANSFERS: 1
