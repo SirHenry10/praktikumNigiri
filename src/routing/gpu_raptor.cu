@@ -117,6 +117,8 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
       if (!*any_station_marked) {
         *any_station_marked = true;
       }
+      assert((*location_routes_).data_.el_ != nullptr);
+      assert((*location_routes_)[gpu_location_idx_t{idx}].data() != nullptr);
       auto const& location_routes = (*location_routes_)[gpu_location_idx_t{idx}];
       for (auto r : location_routes) {
         mark(route_marks, gpu_to_idx(r));
@@ -134,6 +136,7 @@ __device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const
                                     gpu_delta const* route_stop_times){
   auto const range = *route_transport_ranges;
   auto const n_transports = static_cast<unsigned>(range.size());
+  assert(range.el_ != nullptr);
   auto const route_stop_begin = static_cast<unsigned>(range[r].from_.v_ + n_transports *
                                                                               (stop_idx * 2 - (ev_type==gpu_event_type::kArr ? 1 : 0)));
   return gpu_clamp((as_int(t.day_) - as_int(base_)) * 1440
@@ -156,6 +159,8 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t,
                                     std::size_t const day,
                                     gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
                                     gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields)  {
+  assert((*transport_traffic_days).el_ != nullptr);
+  assert((*bitfields).el_ !=  nullptr);
   return (*bitfields)[(*transport_traffic_days)[t]].test(day);
 }
 
@@ -914,16 +919,21 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
-  assert(!(*route_location_seq).empty());
-  assert(!(*location_routes).empty());
-  assert(!(*route_stop_time_ranges).empty());
-  assert(!(*route_transport_ranges).empty());
-  assert(!(*bitfields).empty());
-  assert(!(*transport_traffic_days).empty());
-  assert(!(*transfer_time).empty());
-  assert(!(*gpu_footpaths_in).empty());
-  assert(!(*gpu_footpaths_out).empty());
-  assert(!(*route_clasz).empty());
+
+  assert((*route_location_seq).data_.el_ != nullptr);
+  assert((*route_location_seq).bucket_starts_.el_ != nullptr);
+  assert((*location_routes).data_.el_ != nullptr);
+  assert((*location_routes).bucket_starts_.el_ != nullptr);
+  assert((*route_stop_time_ranges).el_ != nullptr);
+  assert((*route_transport_ranges).el_ != nullptr);
+  assert((*bitfields).el_ != nullptr);
+  assert((*transport_traffic_days).el_ != nullptr);
+  assert((*transfer_time).el_ != nullptr);
+  assert((*gpu_footpaths_in).data_.el_ != nullptr);
+  assert((*gpu_footpaths_in).bucket_starts_.el_ != nullptr);
+  assert((*gpu_footpaths_out).data_.el_ != nullptr);
+  assert((*gpu_footpaths_out).bucket_starts_.el_ != nullptr);
+  assert((*route_clasz).el_ != nullptr);
   init_arrivals<SearchDir, Rt>(*worst_time_at_dest, base,
                 time_at_dest, route_stop_times,route_transport_ranges,date_range);
 
