@@ -215,7 +215,11 @@ struct raptor {
         }
       }
     }
-    std::cerr << "n_routing_visited cpu: "<<stats_.n_routes_visited_ << std::endl;
+    std::cerr << "n_routing_time_ cpu:"<<stats_.n_routing_time_ << std::endl;
+    std::cerr << "n_footpaths_visited_ cpu:"<<stats_.n_footpaths_visited_ << std::endl;
+    std::cerr << "n_routes_visited_ cpu:"<<stats_.n_routes_visited_ << std::endl;
+    std::cerr << "n_earliest_trip_calls_ cpu:"<<stats_.n_earliest_trip_calls_ << std::endl;
+    std::cerr << "n_earliest_arrival_updated_by_footpath_ cpu:"<<stats_.n_earliest_arrival_updated_by_footpath_ << std::endl;
   }
 
   void reconstruct(query const& q, journey& j) {
@@ -240,10 +244,11 @@ private:
             continue;
           }
         }
-
         ++stats_.n_routes_visited_;
         trace("┊ ├k={} updating route {}\n", k, r);
         any_marked |= update_route(k, r);
+      }else{
+        printf("HELLO");
       }
     }
     return any_marked;

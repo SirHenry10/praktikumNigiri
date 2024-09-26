@@ -1127,7 +1127,7 @@ struct gpu_basic_vector {
   }
 
   __host__ __device__ T& operator[](access_type const index) noexcept {
-    assert(el_ != nullptr  );
+    assert(el_ != nullptr);
     assert(index < used_size_);
     return el_[gpu_to_idx(index)];
   }
@@ -1742,12 +1742,16 @@ __device__ inline cuda::std::span<gpu_delta const> gpu_event_times_at_stop(gpu_r
                                                                     gpu_event_type const ev_type,
                                                                     gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t>> const* route_transport_ranges,
                                                                     gpu_delta const* route_stop_times){
-  auto rtr = *route_transport_ranges;
+  printf("gpu_event_times_at_stop");
+  assert(route_transport_ranges->el_ != nullptr);
+  printf("gpu_event_times_at_stop 1");
   auto const n_transports =
-      static_cast<unsigned>(rtr[r].size());
+      static_cast<unsigned>((*route_transport_ranges)[r].size());
+  printf("gpu_event_times_at_stop 2");
   auto const idx = static_cast<unsigned>(
-      rtr[r].from_ +
+      (*route_transport_ranges)[r].from_ +
       n_transports * (stop_idx * 2 - (ev_type == gpu_event_type::kArr ? 1 : 0)));
+  printf("gpu_event_times_at_stop 3");
   return  cuda::std::span<gpu_delta const>{&route_stop_times[idx], n_transports};
 }
 __device__ inline gpu_interval<gpu_sys_days> gpu_internal_interval_days(gpu_interval<gpu_sys_days> const* date_range_ptr){

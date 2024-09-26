@@ -10,7 +10,7 @@ std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
    //TODO: funktioniert nicht wie bei julian
    int32_t block_dim_x = 32;  // must always be 32!
-   int32_t block_dim_y = 8;  // range [1, ..., 32]
+   int32_t block_dim_y = 4;  // range [1, ..., 32]
    int32_t block_size = block_dim_x * block_dim_y;
 
    auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
@@ -134,10 +134,10 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemcpyAsync(best_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   std::vector<gpu_delta_t> invalid_round_times(column_count_round_times_*row_count_round_times_, invalid_);
   cudaMemcpyAsync(round_times_,invalid_round_times.data(),column_count_round_times_*row_count_round_times_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
-  cudaMemsetAsync(station_mark_, 0, ((n_locations_/32)+1)*sizeof(uint32_t), s);
-  cudaMemsetAsync(prev_station_mark_, 0, ((n_locations_/32)+1)*sizeof(uint32_t), s);
-  cudaMemsetAsync(route_mark_, 0, ((n_routes_/32)+1)*sizeof(uint32_t), s);
-  cudaMemsetAsync(any_station_marked_, 0, sizeof(bool), s);
+  cudaMemsetAsync(station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(prev_station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(route_mark_, 0000, ((n_routes_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(any_station_marked_, 0000, sizeof(bool), s);
   gpu_raptor_stats init_value = {};
 
   for (int i = 0; i < 32; ++i) {
@@ -150,9 +150,9 @@ void device_memory::next_start_time_async(cudaStream_t s) {
   std::vector<gpu_delta_t> invalid_n_locations(n_locations_, invalid_);
   cudaMemcpyAsync(tmp_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   cudaMemcpyAsync(best_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
-  cudaMemsetAsync(station_mark_, 0, ((n_locations_/32)+1)*sizeof(uint32_t), s);
-  cudaMemsetAsync(prev_station_mark_, 0, ((n_locations_/32)+1)*sizeof(uint32_t), s);
-  cudaMemsetAsync(route_mark_, 0, ((n_routes_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(prev_station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
+  cudaMemsetAsync(route_mark_, 0000, ((n_routes_/32)+1)*sizeof(uint32_t), s);
 }
 void device_memory::reset_arrivals_async(cudaStream_t s) {
   std::cerr << "reset_arrivals async start" << std::endl;
