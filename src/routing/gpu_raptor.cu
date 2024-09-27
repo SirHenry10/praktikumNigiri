@@ -175,7 +175,7 @@ __device__ bool valid(gpu_delta_t t) {
 
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void update_route_smaller32(unsigned const k, gpu_route_idx_t r,
+__device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
                                        gpu_raptor_stats* stats_,
                                        uint32_t* prev_station_mark_, gpu_delta_t* best_,
                                        gpu_delta_t* round_times_, uint32_t row_count_round_times_,
@@ -198,6 +198,7 @@ __device__ void update_route_smaller32(unsigned const k, gpu_route_idx_t r,
                                        gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                                        gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                                        gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz){
+
   auto local_any_station = false;
   printf("smaller");
   auto const t_id = threadIdx.x;
@@ -213,9 +214,7 @@ __device__ void update_route_smaller32(unsigned const k, gpu_route_idx_t r,
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
 
-  if(t_id == 0){
-    local_any_station= false;
-  }
+
   //TODO: muss eigentlich hier weil prev_round_time falsch wird
   if(t_id >= active_stop_count) { //solte doch eigentlich egal sein da wir smaller sind oder?
     return;
@@ -243,11 +242,18 @@ __device__ void update_route_smaller32(unsigned const k, gpu_route_idx_t r,
       return; //break ist gleich alle thread returnen
     }
     prev_round_time = round_times_[(k-1) * row_count_round_times_ + l_idx];
+    auto rt = round_times_[(k-1) * row_count_round_times_ + l_idx];
+    printf("rt value: %d",rt);
+    if(!__any_sync(FULL_MASK, rt!=cuda::std::numeric_limits<gpu_delta_t>::max())||
+        !__any_sync(FULL_MASK, rt!=cuda::std::numeric_limits<gpu_delta_t>::min())){
+      printf("round_times marked??? %d, L_idx: %d",marked(prev_station_mark_,l_idx),l_idx);
+      printf("round_times value: %d , k = %d",round_times_[0],k);
+      printf("round_times_max/min %d",(k-1) * row_count_round_times_ + l_idx);
+    }
+    printf("smaller after any_station_marked4");
 
-      printf("smaller after any_station_marked4");
-  assert(__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())&&
-
-        __any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::min()));
+    assert(__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())&&
+             __any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::min()));
 
   printf("smaller 2");
   // berechnen von allen möglichen trips(Abfahrt-/Ankunftszeiten) von dieser station
@@ -312,14 +318,8 @@ __device__ void update_route_smaller32(unsigned const k, gpu_route_idx_t r,
       // alle station nach leader können jetzt updaten, wenn der transport an dem Tag fährt
       auto const t_offset = (SearchDir == gpu_direction::kForward) ?  static_cast<cuda::std::size_t>(&*it - departure_times.data()) : static_cast<cuda::std::size_t>(&*it - arrival_times.data());
 
-      printf(" 7  offset: %d",t_offset);
-      printf(" 7  size: %d",(*route_transport_ranges)[r].size());
       assert((*route_transport_ranges)[r].size() > t_offset);
       auto const t2 = (*route_transport_ranges)[r][t_offset];
-      printf("UPDATE!!!!!!!2");
-      printf("\n leader: %d",leader);
-      printf("\n t_id: %d",t_id);
-      printf("\n active_stop_count: %d \n",active_stop_count);
       if(t_id > leader ) {
         printf("if0");
         i_f++;
@@ -443,7 +443,7 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
           // ist äquivalent zu prev_arrival
           prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
         }
-        any_arrival |= __any_sync(FULL_MASK, is_valid<SearchDir>(prev_round_time));
+        any_arrival |= __any_sync(FULL_MASK, valid<SearchDir>(prev_round_time));
         if (current_stage == active_stage_count - 1 && !any_arrival) {
           return;
         }
@@ -459,8 +459,8 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
           auto const dep_t = to_gpu_delta(day, dep_mam, base_);
           // election of leader
           unsigned ballot = __ballot_sync(
-              FULL_MASK, (t_id < active_stop_count) && is_valid<SearchDir>(prev_round_time)  &&
-                             is_valid<SearchDir>(dep_t) &&
+              FULL_MASK, (t_id < active_stop_count) && valid<SearchDir>(prev_round_time)  &&
+                             valid<SearchDir>(dep_t) &&
                              (prev_round_time <= dep_t) &&
                              is_transport_active<SearchDir, Rt>(t, as_int(day), transport_traffic_days, bitfields));
           leader = __ffs(ballot) - 1;
@@ -743,15 +743,12 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                             gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz){
-  //printf(" loop routes marked begin: %d", *any_station_marked_);
-  if(get_global_thread_id() ==0){
-    printf("loop_routes: begin");
+  if(get_global_thread_id() == 0){
     *any_station_marked_ = false;
   }
   this_grid().sync();
   //printf("loop routs intern");
   auto const global_t_id = get_global_thread_id();
-  auto const global_stride = get_global_stride();
   if(get_global_thread_id() ==0){
     printf("loop_routes: begin2");
   }
@@ -760,8 +757,6 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
   auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
   for(auto r_idx = start_r_id;
        r_idx < n_routes; r_idx += stride){
-    printf("n_routes: %d , %d ",n_routes, stride);
-    printf("loop routes mid %d, %d",start_r_id, threadIdx.x);
     auto const r = gpu_route_idx_t{r_idx};
     if(!marked(route_mark_, r_idx)) {
       continue;
@@ -1235,7 +1230,6 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
-
   assert((*route_location_seq).data_.el_ != nullptr);
   assert((*route_location_seq).bucket_starts_.el_ != nullptr);
   assert((*location_routes).data_.el_ != nullptr);
