@@ -132,14 +132,13 @@ __device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const
                                     gpu_day_idx_t base_,
                                     gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                     gpu_delta const* route_stop_times){
-  auto const range = *route_transport_ranges;
-  auto const n_transports = static_cast<unsigned>(range.size());
-  assert(range.el_ != nullptr);
-  auto const route_stop_begin = static_cast<unsigned>(range[r].from_.v_ + n_transports *
+  auto const n_transports = static_cast<unsigned>((*route_transport_ranges).size());
+  assert((*route_transport_ranges).el_ != nullptr);
+  auto const route_stop_begin = static_cast<unsigned>((*route_transport_ranges)[r].from_.v_ + n_transports *
                                                                               (stop_idx * 2 - (ev_type==gpu_event_type::kArr ? 1 : 0)));
   return gpu_clamp((as_int(t.day_) - as_int(base_)) * 1440
                    + route_stop_times[route_stop_begin +
-                                             (gpu_to_idx(t.day_) - gpu_to_idx(range[r].from_))].count());
+                                             (gpu_to_idx(t.day_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());
 }
 
 template <typename It, typename End, typename Key, typename Cmp>
@@ -689,10 +688,14 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     // vorherige Ankunftszeit an der Station
     printf("GPU K %d", k);
     auto const prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
+    printf("GPU round_times k=1 %d", prev_round_time);
     assert(prev_round_time != kInvalidGpuDelta<SearchDir>);
     // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
     //printf("GPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
+    printf("GPU prev_round_time: %d et_time_at_stop: %d",prev_round_time,et_time_at_stop);
+    printf("is better or eq: %d",is_better_or_eq<SearchDir>(prev_round_time, et_time_at_stop));
     if (is_better_or_eq<SearchDir>(prev_round_time, et_time_at_stop)) {
+
       auto const [day, mam] = gpu_split_day_mam(*base_, prev_round_time);
       // Hier muss leader election stattfinden
       // dann wird neues Transportmittel, das am frühsten von station abfährt
@@ -814,15 +817,17 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                                                    gpu_footpaths_out,
                                                                    route_clasz);
 
-      }*/
+      }
+      */
       if(get_global_thread_id() == 0){
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     row_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
                                     base_, route_transport_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
       }
+
   }
   this_grid().sync();
-  printf("loop routes marked end: %d", *any_station_marked_); //  immer 0
+  if(get_global_thread_id() == 0)printf("loop routes marked end: %d", *any_station_marked_); //  immer 0
 }
 
 template <gpu_direction SearchDir, bool Rt>
@@ -1283,6 +1288,14 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
     this_grid().sync();
   }
   this_grid().sync();
+  if (get_global_thread_id() == 0){
+    for(int j = 0; j<row_count_round_times;++j) {
+      for (int i = 0; i < n_locations; ++i) {
+        printf("round_time GPU: %d", round_times[j*row_count_round_times+i]);
+      }
+    }
+  }
+
   if(get_global_thread_id() == 0)printf("Testerin2");
 }
 

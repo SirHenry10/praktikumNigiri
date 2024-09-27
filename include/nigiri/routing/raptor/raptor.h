@@ -215,6 +215,11 @@ struct raptor {
         }
       }
     }
+    for(int j = 0; j<state_.round_times_.n_rows_;++j) {
+      for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
+        printf("CPU round_time: %d", state_.round_times_[j][i]);
+      }
+    }
     std::cerr << "n_routing_time_ cpu:"<<stats_.n_routing_time_ << std::endl;
     std::cerr << "n_footpaths_visited_ cpu:"<<stats_.n_footpaths_visited_ << std::endl;
     std::cerr << "n_routes_visited_ cpu:"<<stats_.n_routes_visited_ << std::endl;
@@ -245,14 +250,7 @@ private:
           }
         }
         ++stats_.n_routes_visited_;
-        if(k==1){
-          for(int j = 0; j<state_.round_times_.n_rows_;++j) {
-            for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
 
-              printf("round_time: %d", state_.round_times_[j][i]);
-            }
-          }
-        }
         trace("┊ ├k={} updating route {}\n", k, r);
         any_marked |= update_route(k, r);
         if(k==1)printf("any_marked cpu: %d",any_marked);
