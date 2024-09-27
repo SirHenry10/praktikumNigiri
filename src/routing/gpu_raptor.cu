@@ -118,7 +118,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
         *any_station_marked = true; //TODO atomicor?
       }
       for (auto r : (*location_routes_)[gpu_location_idx_t{idx}]) {
-        printf("marked! TEST");
+        printf("marked! TEST %d round: %d",r);
         mark(route_marks, gpu_to_idx(r));
       }
     }
@@ -637,6 +637,9 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     }
     auto current_best = kInvalidGpuDelta<SearchDir>;
     //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
+    if(k ==2){
+      assert(1==0);
+    }
     if (et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed() : stp.in_allowed())) {
       // wann transportmittel an dieser station ankommt
       auto const by_transport = time_at_stop<SearchDir, Rt>(
@@ -842,6 +845,7 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
                                  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in_,
                                  gpu_raptor_stats* stats_){
 
+
   assert((*transfer_time).el_ != nullptr);
   assert((*gpu_footpaths_out).data_.el_ != nullptr);
   assert((*gpu_footpaths_out).bucket_starts_.el_ != nullptr);
@@ -1035,6 +1039,11 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       //printf("nlocation: %d", station_mark_[i]);
     }
   }
+  if(get_global_thread_id() == 0 && k == 3){
+    for (int i = 0; i< n_locations; ++i){
+      printf("GPU stations_marked bevor convert round 2: %d, stelle i: %d", station_mark_[i],i);
+    }
+  }
   convert_station_to_route_marks<SearchDir, Rt>(station_mark_, route_mark_,
                                  any_station_marked_, location_routes, n_locations);
   if(get_global_thread_id() == 0){
@@ -1075,7 +1084,12 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if (get_global_thread_id() == 0) {
          printf("Before loop_routes: any_station_marked_: %d\n", *any_station_marked_);
   }
-
+  if(get_global_thread_id() == 0 && k == 2){
+    printf("n_lcoations GPU: %d",n_locations);
+    for (int i = 0; i< n_routes; ++i){
+      printf("GPU route_marked bevor round 2: %d, stelle i: %d", route_mark_[i],i);
+    }
+  }
   (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, row_count_round_times_, tmp_, lb_, n_days_,
@@ -1119,6 +1133,9 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
            *any_station_marked_);
   }
   if(!*any_station_marked_){
+    if(k ==2){
+      assert(1==0);
+    }
     return;
   }
   //ToDo: ICH habe mal das return raus geschoben weil warum sollte nur der 0 thread returnen

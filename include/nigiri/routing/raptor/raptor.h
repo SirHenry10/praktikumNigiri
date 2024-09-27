@@ -250,7 +250,20 @@ private:
           }
         }
         ++stats_.n_routes_visited_;
-
+        if(k==3){
+        for (int i = 0; i< tt_.n_routes(); ++i){
+          if (state_.route_mark_[i] == true)
+          printf("CPU route_marked bevor round 2: %d ,stelle i: %d", 1, i);
+          else
+            printf("CPU route_marked bevor round 2: %d ,stelle i: %d", 0, i);
+        }
+        for (int i = 0; i< tt_.n_locations(); ++i){
+          if (state_.prev_station_mark_[i] == true)
+            printf("CPU stations_marked bevor round 2: %d ,stelle i: %d", 1, i);
+          else
+            printf("CPU stations_marked bevor round 2: %d ,stelle i: %d", 0, i);
+        }
+        }
         trace("┊ ├k={} updating route {}\n", k, r);
         any_marked |= update_route(k, r);
         if(k==1)printf("any_marked cpu: %d",any_marked);
