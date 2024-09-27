@@ -481,6 +481,7 @@ private:
 
       auto current_best = kInvalid;
       //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
+      printf("valid %d, round %d", et.is_valid(), k);
       if (et.is_valid() && (kFwd ? stp.out_allowed() : stp.in_allowed())) {
         // wann transportmittel an dieser station ankommt
         auto const by_transport = time_at_stop(
@@ -570,14 +571,18 @@ private:
               : kInvalid;
       // vorherige Ankunftszeit an der Station
       auto const prev_round_time = state_.round_times_[k - 1][l_idx];
+      printf("CPU k %d", k);
       assert(prev_round_time != kInvalid);
+      printf("prev_round_time %d", prev_round_time);
       // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
+      //printf("CPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
       if (is_better_or_eq(prev_round_time, et_time_at_stop)) {
         auto const [day, mam] = split(prev_round_time);
         // Hier muss leader election stattfinden
         // dann wird neues Transportmittel, das am frühsten von station abfährt
         auto const new_et = get_earliest_transport(k, r, stop_idx, day, mam,
                                                    stp.location_idx());
+        printf("CPU new_et valid %d", new_et.is_valid());
         current_best =
             get_best(current_best, state_.best_[l_idx], state_.tmp_[l_idx]);
         // wenn neues Transportmittel an diesem Tag fährt und

@@ -115,7 +115,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
     if (marked(station_marks, idx)) {
       printf("marked!"); //ToDo: nur test delete later
       if (!*any_station_marked) {
-        *any_station_marked = true;
+        *any_station_marked = true; //TODO atomicor?
       }
       for (auto r : (*location_routes_)[gpu_location_idx_t{idx}]) {
         printf("marked! TEST");
@@ -163,7 +163,7 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t,
 }
 
 template <gpu_direction SearchDir>
-__device__ bool is_valid(gpu_delta_t t) {
+__device__ bool valid(gpu_delta_t t) {
   // Use if constexpr to ensure compile-time evaluation
   if constexpr (SearchDir == gpu_direction::kForward) {
     return t != cuda::std::numeric_limits<gpu_delta_t>::max();
@@ -302,8 +302,8 @@ __device__ void update_route_smaller32(unsigned const k, gpu_route_idx_t r,
       }
       // election of leader
       unsigned ballot = __ballot_sync(
-          FULL_MASK, (t_id < active_stop_count) && is_valid<SearchDir>(prev_round_time)  &&
-                         is_valid<SearchDir>(dep_t) &&
+          FULL_MASK, (t_id < active_stop_count) && valid<SearchDir>(prev_round_time)  &&
+                         valid<SearchDir>(dep_t) &&
                          (is_better_or_eq<SearchDir>(prev_round_time,dep_t)) &&
                          is_transport_active<SearchDir, Rt>(t, as_int(day), transport_traffic_days, bitfields));
       //ist immer true
@@ -530,18 +530,21 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
                                                 uint16_t* lb_,
                                                 gpu_delta_t* time_at_dest_,
                                                 gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
-                                                int n_days_) {
+                                                int n_days_, gpu_day_idx_t* base_,
+                                                gpu_delta const* route_stop_times,
+                                                gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
+                                                gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
   ++stats_[get_global_thread_id()%32].n_earliest_trip_calls_;
 
-  auto const n_days_to_iterate = std::min(
+  auto const n_days_to_iterate = get_smaller(
       gpu_kMaxTravelTime.count() / 1440 + 1,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
 
   auto const event_times = gpu_event_times_at_stop(
-      r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr);
+      r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, route_transport_ranges, route_stop_times);
 
   auto const seek_first_day = [&]() {
-    return linear_lb(get_begin_it(event_times), get_end_it(event_times),
+    return linear_lb(gpu_get_begin_it<SearchDir>(event_times), gpu_get_end_it<SearchDir>(event_times),
                      mam_at_stop,
                      [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
                        return is_better<SearchDir>(a.mam_, b.count());
@@ -561,8 +564,8 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
 
   for (auto i = gpu_day_idx_t::value_t{0U}; i != n_days_to_iterate; ++i) {
     auto const ev_time_range =
-        gpu_it_range{i == 0U ? seek_first_day() : get_begin_it(event_times),
-                 get_end_it(event_times)};
+        gpu_it_range{i == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(event_times),
+                 gpu_get_end_it<SearchDir>(event_times)};
     if (ev_time_range.empty()) {
       continue;
     }
@@ -572,10 +575,10 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
       auto const t_offset =
           static_cast<std::size_t>(&*it - event_times.data());
       auto const ev = *it;
-      auto const ev_mam = ev.mam();
+      auto const ev_mam = ev.mam_;
 
       if (is_better_or_eq<SearchDir>(time_at_dest_[k],
-                          to_delta(day, ev_mam) + dir<SearchDir>(lb_[gpu_to_idx(l)]))) {
+                          to_gpu_delta(day, ev_mam, base_) + dir<SearchDir>(lb_[gpu_to_idx(l)]))) {
         return {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
       }
 
@@ -584,10 +587,10 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
         continue;
       }
 
-      auto const ev_day_offset = ev.days();
+      auto const ev_day_offset = ev.days_;
       auto const start_day =
           static_cast<std::size_t>(as_int(day) - ev_day_offset);
-      if (!is_transport_active(t, start_day)) {
+      if (!is_transport_active<SearchDir, Rt>(t, start_day, transport_traffic_days, bitfields)) {
         continue;
       }
 
@@ -612,8 +615,9 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
                   bool* any_station_marked_,
                   gpu_day_idx_t* base_,
                   gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
-                  int n_days_,
-                  gpu_delta const* route_stop_times) {
+                  int n_days_, gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
+                  gpu_delta const* route_stop_times,
+                  gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
   auto const stop_seq = (*route_location_seq)[r];
   *any_station_marked_ = false; // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
 
@@ -632,7 +636,6 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     if (!et.is_valid() && !marked(prev_station_mark_, l_idx)) {
       continue;
     }
-
     auto current_best = kInvalidGpuDelta<SearchDir>;
     //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
     if (et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed() : stp.in_allowed())) {
@@ -642,8 +645,8 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
       // beste Zeit für diese station bekommen
       current_best = get_best<SearchDir>(round_times_[(k - 1)*row_count_round_times_ + l_idx],
                               tmp_[l_idx], best_[l_idx]);
-      assert(by_transport != std::numeric_limits<gpu_delta_t>::min() &&
-             by_transport != std::numeric_limits<gpu_delta_t>::max());
+      assert(by_transport != cuda::std::numeric_limits<gpu_delta_t>::min() &&
+             by_transport != cuda::std::numeric_limits<gpu_delta_t>::max());
       // wenn Ankunftszeit dieses Transportmittels besser ist als beste Ankunftszeit für station
       // & vor frühster Ankunftszeit am Ziel liegt
       if (is_better<SearchDir>(by_transport, current_best) &&
@@ -684,15 +687,19 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
                            *base_,route_transport_ranges, route_stop_times)
             : kInvalidGpuDelta<SearchDir>;
     // vorherige Ankunftszeit an der Station
+    printf("GPU K %d", k);
     auto const prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
     assert(prev_round_time != kInvalidGpuDelta<SearchDir>);
     // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
+    //printf("GPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
     if (is_better_or_eq<SearchDir>(prev_round_time, et_time_at_stop)) {
       auto const [day, mam] = gpu_split_day_mam(*base_, prev_round_time);
       // Hier muss leader election stattfinden
       // dann wird neues Transportmittel, das am frühsten von station abfährt
       auto const new_et = get_earliest_transport<SearchDir, Rt>(k, r, stop_idx, day, mam,
-                                                 stp.gpu_location_idx(), stats_, lb_, time_at_dest_, route_transport_ranges, n_days_);
+                                                 stp.gpu_location_idx(), stats_, lb_, time_at_dest_,
+                                                 route_transport_ranges, n_days_, base_, route_stop_times, bitfields, transport_traffic_days);
+      printf("GPU new_et valid %d", new_et.is_valid());
       current_best =
           get_best<SearchDir>(current_best, best_[l_idx], tmp_[l_idx]);
       // wenn neues Transportmittel an diesem Tag fährt und
@@ -736,10 +743,12 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                             gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz){
-  printf("begin loop routes marked: %d", *any_station_marked_);
+  //printf(" loop routes marked begin: %d", *any_station_marked_);
   if(get_global_thread_id() ==0){
     printf("loop_routes: begin");
+    *any_station_marked_ = false;
   }
+  this_grid().sync();
   //printf("loop routs intern");
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
@@ -814,11 +823,11 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
       if(get_global_thread_id() == 0){
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     row_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
-                                    base_, route_transport_ranges, n_days_, route_stop_times);
+                                    base_, route_transport_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
       }
-      this_grid().sync();
   }
-  printf("loop routes marked: %d", *any_station_marked_);
+  this_grid().sync();
+  printf("loop routes marked end: %d", *any_station_marked_); //  immer 0
 }
 
 template <gpu_direction SearchDir, bool Rt>
@@ -1020,6 +1029,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if(get_global_thread_id()==0){
     *any_station_marked_ = false;
   }
+  this_grid().sync();
   if(get_global_thread_id() == 0){
     for (int i = 0; i< n_locations; i++) {
       //printf("nlocation: %d", station_mark_[i]);
@@ -1033,6 +1043,10 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     }
   }
   this_grid().sync();
+
+  if(!*any_station_marked_){
+    return;
+  }
 
   if(get_global_thread_id()==0){
     // swap
@@ -1054,9 +1068,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     }
   }
   //ToDo: ich hab return raus gezogen da sonst endlosschleife...
-  if(!*any_station_marked_){
-    return;
-  }
   if(global_t_id == 0)printf("waiting finished %d\n",k);
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
@@ -1064,9 +1075,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if (get_global_thread_id() == 0) {
          printf("Before loop_routes: any_station_marked_: %d\n", *any_station_marked_);
   }
-  if(get_global_thread_id() == 0){
-    any_station_marked_[0] = 0;
-  }
+
   (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, row_count_round_times_, tmp_, lb_, n_days_,
