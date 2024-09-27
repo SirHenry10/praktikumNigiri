@@ -115,7 +115,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
     if (marked(station_marks, idx)) {
       printf("marked!"); //ToDo: nur test delete later
       if (!*any_station_marked) {
-        atomicOr(reinterpret_cast<int*>(any_station_marked),0); //TODO atomicor?
+        atomicOr(reinterpret_cast<int*>(any_station_marked),1); //TODO atomicor?
       }
       for (auto r : (*location_routes_)[gpu_location_idx_t{idx}]) {
         printf("marked! TEST %d round: %d",r);
@@ -359,7 +359,7 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
   if(i_f>0)printf("test if: %d",i_f);
   printf("smaller3");
   if (local_any_station){
-    atomicOr(reinterpret_cast<int*>(any_station_marked_),0);
+    atomicOr(reinterpret_cast<int*>(any_station_marked_),1);
   }
 }
 
@@ -512,7 +512,7 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
     }
   }
   if(local_any_station){
-    atomicOr(reinterpret_cast<int*>(any_station_marked_),0);
+    atomicOr(reinterpret_cast<int*>(any_station_marked_),1);
   }
 }
 
@@ -618,7 +618,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
                   gpu_delta const* route_stop_times,
                   gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
   auto const stop_seq = (*route_location_seq)[r];
-  *any_station_marked_ = false; // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
+  atomicAnd(reinterpret_cast<int*>(any_station_marked_),0); // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
 
   // diese Variable ist das Problem beim Parallelisieren
   auto et = gpu_transport{};
@@ -661,7 +661,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
         mark(station_mark_, l_idx);
         current_best = by_transport;
-        atomicOr(reinterpret_cast<int*>(any_station_marked_),0);
+        atomicOr(reinterpret_cast<int*>(any_station_marked_),1);
       }
     }
 
@@ -750,7 +750,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                             gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz){
   if(get_global_thread_id() == 0){
-    *any_station_marked_ = false;
+    atomicAnd(reinterpret_cast<int*>(any_station_marked_),0);
   }
   this_grid().sync();
   //printf("loop routs intern");
@@ -1031,7 +1031,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
 
   // für jede location & für jede location_route state_.route_mark_
   if(get_global_thread_id()==0){
-    *any_station_marked_ = false;
+    atomicAnd(reinterpret_cast<int*>(any_station_marked_),0);
   }
   this_grid().sync();
   if(get_global_thread_id() == 0){
