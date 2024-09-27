@@ -637,9 +637,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     }
     auto current_best = kInvalidGpuDelta<SearchDir>;
     //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
-    if(k ==2){
-      assert(1==0);
-    }
+
     if (et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed() : stp.in_allowed())) {
       // wann transportmittel an dieser station ankommt
       auto const by_transport = time_at_stop<SearchDir, Rt>(
@@ -651,6 +649,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
              by_transport != cuda::std::numeric_limits<gpu_delta_t>::max());
       // wenn Ankunftszeit dieses Transportmittels besser ist als beste Ankunftszeit für station
       // & vor frühster Ankunftszeit am Ziel liegt
+
       if (is_better<SearchDir>(by_transport, current_best) &&
           is_better<SearchDir>(by_transport, time_at_dest_[k]) &&
           lb_[l_idx] != kUnreachable &&
@@ -668,6 +667,8 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     // wenn es die letzte Station in der Route ist
     // oder es keine ausgehenden/eingehenden transportmittel gibt
     // oder die Station nicht markiert war
+    if(k==2)
+      printf("counter k==2 GPU" );
     if (is_last || !((SearchDir == gpu_direction::kForward) ? stp.in_allowed() : stp.out_allowed()) ||
         !marked(prev_station_mark_, l_idx)) {
       //dann wird diese übersprungen
@@ -676,6 +677,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
 
     // wenn der lowerBound von der Station nicht erreichbar ist,
     // werden die darauffolgenden Stationen auch nicht erreichbar sein
+
     if (lb_[l_idx] == kUnreachable) {
       // dann wird Durchgehen dieser Route abgebrochen
       break;
@@ -697,6 +699,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     //printf("GPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
     printf("GPU prev_round_time: %d et_time_at_stop: %d",prev_round_time,et_time_at_stop);
     printf("is better or eq: %d",is_better_or_eq<SearchDir>(prev_round_time, et_time_at_stop));
+
     if (is_better_or_eq<SearchDir>(prev_round_time, et_time_at_stop)) {
 
       auto const [day, mam] = gpu_split_day_mam(*base_, prev_round_time);
@@ -710,12 +713,14 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
           get_best<SearchDir>(current_best, best_[l_idx], tmp_[l_idx]);
       // wenn neues Transportmittel an diesem Tag fährt und
       // bisherige beste Ankunftszeit Invalid ist ODER Ankunftszeit an Station besser als Ankunftszeit von neuem Transportmittel
+
       if (new_et.is_valid() &&
           (current_best == kInvalidGpuDelta<SearchDir> ||
            is_better_or_eq<SearchDir>(
                time_at_stop<SearchDir, Rt>(r, new_et, stop_idx,
                             (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, *base_, route_transport_ranges, route_stop_times),
                et_time_at_stop))) {
+
         // dann wird neues Transportmittel genommen
         et = new_et;
       }
@@ -830,7 +835,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
 
   }
   this_grid().sync();
-  if(get_global_thread_id() == 0)printf("loop routes marked end: %d", *any_station_marked_); //  immer 0
+  if(get_global_thread_id() == 0)printf("loop routes marked end: %d, round %d", *any_station_marked_,k); //  immer 0
 }
 
 template <gpu_direction SearchDir, bool Rt>
@@ -845,7 +850,9 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
                                  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in_,
                                  gpu_raptor_stats* stats_){
 
-
+  if(k==2){
+    assert(1==0);
+  }
   assert((*transfer_time).el_ != nullptr);
   assert((*gpu_footpaths_out).data_.el_ != nullptr);
   assert((*gpu_footpaths_out).bucket_starts_.el_ != nullptr);
@@ -1131,10 +1138,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if (get_global_thread_id() == 0) {
     printf("raptor_round: any_station_marked_ after loop_routes: %d\n",
            *any_station_marked_);
-  }
-  if(k ==2){
-    printf("round k = %d", k);
-    assert(1==0);
   }
   if(!*any_station_marked_){
     return;

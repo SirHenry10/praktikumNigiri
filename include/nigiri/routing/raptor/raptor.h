@@ -533,7 +533,9 @@ private:
           state_.station_mark_[l_idx] = true;
           current_best = by_transport;
           any_marked = true;
-          printf("any_marked cpu0");
+          if(k ==2){
+            printf("round2: true");
+          }
         } else {
           trace(
               "┊ │k={}    *** NO UPD: at={}, name={}, dbg={}, "
@@ -572,6 +574,8 @@ private:
       // wenn es die letzte Station in der Route ist
       // oder es keine ausgehenden/eingehenden transportmittel gibt
       // oder die Station nicht markiert war
+      if(k==2)
+        printf("counter k==2 CPU" );
       if (is_last || !(kFwd ? stp.in_allowed() : stp.out_allowed()) ||
           !state_.prev_station_mark_[l_idx]) {
         //dann wird diese übersprungen
