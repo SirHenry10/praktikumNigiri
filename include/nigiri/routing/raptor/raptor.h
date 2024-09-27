@@ -311,6 +311,7 @@ private:
           static_cast<delta_t>(state_.tmp_[i] + transfer_time);
       if (is_better(fp_target_time, state_.best_[i]) &&
           is_better(fp_target_time, time_at_dest_[k])) {
+        printf("CPU transfer in round %d", k);
         if (lb_[i] == kUnreachable ||
             !is_better(fp_target_time + dir(lb_[i]), time_at_dest_[k])) {
           ++stats_.fp_update_prevented_by_lower_bound_;

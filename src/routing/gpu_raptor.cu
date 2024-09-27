@@ -115,7 +115,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
     if (marked(station_marks, idx)) {
       printf("marked!"); //ToDo: nur test delete later
       if (!*any_station_marked) {
-        *any_station_marked = true; //TODO atomicor?
+        atomicOr(reinterpret_cast<int*>(any_station_marked),0); //TODO atomicor?
       }
       for (auto r : (*location_routes_)[gpu_location_idx_t{idx}]) {
         printf("marked! TEST %d round: %d",r);
@@ -661,7 +661,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
         mark(station_mark_, l_idx);
         current_best = by_transport;
-        *any_station_marked_ = true;
+        atomicOr(reinterpret_cast<int*>(any_station_marked_),0);
       }
     }
 
@@ -1132,10 +1132,11 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     printf("raptor_round: any_station_marked_ after loop_routes: %d\n",
            *any_station_marked_);
   }
+  if(k ==2){
+    printf("round k = %d", k);
+    assert(1==0);
+  }
   if(!*any_station_marked_){
-    if(k ==2){
-      assert(1==0);
-    }
     return;
   }
   //ToDo: ICH habe mal das return raus geschoben weil warum sollte nur der 0 thread returnen
