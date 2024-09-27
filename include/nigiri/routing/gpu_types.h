@@ -589,8 +589,8 @@ inline gpu_delta_t unix_to_gpu_delta(gpu_sys_days const base, gpu_unixtime_t con
 #endif
 template <gpu_direction SearchDir>
 inline constexpr auto const kInvalidGpuDelta =
-    SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::min()
-                                         : std::numeric_limits<gpu_delta_t>::max();
+    SearchDir == gpu_direction::kForward ? std::numeric_limits<gpu_delta_t>::max()
+                                         : std::numeric_limits<gpu_delta_t>::min();
 inline gpu_unixtime_t gpu_delta_to_unix(gpu_sys_days const base, gpu_delta_t const d) {
   return cuda::std::chrono::time_point_cast<gpu_unixtime_t::duration>(base) +
          d * gpu_unixtime_t::duration{1};
