@@ -194,6 +194,7 @@ struct gpu_bitset {
     }
     auto const block = blocks_[i / bits_per_block];
     auto const bit = (i % bits_per_block);
+    printf("gpu test bit: %d,block: %d,day %d, bits_per_block %d",bit,block,i,bits_per_block);
     return (block & (block_t{1U} << bit)) != 0U;
   }
 
@@ -1687,7 +1688,6 @@ struct gpu_stop {
 
 template <typename BeginIt, typename EndIt = BeginIt>
 struct gpu_it_range {
-#ifdef NIGIRI_CUDA
   using value_type =
       std::remove_reference_t<decltype(*std::declval<BeginIt>())>;
   using reference_type = std::add_lvalue_reference_t<value_type>;
@@ -1717,7 +1717,7 @@ struct gpu_it_range {
     return static_cast<std::size_t>(std::distance(begin_, end_));
   }
   __host__ __device__ bool empty() const { return begin_ == end_; }
-#endif
+
   BeginIt begin_;
   EndIt end_;
 };
@@ -1742,16 +1742,12 @@ __device__ inline cuda::std::span<gpu_delta const> gpu_event_times_at_stop(gpu_r
                                                                     gpu_event_type const ev_type,
                                                                     gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t>> const* route_transport_ranges,
                                                                     gpu_delta const* route_stop_times){
-  printf("gpu_event_times_at_stop");
   assert(route_transport_ranges->el_ != nullptr);
-  printf("gpu_event_times_at_stop 1");
   auto const n_transports =
       static_cast<unsigned>((*route_transport_ranges)[r].size());
-  printf("gpu_event_times_at_stop 2");
   auto const idx = static_cast<unsigned>(
       (*route_transport_ranges)[r].from_ +
       n_transports * (stop_idx * 2 - (ev_type == gpu_event_type::kArr ? 1 : 0)));
-  printf("gpu_event_times_at_stop 3");
   return  cuda::std::span<gpu_delta const>{&route_stop_times[idx], n_transports};
 }
 __device__ inline gpu_interval<gpu_sys_days> gpu_internal_interval_days(gpu_interval<gpu_sys_days> const* date_range_ptr){

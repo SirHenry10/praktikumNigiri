@@ -158,7 +158,15 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t,
                                     gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields)  {
   assert((*transport_traffic_days).el_ != nullptr);
   assert((*bitfields).el_ !=  nullptr);
-  return (*bitfields)[(*transport_traffic_days)[t]].test(day);
+  if (day >= (*bitfields)[(*transport_traffic_days)[t]].size()) {
+    return false;
+  }
+  auto const block = (*bitfields)[(*transport_traffic_days)[t]].blocks_[day / (*bitfields)[(*transport_traffic_days)[t]].bits_per_block];
+  auto const bit = (day % (*bitfields)[(*transport_traffic_days)[t]].bits_per_block);
+  printf("gpu test bit: %d",bit);
+  printf("gpu test block: %d",block);
+  printf("gpu test day: %d",day);
+  return (block & (std::uint64_t{1U} << bit)) != 0U;
 }
 
 template <gpu_direction SearchDir>
@@ -542,6 +550,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
   auto const event_times = gpu_event_times_at_stop(
       r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, route_transport_ranges, route_stop_times);
 
+
   auto const seek_first_day = [&]() {
     return linear_lb(gpu_get_begin_it<SearchDir>(event_times), gpu_get_end_it<SearchDir>(event_times),
                      mam_at_stop,
@@ -565,6 +574,12 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
     auto const ev_time_range =
         gpu_it_range{i == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(event_times),
                  gpu_get_end_it<SearchDir>(event_times)};
+
+    for (auto r :event_times) {
+      printf("gpu event_time: %d",r);
+    }
+    printf("gpu ev_time_range %d",ev_time_range.begin());
+    printf("gpu ev_time_range %d",ev_time_range.end());
     if (ev_time_range.empty()) {
       continue;
     }
@@ -578,6 +593,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
 
       if (is_better_or_eq<SearchDir>(time_at_dest_[k],
                           to_gpu_delta(day, ev_mam, base_) + dir<SearchDir>(lb_[gpu_to_idx(l)]))) {
+        //hier geht cpu rein
         return {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
       }
 
@@ -589,10 +605,12 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
       auto const ev_day_offset = ev.days_;
       auto const start_day =
           static_cast<std::size_t>(as_int(day) - ev_day_offset);
-      if (!is_transport_active<SearchDir, Rt>(t, start_day, transport_traffic_days, bitfields)) {
+
+      if (k==1 && i==0)
+        printf("return gpu");
+      if(!is_transport_active<SearchDir, Rt>(t, start_day, transport_traffic_days, bitfields)) {
         continue;
       }
-
       return {t, static_cast<gpu_day_idx_t>(as_int(day) - ev_day_offset)};
     }
   }
@@ -705,10 +723,11 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
       auto const [day, mam] = gpu_split_day_mam(*base_, prev_round_time);
       // Hier muss leader election stattfinden
       // dann wird neues Transportmittel, das am frühsten von station abfährt
+
       auto const new_et = get_earliest_transport<SearchDir, Rt>(k, r, stop_idx, day, mam,
                                                  stp.gpu_location_idx(), stats_, lb_, time_at_dest_,
                                                  route_transport_ranges, n_days_, base_, route_stop_times, bitfields, transport_traffic_days);
-      printf("GPU new_et valid %d", new_et.is_valid());
+      printf("GPU new_et valid %d , K: %d", new_et.is_valid(), k);
       current_best =
           get_best<SearchDir>(current_best, best_[l_idx], tmp_[l_idx]);
       // wenn neues Transportmittel an diesem Tag fährt und
@@ -1134,7 +1153,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                                                                 gpu_footpaths_out,
                                                                 route_clasz);
   this_grid().sync();
-
   if (get_global_thread_id() == 0) {
     printf("raptor_round: any_station_marked_ after loop_routes: %d\n",
            *any_station_marked_);
@@ -1281,7 +1299,6 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   // 2. Update Routes
 
   for (auto k = 1U; k != end_k; ++k) { // diese Schleife bleibt, da alle Threads in jede Runde gehen
-
     // Resultate aus lezter Runde von device in variable speichern?  //TODO: typen von kIntermodalTarget und dist_to_end_size falsch???
     raptor_round<SearchDir, Rt>(k, *prf_idx, base, *allowed_claszes,
                  dist_to_end, *dist_to_end_size, is_dest, lb, *n_days,
@@ -1305,7 +1322,6 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
                                 gpu_footpaths_in,
                                 gpu_footpaths_out,
                                 route_clasz);
-
     this_grid().sync();
   }
   this_grid().sync();
@@ -1316,7 +1332,6 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
       }
     }
   }
-
   if(get_global_thread_id() == 0)printf("Testerin2");
 }
 

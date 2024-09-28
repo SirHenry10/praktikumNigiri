@@ -283,11 +283,13 @@ struct gpu_raptor {
       tmp.fp_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].fp_update_prevented_by_lower_bound_;
       tmp.route_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].route_update_prevented_by_lower_bound_;
     }
+    /*
     for(int j = 0; j<mem_->host_.row_count_round_times_;++j) {
         for (int i = 0; i < mem_->host_.column_count_round_times_; ++i) {
           printf("round_time GPU out side of Kernel: %d", mem_->host_.round_times_[j*mem_->host_.row_count_round_times_+i]);
         }
     }
+     */
     std::cerr << "n_routing_time_ gpu:"<<tmp.n_routing_time_ << std::endl;
     std::cerr << "n_footpaths_visited_ gpu:"<<tmp.n_footpaths_visited_ << std::endl;
     std::cerr << "n_routes_visited_ gpu:"<<tmp.n_routes_visited_ << std::endl;

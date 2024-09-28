@@ -137,6 +137,22 @@ TEST(routing, gpu_types) {
   printf("val1: %d",val1);
   printf("val3: %d",val3);
   printf("val4: %d",val4);
+  auto gtt_bitfields = reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t,gpu_bitfield>*>(
+      &tt.bitfields_);
+  for (int i = 0; i < tt.bitfields_.size(); ++i) {
+    for (int j = 0; j < tt.bitfields_.data()[i].blocks_.size(); ++j) {
+      gtt_bitfields->data()[i].blocks_[j] = tt.bitfields_.data()[i].blocks_[j];
+    }
+  }
+
+  for (int i = 0; i < tt.bitfields_.size(); ++i) {
+    for (int j = 0; j < tt.bitfields_.data()[i].blocks_.size(); ++j) {
+      printf("tt bitfield: %llu",
+             tt.bitfields_[bitfield_idx_t{i}].blocks_[j]);
+      printf("gtt bitfield: %llu",
+             (*gtt_bitfields)[gpu_bitfield_idx_t{i}].blocks_[j]);
+    }
+  }
 }
 void merge_file(const std::string& output_file, int num_parts) {
   std::ofstream outfile(output_file, std::ios::binary);

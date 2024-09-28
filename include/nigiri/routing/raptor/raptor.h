@@ -608,7 +608,7 @@ private:
         // dann wird neues Transportmittel, das am frühsten von station abfährt
         auto const new_et = get_earliest_transport(k, r, stop_idx, day, mam,
                                                    stp.location_idx());
-        printf("CPU new_et valid %d", new_et.is_valid());
+        printf("CPU new_et valid %d, K: %d", new_et.is_valid(), k);
         current_best =
             get_best(current_best, state_.best_[l_idx], state_.tmp_[l_idx]);
         // wenn neues Transportmittel an diesem Tag fährt und
@@ -668,10 +668,14 @@ private:
       auto const ev_time_range =
           it_range{i == 0U ? seek_first_day() : get_begin_it(event_times),
                    get_end_it(event_times)};
+      printf("cpu ev_time_range %d",ev_time_range.begin());
+      printf("cpu ev_time_range %d",ev_time_range.end());
+      for (auto r :event_times) {
+        printf("cpu event_time: %d",r);
+      }
       if (ev_time_range.empty()) {
         continue;
       }
-
       auto const day = kFwd ? day_at_stop + i : day_at_stop - i;
       for (auto it = begin(ev_time_range); it != end(ev_time_range); ++it) {
         auto const t_offset =
@@ -694,6 +698,7 @@ private:
         }
 
         auto const t = tt_.route_transport_ranges_[r][t_offset];
+
         if (i == 0U && !is_better_or_eq(mam_at_stop.count(), ev_mam)) {
           trace(
               "┊ │k={}      => transport={}, name={}, dbg={}, day={}/{}, "
@@ -707,6 +712,8 @@ private:
         auto const ev_day_offset = ev.days();
         auto const start_day =
             static_cast<std::size_t>(as_int(day) - ev_day_offset);
+        if (k==1 && i==0)
+          printf("return cpu");
         if (!is_transport_active(t, start_day)) {
           trace(
               "┊ │k={}      => transport={}, name={}, dbg={}, day={}/{}, "
@@ -715,6 +722,7 @@ private:
               "transport_mam={}, transport_time={} => NO TRAFFIC!\n",
               k, t, tt_.transport_name(t), tt_.dbg(t), i, day, ev_day_offset,
               mam_at_stop, ev_mam, ev);
+          printf("cpu is transport , k %d",k);
           continue;
         }
 
@@ -723,6 +731,7 @@ private:
             "(day_offset={}) - ev_mam={}, ev_time={}, ev={}\n",
             k, tt_.transport_name(t), tt_.dbg(t), day, ev_day_offset, ev_mam,
             ev, tt_.to_unixtime(day, duration_t{ev_mam}));
+
         return {t, static_cast<day_idx_t>(as_int(day) - ev_day_offset)};
       }
     }
@@ -731,10 +740,26 @@ private:
 
   bool is_transport_active(transport_idx_t const t,
                            std::size_t const day) const {
+
     if constexpr (Rt) {
       return rtt_->bitfields_[rtt_->transport_traffic_days_[t]].test(day);
     } else {
-      return tt_.bitfields_[tt_.transport_traffic_days_[t]].test(day);
+      printf("cpu num_blocks: %d",tt_.bitfields_[tt_.transport_traffic_days_[t]].num_blocks);
+      printf("cpu bits_per_blocks: %d",tt_.bitfields_[tt_.transport_traffic_days_[t]].bits_per_block);
+      printf("size: %d",tt_.bitfields_[tt_.transport_traffic_days_[t]].size());
+      printf("cpu test day: %d",day);
+      if(day == 8)
+      assert(2 == 1);
+      if (day >= tt_.bitfields_[tt_.transport_traffic_days_[t]].size()) {
+
+        return false;
+      }
+      auto const block = tt_.bitfields_[tt_.transport_traffic_days_[t]].blocks_[day / tt_.bitfields_[tt_.transport_traffic_days_[t]].bits_per_block];
+      auto const bit = (day % tt_.bitfields_[tt_.transport_traffic_days_[t]].bits_per_block);
+      printf("cpu test bit: %d",bit);
+      printf("cpu test block: %d",block);
+      printf("cpu test day: %d",day);
+      return (block & (std::uint64_t{1U} << bit)) != 0U;
     }
   }
 

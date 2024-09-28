@@ -165,6 +165,9 @@ static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
 
   uint32_t n_locations = tt.n_locations();;
   uint32_t n_routes = tt.n_routes();
+  auto gtt_bitfields = reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t,gpu_bitfield>*>(
+      &tt.bitfields_);
+
   auto gtt = create_gpu_timetable(
       reinterpret_cast<gpu_delta*>(tt.route_stop_times_.data()),
       tt.route_stop_times_.size(),
@@ -180,8 +183,7 @@ static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
       reinterpret_cast<gpu_vector_map<
           gpu_route_idx_t, nigiri::gpu_interval<gpu_transport_idx_t>>*>(
           &tt.route_transport_ranges_),
-      reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield>*>(
-          &tt.bitfields_),
+      gtt_bitfields,
       reinterpret_cast<
           gpu_vector_map<gpu_transport_idx_t, gpu_bitfield_idx_t>*>(
           &tt.transport_traffic_days_),
