@@ -827,12 +827,9 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
 
       }
       */
-      if(get_global_thread_id() == 0){
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     row_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
                                     base_, route_transport_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
-      }
-
   }
   this_grid().sync();
   if(get_global_thread_id() == 0)printf("loop routes marked end: %d, round %d", *any_station_marked_,k); //  immer 0
@@ -1091,10 +1088,10 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if (get_global_thread_id() == 0) {
          printf("Before loop_routes: any_station_marked_: %d\n", *any_station_marked_);
   }
-  if(get_global_thread_id() == 0 && k == 2){
+  if(get_global_thread_id() == 0 && k == 3){
     printf("n_lcoations GPU: %d",n_locations);
     for (int i = 0; i< n_routes; ++i){
-      printf("GPU route_marked bevor round 2: %d, stelle i: %d", route_mark_[i],i);
+      printf("GPU route_marked bevor round 3: %d, stelle i: %d", route_mark_[i],i);
     }
   }
   (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
