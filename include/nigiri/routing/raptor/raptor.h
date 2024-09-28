@@ -250,7 +250,7 @@ private:
           }
         }
         ++stats_.n_routes_visited_;
-        if(k==3){
+        if(k==1){
         for (int i = 0; i< tt_.n_routes(); ++i){
           if (state_.route_mark_[i] == true)
           printf("CPU route_marked bevor round 2: %d ,stelle i: %d", 1, i);
