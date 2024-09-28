@@ -228,9 +228,11 @@ struct timetable {
                                              event_type const ev_type) const {
     auto const n_transports =
         static_cast<unsigned>(route_transport_ranges_[r].size());
+    printf("cpu n_transports %d",n_transports);
     auto const idx = static_cast<unsigned>(
         route_stop_time_ranges_[r].from_ +
         n_transports * (stop_idx * 2 - (ev_type == event_type::kArr ? 1 : 0)));
+    printf("cpu from %d",route_stop_time_ranges_[r].from_);
     return std::span<delta const>{&route_stop_times_[idx], n_transports};
   }
 

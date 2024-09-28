@@ -153,6 +153,7 @@ date::sys_days gpu_raptor_translator<SearchDir, Rt>::base() const{
   return tt_.internal_interval_days().from_ +translator_as_int(base_) * date::days{1};
 };
 
+#include "gtest/gtest.h"
 static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
 
   gpu_locations locations_ = gpu_locations(
@@ -165,8 +166,15 @@ static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
 
   uint32_t n_locations = tt.n_locations();;
   uint32_t n_routes = tt.n_routes();
-  auto gtt_bitfields = reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t,gpu_bitfield>*>(
-      &tt.bitfields_);
+  auto gtt_stop_time_ranges =
+      reinterpret_cast<gpu_vector_map<gpu_route_idx_t,
+                                      nigiri::gpu_interval<std::uint32_t>>*>(
+          &tt.route_stop_time_ranges_);
+  for (int i = 0; i < (*gtt_stop_time_ranges).size(); ++i) {
+    for (int j = 0; j < (*gtt_stop_time_ranges)[gpu_route_idx_t{i}].size(); ++j) {
+      EXPECT_EQ((*gtt_stop_time_ranges)[gpu_route_idx_t{i}].from_,tt.route_stop_time_ranges_[route_idx_t{i}].from_);
+    }
+  }
 
   auto gtt = create_gpu_timetable(
       reinterpret_cast<gpu_delta*>(tt.route_stop_times_.data()),
@@ -177,13 +185,12 @@ static gpu_timetable* translate_tt_in_gtt(nigiri::timetable tt) {
           &tt.location_routes_),
       n_locations,
       n_routes,
-      reinterpret_cast<gpu_vector_map<gpu_route_idx_t,
-                                      nigiri::gpu_interval<std::uint32_t>>*>(
-          &tt.route_stop_time_ranges_),
+      gtt_stop_time_ranges,
       reinterpret_cast<gpu_vector_map<
           gpu_route_idx_t, nigiri::gpu_interval<gpu_transport_idx_t>>*>(
           &tt.route_transport_ranges_),
-      gtt_bitfields,
+      reinterpret_cast<gpu_vector_map<gpu_bitfield_idx_t,gpu_bitfield>*>(
+          &tt.bitfields_),
       reinterpret_cast<
           gpu_vector_map<gpu_transport_idx_t, gpu_bitfield_idx_t>*>(
           &tt.transport_traffic_days_),

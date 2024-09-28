@@ -145,14 +145,10 @@ TEST(routing, gpu_types) {
     }
   }
 
-  for (int i = 0; i < tt.bitfields_.size(); ++i) {
-    for (int j = 0; j < tt.bitfields_.data()[i].blocks_.size(); ++j) {
-      printf("tt bitfield: %llu",
-             tt.bitfields_[bitfield_idx_t{i}].blocks_[j]);
-      printf("gtt bitfield: %llu",
-             (*gtt_bitfields)[gpu_bitfield_idx_t{i}].blocks_[j]);
-    }
-  }
+  auto gtt_route_stop_time_ranges = reinterpret_cast<gpu_vector_map<gpu_route_idx_t,
+                                                                    nigiri::gpu_interval<std::uint32_t>>*>(
+      &tt.route_stop_time_ranges_);
+
 }
 void merge_file(const std::string& output_file, int num_parts) {
   std::ofstream outfile(output_file, std::ios::binary);

@@ -644,6 +644,7 @@ private:
 
     auto const event_times = tt_.event_times_at_stop(
         r, stop_idx, kFwd ? event_type::kDep : event_type::kArr);
+    printf("cpu r %d, stop_idx %d",r,stop_idx);
 
     auto const seek_first_day = [&]() {
       return linear_lb(get_begin_it(event_times), get_end_it(event_times),

@@ -274,10 +274,10 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
       gpu_kMaxTravelTime.count() / 1440 + 1,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
   printf("smaller 3.7");
-  assert(route_transport_ranges->el_ != nullptr);
-  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_transport_ranges, route_stop_times);
+  assert(route_stop_time_ranges->el_ != nullptr);
+  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_stop_time_ranges, route_stop_times);
   printf("smaller 3.8");
-  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_transport_ranges, route_stop_times);
+  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_stop_time_ranges, route_stop_times);
   printf("smaller 3.9");
   auto const seek_first_day = [&]() {
     return linear_lb(gpu_get_begin_it<SearchDir>(departure_times),
@@ -420,8 +420,8 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
   auto const n_days_to_iterate = get_smaller(
       gpu_kMaxTravelTime.count() / 1440 + 1,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
-  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_transport_ranges, route_stop_times);
-  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_transport_ranges, route_stop_times);
+  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_stop_time_ranges, route_stop_times);
+  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_stop_time_ranges, route_stop_times);
   auto const seek_first_day = [&]() {
     return linear_lb(gpu_get_begin_it<SearchDir>(departure_times),
                      gpu_get_end_it<SearchDir>(departure_times), mam,
@@ -537,6 +537,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
                                                 uint16_t* lb_,
                                                 gpu_delta_t* time_at_dest_,
                                                 gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
+                                                gpu_vector_map<gpu_route_idx_t,gpu_interval<uint32_t >> const* route_stop_time_ranges,
                                                 int n_days_, gpu_day_idx_t* base_,
                                                 gpu_delta const* route_stop_times,
                                                 gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
@@ -548,8 +549,8 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
 
   auto const event_times = gpu_event_times_at_stop(
-      r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, route_transport_ranges, route_stop_times);
-
+      r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, route_stop_time_ranges, route_stop_times);
+  printf("gpu r %d, stop_idx %d",r,stop_idx);
 
   auto const seek_first_day = [&]() {
     return linear_lb(gpu_get_begin_it<SearchDir>(event_times), gpu_get_end_it<SearchDir>(event_times),
@@ -631,7 +632,8 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
                   unsigned short kUnreachable,
                   bool* any_station_marked_,
                   gpu_day_idx_t* base_,
-                  gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
+                             gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
+                  gpu_vector_map<gpu_route_idx_t,gpu_interval<uint32_t>> const* route_stop_time_ranges,
                   int n_days_, gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
                   gpu_delta const* route_stop_times,
                   gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
@@ -725,8 +727,8 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
       // dann wird neues Transportmittel, das am frühsten von station abfährt
 
       auto const new_et = get_earliest_transport<SearchDir, Rt>(k, r, stop_idx, day, mam,
-                                                 stp.gpu_location_idx(), stats_, lb_, time_at_dest_,
-                                                 route_transport_ranges, n_days_, base_, route_stop_times, bitfields, transport_traffic_days);
+                                                 stp.gpu_location_idx(), stats_, lb_, time_at_dest_,route_transport_ranges,
+                                                                route_stop_time_ranges, n_days_, base_, route_stop_times, bitfields, transport_traffic_days);
       printf("GPU new_et valid %d , K: %d", new_et.is_valid(), k);
       current_best =
           get_best<SearchDir>(current_best, best_[l_idx], tmp_[l_idx]);
@@ -851,7 +853,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
       */
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     row_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
-                                    base_, route_transport_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
+                                    base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
   }
   this_grid().sync();
   if(get_global_thread_id() == 0)printf("loop routes marked end: %d, round %d", *any_station_marked_,k); //  immer 0
@@ -1274,6 +1276,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
+  printf("gpu kernel from %d",(*route_stop_time_ranges)[gpu_route_idx_t{1}].from_);
   assert((*route_location_seq).data_.el_ != nullptr);
   assert((*route_location_seq).bucket_starts_.el_ != nullptr);
   assert((*location_routes).data_.el_ != nullptr);
