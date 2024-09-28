@@ -766,8 +766,11 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
   //Hier gehen wir durch alle Routen wie in update_routes_dev von Julian
   auto const stride = blockDim.y * gridDim.x;
   auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
-  for(auto r_idx = start_r_id;
+  /*for(auto r_idx = start_r_id;
        r_idx < n_routes; r_idx += stride){
+  */
+  if(get_global_thread_id() == 0)
+  for (auto r_idx = 0U; r_idx != n_routes; ++r_idx) {
     auto const r = gpu_route_idx_t{r_idx};
     if(!marked(route_mark_, r_idx)) {
       continue;
