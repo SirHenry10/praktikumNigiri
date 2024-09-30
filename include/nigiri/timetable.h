@@ -245,6 +245,7 @@ struct timetable {
     auto const route_stop_begin = static_cast<unsigned>(
         route_stop_time_ranges_[r].from_ +
         n_transports * (stop_idx * 2 - (ev_type == event_type::kArr ? 1 : 0)));
+    printf("CPU n_transports: %d,route stop begin %d",n_transports,route_stop_begin);
     auto const t_idx_in_route = to_idx(t) - to_idx(range.from_);
     return route_stop_times_[route_stop_begin + t_idx_in_route];
   }

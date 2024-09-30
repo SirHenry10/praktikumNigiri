@@ -132,10 +132,15 @@ __device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const
                                     gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
                                     gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                     gpu_delta const* route_stop_times){
-  auto const n_transports = static_cast<unsigned>((*route_transport_ranges).size());
-  assert((*route_transport_ranges).el_ != nullptr);
-  auto const route_stop_begin = static_cast<unsigned>((*route_transport_ranges)[r].from_.v_ + n_transports *
+  auto const n_transports = static_cast<unsigned>((*route_transport_ranges)[r].size());
+  auto const route_stop_begin = static_cast<unsigned>( (*route_stop_time_ranges)[r].from_ + n_transports *
                                                                               (stop_idx * 2 - (ev_type==gpu_event_type::kArr ? 1 : 0)));
+  printf("GPU n_transports: %d,route stop begin %d",n_transports,route_stop_begin);
+  printf("GPU clamp %d",gpu_clamp((as_int(t.day_) - as_int(base_)) * 1440
+                                  + route_stop_times[route_stop_begin +
+                                                     (gpu_to_idx(t.day_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count()));
+  printf("event_mam gpu: %d",route_stop_times[route_stop_begin +
+                                               (gpu_to_idx(t.day_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());
   return gpu_clamp((as_int(t.day_) - as_int(base_)) * 1440
                    + route_stop_times[route_stop_begin +
                                              (gpu_to_idx(t.day_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());

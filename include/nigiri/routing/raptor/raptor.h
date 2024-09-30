@@ -799,6 +799,9 @@ private:
           tt_.to_unixtime(
               t.day_,
               tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).as_duration()));
+    printf("CPU clamp %d",to_delta(t.day_,
+tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).count()));
+    printf("event_mam cpu: %d",tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).count());
     return to_delta(t.day_,
                     tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).count());
   }
