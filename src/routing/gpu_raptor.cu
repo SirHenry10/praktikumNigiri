@@ -129,6 +129,7 @@ __device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const
                                     gpu_stop_idx_t const stop_idx,
                                     gpu_event_type const ev_type,
                                     gpu_day_idx_t base_,
+                                    gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
                                     gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                     gpu_delta const* route_stop_times){
   auto const n_transports = static_cast<unsigned>((*route_transport_ranges).size());
@@ -659,7 +660,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     if (et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed() : stp.in_allowed())) {
       // wann transportmittel an dieser station ankommt
       auto const by_transport = time_at_stop<SearchDir, Rt>(
-          r, et, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kArr : gpu_event_type::kDep, *base_, route_transport_ranges, route_stop_times);
+          r, et, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kArr : gpu_event_type::kDep, *base_, route_stop_time_ranges, route_transport_ranges, route_stop_times);
       // beste Zeit für diese station bekommen
       current_best = get_best<SearchDir>(round_times_[(k - 1)*column_count_round_times_ + l_idx],
                               tmp_[l_idx], best_[l_idx]);
@@ -707,7 +708,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         et.is_valid()
             ? time_at_stop<SearchDir, Rt>(r, et, stop_idx,
                            (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr,
-                           *base_,route_transport_ranges, route_stop_times)
+                           *base_, route_stop_time_ranges, route_transport_ranges, route_stop_times)
             : kInvalidGpuDelta<SearchDir>;
     // vorherige Ankunftszeit an der Station
     printf("GPU K %d", k);
@@ -739,7 +740,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
           (current_best == kInvalidGpuDelta<SearchDir> ||
            is_better_or_eq<SearchDir>(
                time_at_stop<SearchDir, Rt>(r, new_et, stop_idx,
-                            (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, *base_, route_transport_ranges, route_stop_times),
+                            (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, *base_, route_stop_time_ranges, route_transport_ranges, route_stop_times),
                et_time_at_stop))) {
 
         // dann wird neues Transportmittel genommen
