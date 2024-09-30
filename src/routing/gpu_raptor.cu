@@ -138,12 +138,12 @@ __device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const
   printf("GPU n_transports: %d,route stop begin %d",n_transports,route_stop_begin);
   printf("GPU clamp %d",gpu_clamp((as_int(t.day_) - as_int(base_)) * 1440
                                   + route_stop_times[route_stop_begin +
-                                                     (gpu_to_idx(t.day_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count()));
+                                                     (gpu_to_idx(t.t_idx_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count()));
   printf("event_mam gpu: %d",route_stop_times[route_stop_begin +
-                                               (gpu_to_idx(t.day_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());
+                                               (gpu_to_idx(t.t_idx_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());
   return gpu_clamp((as_int(t.day_) - as_int(base_)) * 1440
                    + route_stop_times[route_stop_begin +
-                                             (gpu_to_idx(t.day_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());
+                                             (gpu_to_idx(t.t_idx_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());
 }
 
 template <typename It, typename End, typename Key, typename Cmp>
