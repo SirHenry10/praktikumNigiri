@@ -179,16 +179,14 @@ struct raptor {
 
       //SYNC
       update_transfers(k); // loop in update_transfers parallelisieren
-      /*
-      if(k==1) {
-        for (int i = 0; i < tt_.n_routes(); ++i) {
-          if (state_.route_mark_[i] == true)
-            printf("CPU route_marked after update_transfers: %d ,stelle i: %d", 1, i);
-          else
-            printf("CPU route_marked after update_transfers: %d ,stelle i: %d", 0, i);
+
+      if(k==1)
+        for(int j = 0; j<state_.round_times_.n_rows_;++j) {
+          for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
+            printf("round_time CPU after update_transfers: %d", state_.round_times_[j][i]);
+          }
         }
-      }
-       */
+
       //SYNC
       update_footpaths(k, prf_idx);
       //SYNC
@@ -284,7 +282,7 @@ private:
           }
         }
         any_marked |= update_route(k, r);
-        if(k==1) {
+        if(k==2) {
           for (int i = 0; i < tt_.n_locations(); ++i) {
             if (state_.station_mark_[i] == true)
               printf("CPU station_marked after round 1: %d ,stelle i: %d", 1, i);
@@ -292,7 +290,7 @@ private:
               printf("CPU station_marked after round 1: %d ,stelle i: %d", 0, i);
           }
         }
-        if(k==1)printf("any_marked cpu: %d",any_marked);
+        if(k==2)printf("any_marked cpu: %d",any_marked);
       }else{
         printf("HELLO");
       }
@@ -345,6 +343,8 @@ private:
         }
 
         ++stats_.n_earliest_arrival_updated_by_footpath_;
+        if(k==1)
+        printf("fp_target CPU: %d,i: %d",fp_target_time,i);
         state_.round_times_[k][i] = fp_target_time;
         state_.best_[i] = fp_target_time;
         state_.station_mark_[i] = true;
