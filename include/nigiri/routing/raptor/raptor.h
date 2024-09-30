@@ -166,7 +166,14 @@ struct raptor {
                           ? loop_rt_routes<false>(k)
                           : loop_rt_routes<true>(k);
       }
-
+      if(k==2) {
+        for (int i = 0; i < tt_.n_locations(); ++i) {
+          if (state_.station_mark_[i] == true)
+            printf("CPU station_marked after loop round 1: %d ,stelle i: %d", 1, i);
+          else
+            printf("CPU station_marked after loop round 1: %d ,stelle i: %d", 0, i);
+        }
+      }
       if (!any_marked) {
         trace_print_state_after_round();
         break;
@@ -180,7 +187,7 @@ struct raptor {
       //SYNC
       update_transfers(k); // loop in update_transfers parallelisieren
 
-      if(k==1)
+      if(k==2)
         for(int j = 0; j<state_.round_times_.n_rows_;++j) {
           for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
             printf("round_time CPU after update_transfers: %d", state_.round_times_[j][i]);
@@ -222,13 +229,13 @@ struct raptor {
         }
       }
     }
-    /*
+
     for(int j = 0; j<state_.round_times_.n_rows_;++j) {
       for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
-        printf("CPU round_time: %d", state_.round_times_[j][i]);
+        printf("CPU round_time finish: %d", state_.round_times_[j][i]);
       }
     }
-     */
+
     std::cerr << "n_routing_time_ cpu:"<<stats_.n_routing_time_ << std::endl;
     std::cerr << "n_footpaths_visited_ cpu:"<<stats_.n_footpaths_visited_ << std::endl;
     std::cerr << "n_routes_visited_ cpu:"<<stats_.n_routes_visited_ << std::endl;
@@ -282,15 +289,6 @@ private:
           }
         }
         any_marked |= update_route(k, r);
-        if(k==2) {
-          for (int i = 0; i < tt_.n_locations(); ++i) {
-            if (state_.station_mark_[i] == true)
-              printf("CPU station_marked after round 1: %d ,stelle i: %d", 1, i);
-            else
-              printf("CPU station_marked after round 1: %d ,stelle i: %d", 0, i);
-          }
-        }
-        if(k==2)printf("any_marked cpu: %d",any_marked);
       }else{
         printf("HELLO");
       }

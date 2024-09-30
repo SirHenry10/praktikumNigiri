@@ -182,7 +182,7 @@ void merge_file(const std::string& output_file, int num_parts) {
 std::filesystem::path project_root = std::filesystem::current_path().parent_path();
 std::filesystem::path test_path_germany(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs"); //Alle nicht ASCII zeichen entfernt.
 fs_dir test_files_germany(test_path_germany);
-/*
+
 TEST(routing, gpu_raptor_germany) {
   std::filesystem::path filePath = "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs/stop_times.txt";
   if (!std::filesystem::exists(filePath)) {
@@ -190,14 +190,15 @@ TEST(routing, gpu_raptor_germany) {
   }
   timetable tt;
   std::cout << "Lade Fahrplan..." << std::endl;
-  tt.date_range_ = {date::sys_days{2024_y / September / 25},
+  tt.date_range_ = {date::sys_days{2024_y / September / 27},
                     date::sys_days{2024_y / September / 29}}; //test_files_germany only available until December 14
-  load_timetable({}, source_idx_t{0}, test_files_germany, tt); //problem glaube mit deutschen sonder zeichen
+  load_timetable({}, source_idx_t{0}, test_files_germany, tt); //files müssen ohne sonderzeichen sein!
   std::cout << "Fahrplan geladen." << std::endl;
 
   std::cout << "Finalisiere Fahrplan..." << std::endl;
   finalize(tt);
   std::cout << "Fahrplan finalisiert." << std::endl;
+  auto gtt = translate_tt_in_gtt(tt);
 
   std::cout << "Starte Raptor-Suche..." << std::endl;
   //Flensburg Holzkrugweg -> Oberstdorf, Campingplatz
@@ -206,20 +207,27 @@ TEST(routing, gpu_raptor_germany) {
                                          nigiri::direction::kBackward);
 
   std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
-  auto const results_gpu = raptor_search(tt, nullptr, "de:01001:27334::1", "de:09780:9256:0:1",
+  auto const results_gpu = raptor_search(tt, nullptr ,gtt, "de:01001:27334::1", "de:09780:9256:0:1",
                                          sys_days{September / 28 / 2024} + 2h,
                                          nigiri::direction::kBackward);
 
   std::cout << "Raptor-Suche abgeschlossen." << std::endl;
-  std::stringstream ss;
-  for (auto const& x : results_cpu) {
-    x.print(ss, tt);
-    ss << "\n";
+  std::stringstream ss1;
+  ss1 << "\n";
+  for (auto const& x :  results_cpu) {
+    x.print(std::cout, tt);
+    ss1 << "\n\n";
   }
-  std::cout << ss.str() << "\n";
+  std::stringstream ss2;
+  ss2 << "\n";
+  for (auto const& x :  results_gpu) {
+    x.print(std::cout, tt);
+    ss2 << "\n\n";
+  }
+  EXPECT_EQ(ss1.str(), ss2.str());
 }
-*/
-/*
+
+
 TEST(routing, gpu_raptor) {
   using namespace date;
   timetable tt;
@@ -244,55 +252,25 @@ TEST(routing, gpu_raptor) {
   generate_ontrip_train_query(tt, t->first, 1, q);
 
   auto gtt = translate_tt_in_gtt(tt);
-  auto const cpu_results = raptor_search(tt, nullptr, std::move(q));
-  auto const gpu_results = raptor_search(tt, nullptr,gtt, std::move(q));
+  auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
+  auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q));
 
-  std::stringstream ss;
-  ss << "\n";
-  for (auto const& x :  gpu_results) {
-    std::cout << "result gpu\n";
+  std::stringstream ss1;
+  ss1 << "\n";
+  for (auto const& x :  results_cpu) {
     x.print(std::cout, tt);
-    ss << "\n\n";
+    ss1 << "\n\n";
   }
-  std::cout << "results cpu: " <<  cpu_results.size() << "\n";
-  std::cout << "results gpu: " <<  gpu_results.size() << "\n";
-  ASSERT_EQ(cpu_results.size(),gpu_results.size());
+  std::stringstream ss2;
+  ss2 << "\n";
+  for (auto const& x :  results_gpu) {
+    x.print(std::cout, tt);
+    ss2 << "\n\n";
+  }
+  EXPECT_EQ(ss1.str(), ss2.str());
 }
- */
-constexpr auto const fwd_journeys2 = R"(
-[2020-03-30 05:00, 2020-03-30 07:15]
-TRANSFERS: 1
-     FROM: (A, 0000001) [2020-03-30 05:00]
-       TO: (C, 0000003) [2020-03-30 07:15]
-leg 0: (A, 0000001) [2020-03-30 05:00] -> (B, 0000002) [2020-03-30 06:00]
-   0: 0000001 A...............................................                               d: 30.03 05:00 [30.03 07:00]  [{name=RE 1337, day=2020-03-30, id=1337/0000001/300/0000002/360/, src=0}]
-   1: 0000002 B............................................... a: 30.03 06:00 [30.03 08:00]
-leg 1: (B, 0000002) [2020-03-30 06:00] -> (B, 0000002) [2020-03-30 06:02]
-  FOOTPATH (duration=2)
-leg 2: (B, 0000002) [2020-03-30 06:15] -> (C, 0000003) [2020-03-30 07:15]
-   0: 0000002 B...............................................                               d: 30.03 06:15 [30.03 08:15]  [{name=RE 7331, day=2020-03-30, id=7331/0000002/375/0000003/435/, src=0}]
-   1: 0000003 C............................................... a: 30.03 07:15 [30.03 09:15]
-leg 3: (C, 0000003) [2020-03-30 07:15] -> (C, 0000003) [2020-03-30 07:15]
-  FOOTPATH (duration=0)
 
 
-[2020-03-30 05:30, 2020-03-30 07:45]
-TRANSFERS: 1
-     FROM: (A, 0000001) [2020-03-30 05:30]
-       TO: (C, 0000003) [2020-03-30 07:45]
-leg 0: (A, 0000001) [2020-03-30 05:30] -> (B, 0000002) [2020-03-30 06:30]
-   0: 0000001 A...............................................                               d: 30.03 05:30 [30.03 07:30]  [{name=RE 1337, day=2020-03-30, id=1337/0000001/330/0000002/390/, src=0}]
-   1: 0000002 B............................................... a: 30.03 06:30 [30.03 08:30]
-leg 1: (B, 0000002) [2020-03-30 06:30] -> (B, 0000002) [2020-03-30 06:32]
-  FOOTPATH (duration=2)
-leg 2: (B, 0000002) [2020-03-30 06:45] -> (C, 0000003) [2020-03-30 07:45]
-   0: 0000002 B...............................................                               d: 30.03 06:45 [30.03 08:45]  [{name=RE 7331, day=2020-03-30, id=7331/0000002/405/0000003/465/, src=0}]
-   1: 0000003 C............................................... a: 30.03 07:45 [30.03 09:45]
-leg 3: (C, 0000003) [2020-03-30 07:45] -> (C, 0000003) [2020-03-30 07:45]
-  FOOTPATH (duration=0)
-
-
-)";
 
 TEST(routing, gpu_raptor_forward) {
   constexpr auto const src = source_idx_t{0U};
@@ -309,7 +287,6 @@ TEST(routing, gpu_raptor_forward) {
   std::stringstream ss1;
   ss1 << "\n";
   for (auto const& x :  results_cpu) {
-    std::cout << "result cpu\n";
     x.print(std::cout, tt);
     ss1 << "\n\n";
   }
@@ -321,10 +298,40 @@ TEST(routing, gpu_raptor_forward) {
    std::stringstream ss2;
   ss2 << "\n";
   for (auto const& x :  results_gpu) {
-    std::cout << "result gpu\n";
     x.print(std::cout, tt);
     ss2 << "\n\n";
   }
-  EXPECT_EQ(std::string_view{fwd_journeys2}, ss2.str());
+  EXPECT_EQ(ss1.str(), ss2.str());
+}
 
+TEST(routing, gpu_raptor_backwards) {
+  constexpr auto const src = source_idx_t{0U};
+  timetable tt;
+  tt.date_range_ = full_period();
+  load_timetable(src, loader::hrd::hrd_5_20_26, files_abc(), tt);
+  finalize(tt);
+  auto gtt = translate_tt_in_gtt(tt);
+
+  auto const results_cpu = raptor_search(
+      tt, nullptr, "0000001", "0000003",
+      interval{unixtime_t{sys_days{2020_y / March / 30}} + 5_hours,
+               unixtime_t{sys_days{2020_y / March / 30}} + 6_hours},direction::kBackward);
+  std::stringstream ss1;
+  ss1 << "\n";
+  for (auto const& x :  results_cpu) {
+    x.print(std::cout, tt);
+    ss1 << "\n\n";
+  }
+  auto const results_gpu = raptor_search(
+      tt, nullptr,gtt, "0000001", "0000003",
+      interval{unixtime_t{sys_days{2020_y / March / 30}} + 5_hours,
+               unixtime_t{sys_days{2020_y / March / 30}} + 6_hours},direction::kBackward);
+
+  std::stringstream ss2;
+  ss2 << "\n";
+  for (auto const& x :  results_gpu) {
+    x.print(std::cout, tt);
+    ss2 << "\n\n";
+  }
+  EXPECT_EQ(ss1.str(), ss2.str());
 }

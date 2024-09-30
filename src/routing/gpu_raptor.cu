@@ -685,7 +685,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         mark(station_mark_, l_idx);
         current_best = by_transport;
         atomicOr(reinterpret_cast<int*>(any_station_marked_),1);
-        printf("any_station_marked must be true! GPU %d",*any_station_marked_);
+        printf("any_station_marked must be true! GPU %d , k: %d",*any_station_marked_,k);
       }
     }
 
@@ -929,6 +929,7 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
                                 gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                                  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                                  gpu_raptor_stats* stats_){
+  if(get_global_thread_id()== 0)printf("update_footpaths: k:%d",k);
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto idx = global_t_id;
@@ -1166,8 +1167,8 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                                                                 route_clasz);
   this_grid().sync();
   if (get_global_thread_id() == 0) {
-    printf("raptor_round: any_station_marked_ after loop_routes: %d\n",
-           *any_station_marked_);
+    printf("raptor_round: any_station_marked_ after loop_routes: %d,k: %d\n",
+           *any_station_marked_,k);
   }
   if(!*any_station_marked_){
     return;
@@ -1211,7 +1212,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                                   gpu_footpaths_in,
                                   gpu_footpaths_out, stats_);
   this_grid().sync();
-  if(get_global_thread_id() == 0)
+  if(get_global_thread_id() == 0 && k==2)
     for(int j = 0; j<row_count_round_times_;++j) {
       for (int i = 0; i < column_count_round_times_; ++i) {
         printf("round_time GPU after update_transfers: %d", round_times_[j*row_count_round_times_+i]);
