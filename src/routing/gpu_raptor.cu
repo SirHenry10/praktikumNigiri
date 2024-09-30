@@ -1494,24 +1494,30 @@ inline void fetch_arrivals_async(mem* mem, cudaStream_t s) {
   cudaMemcpyAsync(
       mem->host_.round_times_.data(), mem->device_.round_times_,
       sizeof(gpu_delta_t)*mem->host_.row_count_round_times_*mem->host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
+  cuda_check();
   cudaMemcpyAsync(
       mem->host_.stats_.data(), mem->device_.stats_,
       sizeof(gpu_raptor_stats)*32, cudaMemcpyDeviceToHost, s);
+  cuda_check();
   cudaMemcpyAsync(
       mem->host_.tmp_.data(), mem->device_.tmp_,
       sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+  cuda_check();
   cudaMemcpyAsync(
       mem->host_.best_.data(), mem->device_.best_,
       sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+  cuda_check();
   cudaMemcpyAsync(
       mem->host_.station_mark_.data(), mem->device_.station_mark_,
-      sizeof(uint32_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+      sizeof(uint32_t)*((mem->device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
+  cuda_check();
   cudaMemcpyAsync(
       mem->host_.prev_station_mark_.data(), mem->device_.prev_station_mark_,
-      sizeof(uint32_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+      sizeof(uint32_t)*((mem->device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
+  cuda_check();
   cudaMemcpyAsync(
       mem->host_.route_mark_.data(), mem->device_.route_mark_,
-      sizeof(uint32_t)*mem->device_.n_routes_, cudaMemcpyDeviceToHost, s);
+      sizeof(uint32_t)*((mem->device_.n_routes_/32)+1), cudaMemcpyDeviceToHost, s);
   cuda_check(); //TODO: keine ahnung warum hier kein cuda check geht
 }
 void copy_back(mem* mem){
