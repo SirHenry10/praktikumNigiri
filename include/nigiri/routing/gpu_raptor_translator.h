@@ -238,7 +238,6 @@ template <nigiri::direction SearchDir, bool Rt>
 gpu_raptor_translator<SearchDir, Rt>::~gpu_raptor_translator(){
   if (mem_ != nullptr) {
     mem_.reset();
-    mem_ = nullptr;
   }
 };
 using algo_stats_t = gpu_raptor_stats;

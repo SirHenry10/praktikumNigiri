@@ -1481,12 +1481,7 @@ void launch_kernel(void** args,
     kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, false>;
   }
   cudaLaunchCooperativeKernel(kernel_func, device.grid_, device.threads_per_block_, args, 0, s);
-  cudaError_t err = cudaDeviceSynchronize();
-  if (err != cudaSuccess) {
-    printf("CUDA error after cudaDeviceSynchronize: %s\n", cudaGetErrorString(err));
-  }
-  std::cerr << "Test gpu_raptor::launch_kernel() ende1" << std::endl;
-  std::cerr << "Test gpu_raptor::launch_kernel() ende" << std::endl;
+  cudaDeviceSynchronize();
   cuda_check();
 }
 

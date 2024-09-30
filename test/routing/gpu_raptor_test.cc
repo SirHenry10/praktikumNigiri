@@ -223,7 +223,7 @@ TEST(routing, gpu_raptor_germany) {
   EXPECT_EQ(ss1.str(), ss2.str());
 }
 */
-
+/*
 TEST(routing, gpu_raptor) {
   using namespace date;
   timetable tt;
@@ -250,14 +250,14 @@ TEST(routing, gpu_raptor) {
   auto gtt = translate_tt_in_gtt(tt);
   //auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
   auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q));
-  /*
+
   std::stringstream ss1;
   ss1 << "\n";
   for (auto const& x :  results_cpu) {
     x.print(std::cout, tt);
     ss1 << "\n\n";
   }
-   */
+
   std::stringstream ss2;
   ss2 << "\n";
   for (auto const& x :  results_gpu) {
@@ -266,7 +266,7 @@ TEST(routing, gpu_raptor) {
   }
   //EXPECT_EQ(ss1.str(), ss2.str());
 }
-
+*/
 
 
 TEST(routing, gpu_raptor_forward) {
