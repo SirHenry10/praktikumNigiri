@@ -1128,7 +1128,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       }
     }
   }
-
+  if(get_global_thread_id() == 0) printf("rounde k: %d",k);
   (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, column_count_round_times_, tmp_, lb_, n_days_,
@@ -1487,10 +1487,10 @@ void launch_kernel(void** args,
   }
   std::cerr << "Test gpu_raptor::launch_kernel() ende1" << std::endl;
   std::cerr << "Test gpu_raptor::launch_kernel() ende" << std::endl;
-
+  cuda_check();
 }
 
-inline void fetch_arrivals_async(mem*& mem, cudaStream_t s) {
+inline void fetch_arrivals_async(mem* mem, cudaStream_t s) {
   cudaMemcpyAsync(
       mem->host_.round_times_.data(), mem->device_.round_times_,
       sizeof(gpu_delta_t)*mem->host_.row_count_round_times_*mem->host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
@@ -1512,18 +1512,18 @@ inline void fetch_arrivals_async(mem*& mem, cudaStream_t s) {
   cudaMemcpyAsync(
       mem->host_.route_mark_.data(), mem->device_.route_mark_,
       sizeof(uint32_t)*mem->device_.n_routes_, cudaMemcpyDeviceToHost, s);
-  //cuda_check(); TODO: keine ahnung warum hier kein cuda check geht
+  cuda_check(); //TODO: keine ahnung warum hier kein cuda check geht
 }
-void copy_back(mem*& mem){
+void copy_back(mem* mem){
   std::cerr << "Test gpu_raptor::launch_kernel() bevor proc" << std::endl;
-  //cuda_sync_stream(mem->context_.proc_stream_);
   cuda_check();
+  //cuda_sync_stream(mem->context_.proc_stream_);
   std::cerr << "Test gpu_raptor::launch_kernel() bevor transfer" << std::endl;
   fetch_arrivals_async(mem,mem->context_.transfer_stream_);
-  //cuda_check(); TODO: warum geht cuda_check nicht
+  cuda_check();
   std::cerr << "Test gpu_raptor::launch_kernel() sync_stream" << std::endl;
   //cuda_sync_stream(mem->context_.transfer_stream_);
-  //cuda_check();
+
 }
 
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable const* gtt_,gpu_day_idx_t base_,short const kInvalid){

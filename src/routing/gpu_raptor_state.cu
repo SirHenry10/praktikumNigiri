@@ -48,9 +48,13 @@ device_context::device_context(device_id const device_id)
 void device_context::destroy() {
   std::cerr << "device_context destroy!!!" << std::endl;
   cudaSetDevice(id_);
+  cuda_check();
   cudaStreamDestroy(proc_stream_);
+  cuda_check();
   proc_stream_ = cudaStream_t{};
+  cuda_check();
   cudaStreamDestroy(transfer_stream_);
+  cuda_check();
   transfer_stream_ = cudaStream_t{};
   cuda_check();
 }

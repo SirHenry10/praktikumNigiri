@@ -48,7 +48,7 @@ void launch_kernel(void** args,
                           cudaStream_t s,
                           gpu_direction search_dir,
                           bool rt);
-void copy_back(mem*& mem);
+void copy_back(mem* mem);
 
 std::unique_ptr<mem> gpu_mem(
     std::vector<gpu_delta_t>& tmp,

@@ -44,6 +44,7 @@ struct gpu_raptor_translator {
                         std::vector<std::uint16_t>& lb,
                         nigiri::day_idx_t const base,
                         nigiri::routing::clasz_mask_t const allowed_claszes);
+  ~gpu_raptor_translator();
   algo_stats_t get_stats();
   //TODO: destructor bauen mit: if (mem_ != nullptr) {
   //         delete mem_;
@@ -233,6 +234,13 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
   gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt_,mem_.get(), is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes,tt_.internal_interval_days().size().count()); //TODO: next SEH error also falscher pointer oder so...
   std::cerr << "Test gpu_raptor_translator() ende" << std::endl;
 }
+template <nigiri::direction SearchDir, bool Rt>
+gpu_raptor_translator<SearchDir, Rt>::~gpu_raptor_translator(){
+  if (mem_ != nullptr) {
+    mem_.reset();
+    mem_ = nullptr;
+  }
+};
 using algo_stats_t = gpu_raptor_stats;
 template <nigiri::direction SearchDir, bool Rt>
 algo_stats_t gpu_raptor_translator<SearchDir, Rt>::get_stats() {
