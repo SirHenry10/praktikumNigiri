@@ -638,7 +638,6 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
                   gpu_delta const* route_stop_times,
                   gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
   auto const stop_seq = (*route_location_seq)[r];
-  atomicAnd(reinterpret_cast<int*>(any_station_marked_),0); // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
 
   // diese Variable ist das Problem beim Parallelisieren
   auto et = gpu_transport{};
@@ -681,6 +680,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         mark(station_mark_, l_idx);
         current_best = by_transport;
         atomicOr(reinterpret_cast<int*>(any_station_marked_),1);
+        printf("any_station_marked must be true! GPU %d",*any_station_marked_);
       }
     }
 
@@ -713,6 +713,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     // vorherige Ankunftszeit an der Station
     printf("GPU K %d", k);
     auto const prev_round_time = round_times_[(k - 1) * row_count_round_times_ + l_idx];
+    if(k==2) printf("GPU l_idx: %d",l_idx);
     printf("GPU round_times k=1 %d", prev_round_time);
     assert(prev_round_time != kInvalidGpuDelta<SearchDir>);
     // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
@@ -859,6 +860,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                     base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
 
        }
+
   this_grid().sync();
   if(get_global_thread_id() == 0)printf("loop routes marked end: %d, round %d", *any_station_marked_,k); //  immer 0
 }
@@ -1116,10 +1118,14 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if (get_global_thread_id() == 0) {
          printf("Before loop_routes: any_station_marked_: %d\n", *any_station_marked_);
   }
-  if(get_global_thread_id() == 0 && k == 1){
-    printf("n_lcoations GPU: %d",n_locations);
+  if(get_global_thread_id() == 0 && k == 2){
     for (int i = 0; i< n_routes; ++i){
       printf("GPU route_marked bevor round 3: %d, stelle i: %d", route_mark_[i],i);
+    }
+    for(int j = 0; j<row_count_round_times_;++j) {
+      for (int i = 0; i < column_count_round_times_; ++i) {
+        printf("round_time GPU bevor 2 Runde: %d", round_times_[j*row_count_round_times_+i]);
+      }
     }
   }
   (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
@@ -1204,6 +1210,14 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                                   gpu_footpaths_in,
                                   gpu_footpaths_out, stats_);
   this_grid().sync();
+  /*
+  if(get_global_thread_id() == 0)
+  for(int j = 0; j<row_count_round_times_;++j) {
+    for (int i = 0; i < column_count_round_times_; ++i) {
+      printf("round_time GPU after update_transfers: %d", round_times_[j*row_count_round_times_+i]);
+    }
+  }
+   */
 
   // update_footpaths
   update_footpaths<SearchDir, Rt>(k, prf_idx, kUnreachable, prev_station_mark_,

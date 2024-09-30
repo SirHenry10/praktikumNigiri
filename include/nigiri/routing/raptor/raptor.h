@@ -179,7 +179,16 @@ struct raptor {
 
       //SYNC
       update_transfers(k); // loop in update_transfers parallelisieren
-
+      /*
+      if(k==1) {
+        for (int i = 0; i < tt_.n_routes(); ++i) {
+          if (state_.route_mark_[i] == true)
+            printf("CPU route_marked after update_transfers: %d ,stelle i: %d", 1, i);
+          else
+            printf("CPU route_marked after update_transfers: %d ,stelle i: %d", 0, i);
+        }
+      }
+       */
       //SYNC
       update_footpaths(k, prf_idx);
       //SYNC
@@ -215,11 +224,13 @@ struct raptor {
         }
       }
     }
+    /*
     for(int j = 0; j<state_.round_times_.n_rows_;++j) {
       for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
         printf("CPU round_time: %d", state_.round_times_[j][i]);
       }
     }
+     */
     std::cerr << "n_routing_time_ cpu:"<<stats_.n_routing_time_ << std::endl;
     std::cerr << "n_footpaths_visited_ cpu:"<<stats_.n_footpaths_visited_ << std::endl;
     std::cerr << "n_routes_visited_ cpu:"<<stats_.n_routes_visited_ << std::endl;
@@ -250,7 +261,7 @@ private:
           }
         }
         ++stats_.n_routes_visited_;
-        if(k==1){
+        if(k==2){
         for (int i = 0; i< tt_.n_routes(); ++i){
           if (state_.route_mark_[i] == true)
           printf("CPU route_marked bevor round 2: %d ,stelle i: %d", 1, i);
@@ -265,7 +276,22 @@ private:
         }
         }
         trace("┊ ├k={} updating route {}\n", k, r);
+        if(k == 2){
+          for(int j = 0; j<state_.round_times_.n_rows_;++j) {
+            for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
+              printf("round_time CPU bevor 2 Runde: %d", state_.round_times_[j][i]);
+            }
+          }
+        }
         any_marked |= update_route(k, r);
+        if(k==1) {
+          for (int i = 0; i < tt_.n_locations(); ++i) {
+            if (state_.station_mark_[i] == true)
+              printf("CPU station_marked after round 1: %d ,stelle i: %d", 1, i);
+            else
+              printf("CPU station_marked after round 1: %d ,stelle i: %d", 0, i);
+          }
+        }
         if(k==1)printf("any_marked cpu: %d",any_marked);
       }else{
         printf("HELLO");
@@ -597,9 +623,10 @@ private:
               : kInvalid;
       // vorherige Ankunftszeit an der Station
       auto const prev_round_time = state_.round_times_[k - 1][l_idx];
+      if(k==2) printf("CPU l_idx: %d, kInvalid: %d",l_idx,kInvalid);
+      if(k==2)printf("prev_round_time %d", prev_round_time);
       printf("CPU k %d", k);
       assert(prev_round_time != kInvalid);
-      printf("prev_round_time %d", prev_round_time);
       // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
       //printf("CPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
       if (is_better_or_eq(prev_round_time, et_time_at_stop)) {

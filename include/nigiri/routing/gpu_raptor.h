@@ -288,8 +288,8 @@ struct gpu_raptor {
         for (int i = 0; i < mem_->host_.column_count_round_times_; ++i) {
           printf("round_time GPU out side of Kernel: %d", mem_->host_.round_times_[j*mem_->host_.row_count_round_times_+i]);
         }
-    }
-     */
+    }*/
+
     std::cerr << "n_routing_time_ gpu:"<<tmp.n_routing_time_ << std::endl;
     std::cerr << "n_footpaths_visited_ gpu:"<<tmp.n_footpaths_visited_ << std::endl;
     std::cerr << "n_routes_visited_ gpu:"<<tmp.n_routes_visited_ << std::endl;
