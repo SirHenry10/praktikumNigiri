@@ -394,6 +394,7 @@ private:
               to_unix(state_.best_[to_idx(fp.target())]), fp_target_time);
 
           ++stats_.n_earliest_arrival_updated_by_footpath_;
+          printf("CPU footpaths update_arrivals %d ,value: %d", (k-1) * state_.round_times_.n_columns_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
           state_.round_times_[k][to_idx(fp.target())] = fp_target_time;
           state_.best_[to_idx(fp.target())] = fp_target_time;
           state_.station_mark_[to_idx(fp.target())] = true;
@@ -424,6 +425,7 @@ private:
                                     dir(dist_to_end_[i]));
 
         if (is_better(end_time, state_.best_[kIntermodalTarget])) {
+          printf("CPU intermodal_footpaths update_arrivals %d ,value: %d", (k-1) * state_.round_times_.n_columns_ + kIntermodalTarget,end_time);
           state_.round_times_[k][kIntermodalTarget] = end_time;
           state_.best_[kIntermodalTarget] = end_time;
           update_time_at_dest(k, end_time);

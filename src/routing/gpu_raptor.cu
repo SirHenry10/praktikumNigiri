@@ -960,7 +960,7 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
         }
       }
       ++stats_[idx%32].n_earliest_arrival_updated_by_footpath_;
-      printf("update_arrivals %d ", (k-1) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}));
+      printf("GPU footpaths update_arrivals %d ,value: %d", (k-1) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
       bool updated = update_arrival(round_times_,(k-1) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
       best_[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
       if(updated){
@@ -991,7 +991,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
     if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
       auto const end_time = gpu_clamp(get_best<SearchDir>(best_[idx], tmp_[idx]) + dir<SearchDir>(dist_to_end_[idx]));
       if(is_better<SearchDir>(end_time, gpu_kIntermodalTarget[(*best_)].v_)){
-        printf("update_arrivals %d ", (k-1) * column_count_round_times_ + gpu_kIntermodalTarget->v_);
+        printf("GPU intermodal_footpaths update_arrivals %d ,value: %d", (k-1) * column_count_round_times_ + gpu_kIntermodalTarget->v_,end_time);
         bool updated = update_arrival(round_times_, (k-1) * column_count_round_times_ + gpu_kIntermodalTarget->v_, end_time);
         gpu_kIntermodalTarget[(*best_)].v_ = end_time;
         update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
@@ -1215,12 +1215,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                                   gpu_footpaths_in,
                                   gpu_footpaths_out, stats_);
   this_grid().sync();
-  if(get_global_thread_id() == 0 && k==2)
-    for(int j = 0; j<row_count_round_times_;++j) {
-      for (int i = 0; i < column_count_round_times_; ++i) {
-        printf("round_time GPU after update_transfers: %d", round_times_[j*row_count_round_times_+i]);
-      }
-    }
+
 
 
   // update_footpaths
@@ -1232,7 +1227,12 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                                   gpu_footpaths_in,
                                   gpu_footpaths_out, stats_);
   this_grid().sync();
-
+  if(get_global_thread_id() == 0 && k==2)
+    for(int j = 0; j<row_count_round_times_;++j) {
+      for (int i = 0; i < column_count_round_times_; ++i) {
+        printf("round_time GPU after update_footpaths: %d", round_times_[j*row_count_round_times_+i]);
+      }
+    }
   // update_intermodal_footpaths
   update_intermodal_footpaths<SearchDir, Rt>(k, n_locations, dist_to_end_, dist_to_end_size_, station_mark_,
                              prev_station_mark_, time_at_dest_, kUnreachable,
