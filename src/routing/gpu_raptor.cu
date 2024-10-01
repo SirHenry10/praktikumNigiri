@@ -903,6 +903,7 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
         ? 0 : dir<SearchDir>((*transfer_time)[gpu_location_idx_t{l_idx}]).count();
     const auto fp_target_time =
         static_cast<gpu_delta_t>(tmp_[l_idx] + tt);
+    assert(k!=2 && l_idx!=2);
     if(is_better<SearchDir>(fp_target_time, best_[l_idx])
         && is_better<SearchDir>(fp_target_time, time_at_dest_[k])){
       if(lb_[l_idx] == kUnreachable
@@ -912,7 +913,7 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
       }
       ++stats_[l_idx%32].n_earliest_arrival_updated_by_footpath_;
       printf("column_count_round_times_: %d",column_count_round_times_);
-      if(fp_target_time==435 || fp_target_time==495 || fp_target_time==435){
+      if(fp_target_time==435 || fp_target_time==495 || fp_target_time==465){
         printf("GPU Fehler transfers k=%d, l_idx=%d fptt=%d", k, l_idx, fp_target_time);
       }
       bool updated = update_arrival(round_times_, k * column_count_round_times_ + l_idx, fp_target_time);
@@ -968,7 +969,7 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
       }
       ++stats_[idx%32].n_earliest_arrival_updated_by_footpath_;
       printf("GPU footpaths update_arrivals %d ,value: %d", (k) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
-      if(fp_target_time==435 || fp_target_time==495 || fp_target_time==435){
+      if(fp_target_time==435 || fp_target_time==495 || fp_target_time==465){
         printf("GPU Fehler footpaths k=%d, l_idx=%d fptt=%d", k, idx, fp_target_time);
       }
       bool updated = update_arrival(round_times_,(k) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
@@ -1003,7 +1004,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
         printf("GPU intermodal_footpaths end_time: %d, gpu_kIntermodalTarget: %d",end_time,best_[gpu_to_idx(*gpu_kIntermodalTarget)]);
         if(is_better<SearchDir>(end_time, best_[gpu_to_idx(*gpu_kIntermodalTarget)])){
           printf("GPU intermodal_footpaths update_arrivals %d ,value: %d", (k) * column_count_round_times_ + gpu_kIntermodalTarget->v_,end_time);
-          if(end_time==435 || end_time==495 || end_time==435){
+          if(end_time==435 || end_time==495 || end_time==465){
             printf("GPU Fehler intermodalfootpaths k=%d, l_idx=%d et=%d", k, idx, end_time);
           }
           bool updated = update_arrival(round_times_, (k) * column_count_round_times_ + gpu_kIntermodalTarget->v_, end_time);
