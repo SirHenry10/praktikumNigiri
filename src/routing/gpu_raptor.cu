@@ -280,9 +280,9 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
   printf("smaller 3.7");
   assert(route_stop_time_ranges->el_ != nullptr);
-  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_stop_time_ranges, route_stop_times);
+  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_stop_time_ranges,route_transport_ranges, route_stop_times);
   printf("smaller 3.8");
-  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_stop_time_ranges, route_stop_times);
+  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_stop_time_ranges,route_transport_ranges, route_stop_times);
   printf("smaller 3.9");
   auto const seek_first_day = [&]() {
     return linear_lb(gpu_get_begin_it<SearchDir>(departure_times),
@@ -425,8 +425,8 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
   auto const n_days_to_iterate = get_smaller(
       gpu_kMaxTravelTime.count() / 1440 + 1,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
-  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_stop_time_ranges, route_stop_times);
-  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_stop_time_ranges, route_stop_times);
+  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_stop_time_ranges,route_transport_ranges, route_stop_times);
+  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_stop_time_ranges,route_transport_ranges, route_stop_times);
   auto const seek_first_day = [&]() {
     return linear_lb(gpu_get_begin_it<SearchDir>(departure_times),
                      gpu_get_end_it<SearchDir>(departure_times), mam,
@@ -554,7 +554,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
 
   auto const event_times = gpu_event_times_at_stop(
-      r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, route_stop_time_ranges, route_stop_times);
+      r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, route_stop_time_ranges,route_transport_ranges, route_stop_times);
   printf("gpu r %d, stop_idx %d",r,stop_idx);
 
   auto const seek_first_day = [&]() {
@@ -564,6 +564,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
                        return is_better<SearchDir>(a.mam_, b.count());
                      });
   };
+  printf("GPU mem: %d",mam_at_stop);
 
 #if defined(NIGIRI_TRACING)
   auto const l_idx =

@@ -678,7 +678,7 @@ private:
                          return is_better(a.mam(), b.count());
                        });
     };
-
+    printf("CPU mem: %d",mam_at_stop);
 #if defined(NIGIRI_TRACING)
     auto const l_idx =
         stop{tt_.route_location_seq_[r][stop_idx]}.location_idx();
