@@ -327,8 +327,8 @@ TEST(routing, gpu_raptor_ontrip_train) {
       .destination_ = {{tt.locations_.location_id_to_idx_.at(
                             {.id_ = "0000004", .src_ = src}),
                         10_minutes, 77U}}};
-  /*
-  generate_ontrip_train_query(tt, t->first, 1, q);
+
+  /*generate_ontrip_train_query(tt, t->first, 1, q);
 
   auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
   std::stringstream ss1;
@@ -336,8 +336,7 @@ TEST(routing, gpu_raptor_ontrip_train) {
   for (auto const& x :  results_cpu) {
     x.print(std::cout, tt);
     ss1 << "\n\n";
-  }
-   */
+  }*/
   generate_ontrip_train_query(tt, t->first, 1, q);
   auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q));
   printf("GPU:");

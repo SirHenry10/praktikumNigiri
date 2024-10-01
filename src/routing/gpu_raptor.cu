@@ -722,13 +722,13 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
   //Hier gehen wir durch alle Routen wie in update_routes_dev von Julian
   auto const stride = blockDim.y * gridDim.x;
   auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
-  /*
+
   for(auto r_idx = start_r_id;
        r_idx < n_routes; r_idx += stride){
-    */
+    /*
   if(get_global_thread_id() == 0)
   for (auto r_idx = 0U; r_idx != n_routes; ++r_idx) {
-
+  */
     auto const r = gpu_route_idx_t{r_idx};
     if(!marked(route_mark_, r_idx)) {
       continue;
@@ -788,12 +788,13 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                                                    route_clasz);
 
       }
-        */
+       */
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     column_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
                                     base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
-
+        */
        }
+
 
   this_grid().sync();
   if(get_global_thread_id() == 0)printf("loop routes marked end: %d, round %d", *any_station_marked_,k); //  immer 0
@@ -1220,7 +1221,6 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
-  printf("gpu kernel from %d",(*route_stop_time_ranges)[gpu_route_idx_t{1}].from_);
   assert((*route_location_seq).data_.el_ != nullptr);
   assert((*route_location_seq).bucket_starts_.el_ != nullptr);
   assert((*location_routes).data_.el_ != nullptr);
