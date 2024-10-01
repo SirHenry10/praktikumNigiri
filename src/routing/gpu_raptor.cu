@@ -884,10 +884,14 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
                                  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                                  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in_,
                                  gpu_raptor_stats* stats_){
+  if(k==2){
+    printf("GPU error!!!");
+  }
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto l_idx = global_t_id;
        l_idx < n_locations; l_idx += global_stride){
+
     printf("TRANSFERS2");
     if(!marked(prev_station_mark_, l_idx)){
       printf("TRANSFERS3");
@@ -1104,7 +1108,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
       station_mark_[j] = 0x0000;
     }
   }
-
 
   if(global_t_id == 0)printf("waiting %d\n",k);
   this_grid().sync();
@@ -1328,7 +1331,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
 
   for (auto k = 1U; k != end_k; ++k) { // diese Schleife bleibt, da alle Threads in jede Runde gehen
     // Resultate aus lezter Runde von device in variable speichern?  //TODO: typen von kIntermodalTarget und dist_to_end_size falsch???
-    if(k!= 0 && (!(*any_station_marked))){
+    if(k!= 1 && (!(*any_station_marked))){
       break;
     }
     raptor_round<SearchDir, Rt>(k, *prf_idx, base, *allowed_claszes,
