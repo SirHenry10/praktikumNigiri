@@ -61,6 +61,7 @@ __device__ bool update_arrival(gpu_delta_t* base_,
 
     assumed = old_value;
 
+    printf("update arrival von wert %d", val);
     old_value = atomicCAS(reinterpret_cast<int*>(&base_[l_idx]), assumed, val);
   } while (assumed != old_value);
 
@@ -87,6 +88,7 @@ __device__ bool update_arrival(gpu_delta_t* base_,
       return false;
     }
 
+    printf("update arrival von wert %d", new_value);
     old_value = atomicCAS(base_address, assumed, new_value);
   } while (assumed != old_value);
 
