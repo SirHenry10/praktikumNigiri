@@ -348,8 +348,8 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
             auto const arr_mam = arr.mam_;
             auto const arr_t = to_gpu_delta(day, arr_mam, base_);
 
-            bool updated = update_arrival(tmp_, stop_idx, arr_t);
-            if (updated) {
+            auto updated = atomicExch(&tmp_[stop_idx], arr_t);
+            if (updated != tmp_[stop_idx]) {
               printf("UPDATE!!!!!!!4");
               mark(station_mark_, stop_idx);
               local_any_station = true;
@@ -492,8 +492,8 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
             auto const arr_mam = arr.mam_;
             auto const arr_t = to_gpu_delta(day, arr_mam, base_);
 
-            bool updated = update_arrival(tmp_, stop_idx, arr_t);
-            if(updated){
+            auto updated = atomicExch(&tmp_[stop_idx], arr_t);
+            if(updated != tmp_[stop_idx]){
               mark(station_mark_, stop_idx);
               local_any_station = true;
             }
@@ -511,8 +511,8 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
               auto const arr_mam = arr.mam_;
               auto const arr_t = to_gpu_delta(day, arr_mam, base_);
 
-              bool updated = update_arrival(tmp_, stop_idx, arr_t);
-              if(updated){
+              auto updated = atomicExch(&tmp_[stop_idx], arr_t);
+              if(updated != tmp_[stop_idx]){
                 mark(station_mark_, stop_idx);
                 local_any_station = true;
               }
@@ -917,9 +917,10 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
       if(fp_target_time==435 || fp_target_time==495 || fp_target_time==465){
         printf("GPU Fehler transfers k=%d, l_idx=%d fptt=%d at %d", k, l_idx, fp_target_time, k * column_count_round_times_ + l_idx);
       }
-      bool updated = update_arrival(round_times_, k * column_count_round_times_ + l_idx, fp_target_time);
+      auto updated = atomicExch(reinterpret_cast<int*>(
+                         &round_times_[k * column_count_round_times_ + l_idx]), fp_target_time);
       best_[l_idx] = fp_target_time;
-      if(updated){
+      if(updated != round_times_[k * column_count_round_times_ + l_idx]){
         mark(station_mark_, l_idx);
       }
       if(is_dest){
@@ -973,9 +974,12 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
       if(fp_target_time==435 || fp_target_time==495 || fp_target_time==465){
         printf("GPU Fehler footpaths k=%d, l_idx=%d fptt=%d", k, idx, fp_target_time);
       }
-      bool updated = update_arrival(round_times_,(k) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
+      auto updated = atomicExch(
+          reinterpret_cast<int*>(
+              &round_times_[k * column_count_round_times_ +
+                            gpu_to_idx(gpu_location_idx_t{fp.target_})]), fp_target_time);
       best_[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
-      if(updated){
+      if(updated !=round_times_[k * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_})]){
         mark(station_mark_, gpu_to_idx(gpu_location_idx_t{fp.target_}));
       }
       if(is_dest_[gpu_to_idx(gpu_location_idx_t{fp.target_})]){
@@ -1008,7 +1012,9 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
           if(end_time==435 || end_time==495 || end_time==465){
             printf("GPU Fehler intermodalfootpaths k=%d, l_idx=%d et=%d", k, idx, end_time);
           }
-          bool updated = update_arrival(round_times_, (k) * column_count_round_times_ + gpu_kIntermodalTarget->v_, end_time);
+          auto updated = atomicExch(reinterpret_cast<int*>(
+                             &round_times_[k * column_count_round_times_ +
+                                           gpu_kIntermodalTarget->v_]), end_time);
           best_[gpu_to_idx(*gpu_kIntermodalTarget)] = end_time;
           update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
         }
