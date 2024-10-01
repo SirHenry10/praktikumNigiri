@@ -1426,16 +1426,16 @@ struct gpu_interval {
   __host__ __device__ friend iterator begin(gpu_interval const& r) { return r.begin(); }
   __host__ __device__ friend iterator end(gpu_interval const& r) { return r.end(); }
 
-  __host__ __device__ std::reverse_iterator<iterator> rbegin() const {
-    return std::reverse_iterator<iterator>{iterator{to_}};
+  __host__ __device__ cuda::std::reverse_iterator<iterator> rbegin() const {
+    return cuda::std::reverse_iterator<iterator>{iterator{to_}};
   }
-  __host__ __device__ std::reverse_iterator<iterator> rend() const {
-    return std::reverse_iterator<iterator>{iterator{from_}};
+  __host__ __device__ cuda::std::reverse_iterator<iterator> rend() const {
+    return cuda::std::reverse_iterator<iterator>{iterator{from_}};
   }
-  __host__ __device__ friend std::reverse_iterator<iterator> rbegin(gpu_interval const& r) {
+  __host__ __device__ friend cuda::std::reverse_iterator<iterator> rbegin(gpu_interval const& r) {
     return r.begin();
   }
-  __host__ __device__ friend std::reverse_iterator<iterator> rend(gpu_interval const& r) {
+  __host__ __device__ friend cuda::std::reverse_iterator<iterator> rend(gpu_interval const& r) {
     return r.end();
   }
 
@@ -1512,16 +1512,16 @@ struct gpu_interval {
   friend iterator begin(gpu_interval const& r) { return r.begin(); }
   friend iterator end(gpu_interval const& r) { return r.end(); }
 
-  std::reverse_iterator<iterator> rbegin() const {
-    return std::reverse_iterator<iterator>{iterator{to_}};
+  cuda::std::reverse_iterator<iterator> rbegin() const {
+    return cuda::std::reverse_iterator<iterator>{iterator{to_}};
   }
-  std::reverse_iterator<iterator> rend() const {
-    return std::reverse_iterator<iterator>{iterator{from_}};
+  cuda::std::reverse_iterator<iterator> rend() const {
+    return cuda::std::reverse_iterator<iterator>{iterator{from_}};
   }
-  friend std::reverse_iterator<iterator> rbegin(gpu_interval const& r) {
+  friend cuda::std::reverse_iterator<iterator> rbegin(gpu_interval const& r) {
     return r.begin();
   }
-  friend std::reverse_iterator<iterator> rend(gpu_interval const& r) {
+  friend cuda::std::reverse_iterator<iterator> rend(gpu_interval const& r) {
     return r.end();
   }
 
