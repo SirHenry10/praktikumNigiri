@@ -748,7 +748,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
       // also sollte vielleicht diese Schleife mit allen auf einmal durchgangen werden???
       // parameter stimmen noch nicht
       // parallele update_route
-      /*
+
       if((*route_location_seq)[gpu_route_idx_t{r_idx}].size() <= 32){ // die Route hat <= 32 stops
         update_route_smaller32<SearchDir, Rt>(k, r, stats_, prev_station_mark_, best_,
                                                       round_times_, column_count_round_times_, tmp_, kMaxTravelTimeTicks_,
@@ -788,7 +788,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                                                    route_clasz);
 
       }
-       */
+       /*
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     column_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
                                     base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
