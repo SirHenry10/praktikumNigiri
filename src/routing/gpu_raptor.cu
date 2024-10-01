@@ -184,8 +184,7 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
                                        gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                                        gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                                        gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz){
-
-  auto local_any_station = false;
+  printf("Test_update_route_smaller32");
   auto const t_id = threadIdx.x;
   auto const stop_seq = (*route_location_seq)[r];
   auto stop_idx = -1;
@@ -198,9 +197,10 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
 
-
   //TODO: muss eigentlich hier weil prev_round_time falsch wird
+  printf("active_stop_count: %d",active_stop_count);
   if(t_id >= active_stop_count) { //solte doch eigentlich egal sein da wir smaller sind oder?
+    printf("aussotiert0");
     return;
   }
     stop_idx = static_cast<gpu_stop_idx_t>(
@@ -211,18 +211,13 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
     l_idx = gpu_to_idx(stp.gpu_location_idx());
 
     auto is_last = t_id == stop_seq.size() - 1U;
-    // ist äquivalent zu prev_arrival
-    if (is_last || !(SearchDir == gpu_direction::kForward ? stp.in_allowed() : stp.out_allowed()) ||
-        !marked(prev_station_mark_,l_idx)) {
-      //dann wird diese übersprungen
-      return; //übersprungen ist gleich dieser thread returned
-    }
+
     if (lb_[l_idx] == kUnreachable) { //TODO: maybe kucken ob richtig? bzw. ob weg
       // dann wird Durchgehen dieser Route abgebrochen
+      printf("aussotiert2");
       return; //break ist gleich alle thread returnen
     }
     prev_round_time = round_times_[(k-1) * column_count_round_times_ + l_idx];
-    auto rt = round_times_[(k-1) * column_count_round_times_ + l_idx];
 
     assert(__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())&&
              __any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::min()));
@@ -253,6 +248,7 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
         gpu_it_range{gpu_day_idx_t{i} == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
                  gpu_get_end_it<SearchDir>(departure_times)};
     if (ev_time_range.empty()) {
+      printf("aussotiert3");
       return;
     }
     auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + gpu_day_idx_t{i} : day_at_stop - gpu_day_idx_t{i};
@@ -264,7 +260,6 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
         auto const dep = *it;
         auto const dep_mam = dep.mam_;
         dep_t = to_gpu_delta(day, dep_mam, base_);
-
 
       }
       // election of leader
@@ -280,21 +275,24 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
 
       assert((*route_transport_ranges)[r].size() > t_offset);
       auto const t2 = (*route_transport_ranges)[r][t_offset];
+      printf("1why not marked?? GPU: leader: %d, t_id: %d",leader,t_id);
       if(t_id > leader ) {
         i_f++;
+        printf("2why not marked?? GPU");
         if (t_id < active_stop_count){
           i_f++;
+          printf("3why not marked?? GPU");
           if (is_transport_active<SearchDir, Rt>(
                   t2, as_int(day), transport_traffic_days, bitfields)) {
             i_f++;
             auto const arr = *it;
             auto const arr_mam = arr.mam_;
             auto const arr_t = to_gpu_delta(day, arr_mam, base_);
-
             bool updated = update_arrival(tmp_, stop_idx, arr_t);
             if (updated) {
+              printf("marked GPU smaller32");
               mark(station_mark_, stop_idx);
-              local_any_station = true;
+              atomicOr(reinterpret_cast<int*>(any_station_marked_),1);
             }
           }
         }
@@ -305,9 +303,6 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
       }
       leader = NO_LEADER;
     }
-  }
-  if (local_any_station){
-    atomicOr(reinterpret_cast<int*>(any_station_marked_),1);
   }
 }
 
@@ -722,13 +717,13 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
   //Hier gehen wir durch alle Routen wie in update_routes_dev von Julian
   auto const stride = blockDim.y * gridDim.x;
   auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
-
+  /*
   for(auto r_idx = start_r_id;
        r_idx < n_routes; r_idx += stride){
-    /*
+    */
   if(get_global_thread_id() == 0)
   for (auto r_idx = 0U; r_idx != n_routes; ++r_idx) {
-  */
+
     auto const r = gpu_route_idx_t{r_idx};
     if(!marked(route_mark_, r_idx)) {
       continue;
@@ -748,7 +743,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
       // also sollte vielleicht diese Schleife mit allen auf einmal durchgangen werden???
       // parameter stimmen noch nicht
       // parallele update_route
-
+      /*
       if((*route_location_seq)[gpu_route_idx_t{r_idx}].size() <= 32){ // die Route hat <= 32 stops
         update_route_smaller32<SearchDir, Rt>(k, r, stats_, prev_station_mark_, best_,
                                                       round_times_, column_count_round_times_, tmp_, kMaxTravelTimeTicks_,
@@ -787,12 +782,11 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                                                    gpu_footpaths_out,
                                                                    route_clasz);
 
-      }
-       /*
+      }*/
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     column_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
                                     base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
-        */
+
        }
 
 
@@ -1094,6 +1088,11 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                                                                 gpu_footpaths_out,
                                                                 route_clasz);
   this_grid().sync();
+  if (get_global_thread_id() == 0)
+  for (int i = 0; i<(n_locations/32)+1;++i){
+    printf("markes GPU: round %d: %d",k,station_mark_[i]);
+  }
+
   if (get_global_thread_id() == 0) {
     printf("raptor_round: any_station_marked_ after loop_routes: %d,k: %d\n",
            *any_station_marked_,k);

@@ -240,6 +240,7 @@ TEST(routing, gpu_raptor) {
 
 
 
+
 TEST(routing, gpu_raptor_forward) {
   constexpr auto const src = source_idx_t{0U};
   timetable tt;
@@ -248,10 +249,14 @@ TEST(routing, gpu_raptor_forward) {
   finalize(tt);
   auto gtt = translate_tt_in_gtt(tt);
 
+  // CPU Benchmarking
+  auto start_cpu = std::chrono::high_resolution_clock::now();
   auto const results_cpu = raptor_search(
       tt, nullptr, "0000001", "0000003",
       interval{unixtime_t{sys_days{2020_y / March / 30}} + 5_hours,
                unixtime_t{sys_days{2020_y / March / 30}} + 6_hours});
+  auto end_cpu = std::chrono::high_resolution_clock::now();
+  auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
 
   std::stringstream ss1;
   ss1 << "\n";
@@ -259,19 +264,30 @@ TEST(routing, gpu_raptor_forward) {
     x.print(std::cout, tt);
     ss1 << "\n\n";
   }
+
+  // GPU Benchmarking
+  auto start_gpu = std::chrono::high_resolution_clock::now();
   auto const results_gpu = raptor_search(
-      tt, nullptr,gtt, "0000001", "0000003",
+      tt, nullptr, gtt, "0000001", "0000003",
       interval{unixtime_t{sys_days{2020_y / March / 30}} + 5_hours,
                unixtime_t{sys_days{2020_y / March / 30}} + 6_hours});
+  auto end_gpu = std::chrono::high_resolution_clock::now();
+  auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
-   std::stringstream ss2;
+  std::stringstream ss2;
   ss2 << "\n";
-  for (auto const& x :  results_gpu) {
+  for (auto const& x : results_gpu) {
     x.print(std::cout, tt);
     ss2 << "\n\n";
   }
+
   EXPECT_EQ(ss1.str(), ss2.str());
+
+  // Output the benchmarking results
+  std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+  std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
 }
+
 
 TEST(routing, gpu_raptor_backwards) {
   constexpr auto const src = source_idx_t{0U};
