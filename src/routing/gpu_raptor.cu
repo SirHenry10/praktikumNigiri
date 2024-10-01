@@ -1176,6 +1176,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
            *any_station_marked_,k);
   }
   if(!*any_station_marked_){
+    printf("Test GPU round 2 break");
     return;
   }
   //ToDo: ICH habe mal das return raus geschoben weil warum sollte nur der 0 thread returnen
@@ -1327,6 +1328,9 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
 
   for (auto k = 1U; k != end_k; ++k) { // diese Schleife bleibt, da alle Threads in jede Runde gehen
     // Resultate aus lezter Runde von device in variable speichern?  //TODO: typen von kIntermodalTarget und dist_to_end_size falsch???
+    if(k!= 0 && (!(*any_station_marked))){
+      break;
+    }
     raptor_round<SearchDir, Rt>(k, *prf_idx, base, *allowed_claszes,
                  dist_to_end, *dist_to_end_size, is_dest, lb, *n_days,
                  time_at_dest, any_station_marked, route_mark,
@@ -1355,7 +1359,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   if (get_global_thread_id() == 0){
     for(int j = 0; j<row_count_round_times;++j) {
       for (int i = 0; i < n_locations; ++i) {
-        printf("round_time GPU: %d", round_times[j*row_count_round_times+i]);
+        printf("round_time GPU at end of kernel: %d", round_times[j*row_count_round_times+i]);
       }
     }
   }

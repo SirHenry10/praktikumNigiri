@@ -394,7 +394,7 @@ private:
               to_unix(state_.best_[to_idx(fp.target())]), fp_target_time);
 
           ++stats_.n_earliest_arrival_updated_by_footpath_;
-          printf("CPU footpaths update_arrivals %d ,value: %d", (k-1) * state_.round_times_.n_columns_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
+          printf("CPU footpaths update_arrivals %d ,value: %d", k * state_.round_times_.n_columns_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
           state_.round_times_[k][to_idx(fp.target())] = fp_target_time;
           state_.best_[to_idx(fp.target())] = fp_target_time;
           state_.station_mark_[to_idx(fp.target())] = true;
@@ -500,7 +500,6 @@ private:
   bool update_route(unsigned const k, route_idx_t const r) {
     auto const stop_seq = tt_.route_location_seq_[r];
     bool any_marked = false; // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
-
     // diese Variable ist das Problem beim Parallelisieren
     auto et = transport{};
     // hier gehen wir durch alle Stops der Route r → das wollen wir in update_smaller/bigger machen
@@ -531,6 +530,7 @@ private:
       //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
       printf("valid %d, round %d", et.is_valid(), k);
       if (et.is_valid() && (kFwd ? stp.out_allowed() : stp.in_allowed())) {
+
         // wann transportmittel an dieser station ankommt
         auto const by_transport = time_at_stop(
             r, et, stop_idx, kFwd ? event_type::kArr : event_type::kDep);
@@ -597,7 +597,6 @@ private:
             k, !et.is_valid(), stp.in_allowed(), stp.out_allowed(),
             (kFwd ? stp.out_allowed() : stp.in_allowed()));
       }
-
       // wenn es die letzte Station in der Route ist
       // oder es keine ausgehenden/eingehenden transportmittel gibt
       // oder die Station nicht markiert war
@@ -606,6 +605,7 @@ private:
       if (is_last || !(kFwd ? stp.in_allowed() : stp.out_allowed()) ||
           !state_.prev_station_mark_[l_idx]) {
         //dann wird diese übersprungen
+
         continue;
       }
 
@@ -627,8 +627,8 @@ private:
       if(k==2) printf("CPU l_idx: %d, kInvalid: %d",l_idx,kInvalid);
       if(k==2)printf("prev_round_time %d", prev_round_time);
       printf("CPU k %d", k);
-
-      if(k==3)printf("GPU round_times k=1 %d, idx: %d", prev_round_time, (k-1) * state_.round_times_.n_columns_ + l_idx);
+      if (k==3) assert(2==1);
+      if(k==3)printf("CPU round_times k=1 %d, idx: %d", prev_round_time, (k-1) * state_.round_times_.n_columns_ + l_idx);
       assert(prev_round_time != kInvalid);
       // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
       //printf("CPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
