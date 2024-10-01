@@ -424,8 +424,9 @@ private:
         auto const end_time = clamp(get_best(state_.best_[i], state_.tmp_[i]) +
                                     dir(dist_to_end_[i]));
 
+        printf("CPU intermodal_footpaths end_time: %d, kIntermodalTarget: %d",end_time,state_.best_[kIntermodalTarget]);
         if (is_better(end_time, state_.best_[kIntermodalTarget])) {
-          printf("CPU intermodal_footpaths update_arrivals %d ,value: %d", (k-1) * state_.round_times_.n_columns_ + kIntermodalTarget,end_time);
+          printf("CPU intermodal_footpaths update_arrivals %d ,value: %d ,k: %d", (k) * state_.round_times_.n_columns_ + kIntermodalTarget,end_time,k);
           state_.round_times_[k][kIntermodalTarget] = end_time;
           state_.best_[kIntermodalTarget] = end_time;
           update_time_at_dest(k, end_time);
@@ -626,6 +627,8 @@ private:
       if(k==2) printf("CPU l_idx: %d, kInvalid: %d",l_idx,kInvalid);
       if(k==2)printf("prev_round_time %d", prev_round_time);
       printf("CPU k %d", k);
+
+      if(k==3)printf("GPU round_times k=1 %d, idx: %d", prev_round_time, (k-1) * state_.round_times_.n_columns_ + l_idx);
       assert(prev_round_time != kInvalid);
       // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
       //printf("CPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);

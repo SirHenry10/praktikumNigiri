@@ -218,7 +218,6 @@ TEST(routing, gpu_raptor) {
 
 
   auto gtt = translate_tt_in_gtt(tt);
-
   generate_ontrip_train_query(tt, t->first, 1, q);
   auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
   std::stringstream ss1;

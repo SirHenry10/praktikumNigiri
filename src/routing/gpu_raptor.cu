@@ -720,9 +720,9 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
             : kInvalidGpuDelta<SearchDir>;
     // vorherige Ankunftszeit an der Station
     printf("GPU K %d", k);
-    auto const prev_round_time = round_times_[(k - 1) * column_count_round_times_ + l_idx];
+    auto const prev_round_time = round_times_[(k-1) * column_count_round_times_ + l_idx];
     if(k==2) printf("GPU l_idx: %d",l_idx);
-    if(k==3)printf("GPU round_times k=1 %d", prev_round_time);
+    if(k==3)printf("GPU round_times k=1 %d, idx: %d", prev_round_time, (k-1) * column_count_round_times_ + l_idx);
     assert(prev_round_time != kInvalidGpuDelta<SearchDir>);
     // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
     //printf("GPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
@@ -960,8 +960,8 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
         }
       }
       ++stats_[idx%32].n_earliest_arrival_updated_by_footpath_;
-      printf("GPU footpaths update_arrivals %d ,value: %d", (k-1) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
-      bool updated = update_arrival(round_times_,(k-1) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
+      printf("GPU footpaths update_arrivals %d ,value: %d", (k) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
+      bool updated = update_arrival(round_times_,(k) * column_count_round_times_ + gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
       best_[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
       if(updated){
         mark(station_mark_, gpu_to_idx(gpu_location_idx_t{fp.target_}));
@@ -986,15 +986,17 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
   }
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
-  for(auto idx = global_t_id;
-       idx < n_locations; idx += global_stride){
-    if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
-      auto const end_time = gpu_clamp(get_best<SearchDir>(best_[idx], tmp_[idx]) + dir<SearchDir>(dist_to_end_[idx]));
-      if(is_better<SearchDir>(end_time, gpu_kIntermodalTarget[(*best_)].v_)){
-        printf("GPU intermodal_footpaths update_arrivals %d ,value: %d", (k-1) * column_count_round_times_ + gpu_kIntermodalTarget->v_,end_time);
-        bool updated = update_arrival(round_times_, (k-1) * column_count_round_times_ + gpu_kIntermodalTarget->v_, end_time);
-        gpu_kIntermodalTarget[(*best_)].v_ = end_time;
-        update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
+  if(global_t_id == 0){
+    for(auto idx = 0U; idx != n_locations; ++idx){
+      if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
+        auto const end_time = gpu_clamp(get_best<SearchDir>(best_[idx], tmp_[idx]) + dir<SearchDir>(dist_to_end_[idx]));
+        printf("GPU intermodal_footpaths end_time: %d, gpu_kIntermodalTarget: %d",end_time,best_[gpu_to_idx(*gpu_kIntermodalTarget)]);
+        if(is_better<SearchDir>(end_time, best_[gpu_to_idx(*gpu_kIntermodalTarget)])){
+          printf("GPU intermodal_footpaths update_arrivals %d ,value: %d", (k) * column_count_round_times_ + gpu_kIntermodalTarget->v_,end_time);
+          bool updated = update_arrival(round_times_, (k) * column_count_round_times_ + gpu_kIntermodalTarget->v_, end_time);
+          best_[gpu_to_idx(*gpu_kIntermodalTarget)] = end_time;
+          update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
+        }
       }
     }
   }
@@ -1055,7 +1057,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   auto const global_stride = get_global_stride();
   //TODO sicher, dass man über n_locations iterieren muss? -> aufpassen, dass round_times nicht out of range zugegriffen wird
   for(auto idx = global_t_id; idx < n_locations; idx += global_stride){
-    auto test =round_times_[(k-1) * column_count_round_times_ +idx];
+    auto test =round_times_[(k) * column_count_round_times_ +idx];
     auto test2 = best_[idx];
     best_[global_t_id] =get_best<SearchDir>(test, test2);
     if(is_dest_[idx]){
