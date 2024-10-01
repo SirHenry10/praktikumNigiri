@@ -581,6 +581,7 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
         gpu_it_range{i == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(event_times),
                  gpu_get_end_it<SearchDir>(event_times)};
 
+    printf("GPU i: %d,seek_first_day: %d",i,seek_first_day); //TODO: seek_first_day() ist 0
     for (auto r :event_times) {
       printf("gpu event_time: %d",r);
     }
@@ -602,8 +603,9 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
         //hier geht cpu rein
         return {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
       }
-
+      printf("GPU Test1: rtr , t_offset: %d, k: %d , it %d!",t_offset,k,it);
       auto const t = (*route_transport_ranges)[r][t_offset];
+      printf("Test2: rtr");
       if (i == 0U && !is_better_or_eq<SearchDir>(mam_at_stop.count(), ev_mam)) {
         continue;
       }
@@ -643,7 +645,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
                   gpu_delta const* route_stop_times,
                   gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
   auto const stop_seq = (*route_location_seq)[r];
-
+  printf("Test k: %d",k);
   // diese Variable ist das Problem beim Parallelisieren
   auto et = gpu_transport{};
   // hier gehen wir durch alle Stops der Route r → das wollen wir in update_smaller/bigger machen
@@ -796,7 +798,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
   /*
   for(auto r_idx = start_r_id;
        r_idx < n_routes; r_idx += stride){
-  */
+    */
   if(get_global_thread_id() == 0)
   for (auto r_idx = 0U; r_idx != n_routes; ++r_idx) {
 
@@ -859,7 +861,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                                                    route_clasz);
 
       }
-      */
+        */
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     column_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
                                     base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);

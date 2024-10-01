@@ -106,18 +106,18 @@ __host__ __device__ inline gpu_delta_t to_gpu_delta(gpu_day_idx_t const day, std
 template <gpu_direction SearchDir, typename T>
 __host__ __device__ auto gpu_get_begin_it(T const& t) {
   if constexpr (SearchDir == gpu_direction::kForward) {
-    return t.data();
+    return t.begin();
   } else {
-    return t.data() + t.size() - 1;
+    return t.rbegin();
   }
 }
 
 template <gpu_direction SearchDir, typename T>
 __host__ __device__ auto gpu_get_end_it(T const& t) {
   if constexpr ((SearchDir == gpu_direction::kForward)) {
-    return t.data() + t.size();;
+    return t.end();
   } else {
-    return t.data() - 1;
+    return t.rend();
   }
 }
 
@@ -142,7 +142,7 @@ struct gpu_raptor {
          gpu_clasz_mask_t const& allowed_claszes,
              int const& n_days)
       : gtt_{gtt},
-        mem_{mem}//ToDO: verwaltung von mem nicht übergebn drausen lassen...
+        mem_{mem}
         {
 
     std::cerr << "gpu_raptor()" << std::endl;
@@ -190,18 +190,17 @@ struct gpu_raptor {
                            n_days_,
                            kUnreachable_,
                            kIntermodalTarget_,
-                           kMaxTravelTimeTicks_);//TODO: destroy gpu_timetable
+                           kMaxTravelTimeTicks_);
   }
   algo_stats_t get_stats() const {
     return stats_;
   }
 
   void reset_arrivals() {
-    mem_->reset_arrivals_async(); //hier nur reset von time_at_dest und round_times
+    mem_->reset_arrivals_async();
   }
 
   void next_start_time() {
-    //hier reset von tmp_,best_,prev_station_mark_,station_mark_,route_mark_ //TODO: why not any_station_marked?
     mem_->next_start_time_async();
   }
 

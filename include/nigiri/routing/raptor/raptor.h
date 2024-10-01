@@ -694,6 +694,7 @@ private:
       auto const ev_time_range =
           it_range{i == 0U ? seek_first_day() : get_begin_it(event_times),
                    get_end_it(event_times)};
+      printf("CPU i: %d,seek_first_day: %d",i,seek_first_day);
       printf("cpu ev_time_range %d",ev_time_range.begin());
       printf("cpu ev_time_range %d",ev_time_range.end());
       for (auto r :event_times) {
@@ -722,7 +723,7 @@ private:
               to_unix(time_at_dest_[k]));
           return {transport_idx_t::invalid(), day_idx_t::invalid()};
         }
-
+        printf("CPU Test1: rtr , t_offset: %d, k: %d , it %d!",t_offset,k,it);
         auto const t = tt_.route_transport_ranges_[r][t_offset];
 
         if (i == 0U && !is_better_or_eq(mam_at_stop.count(), ev_mam)) {

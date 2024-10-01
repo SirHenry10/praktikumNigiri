@@ -150,45 +150,16 @@ TEST(routing, gpu_types) {
       &tt.route_stop_time_ranges_);
 
 }
-void merge_file(const std::string& output_file, int num_parts) {
-  std::ofstream outfile(output_file, std::ios::binary);
-  if (!outfile.is_open()) {
-    std::cerr << "Fehler beim Erstellen der Ausgabedatei: " << output_file << std::endl;
-    return;
-  }
-
-  char buffer[1024];  // Ein kleiner Puffer, um die Teile zu lesen
-  for (int part = 0; part < num_parts; ++part) {
-    std::string part_file = output_file + ".part" + std::to_string(part);
-    std::ifstream infile(part_file, std::ios::binary);
-
-    if (!infile.is_open()) {
-      std::cerr << "Fehler beim Öffnen des Teils: " << part_file << std::endl;
-      return;
-    }
-
-    // Lese den Teil und füge ihn in die Ausgangsdatei ein
-    while (!infile.eof()) {
-      infile.read(buffer, sizeof(buffer));
-      outfile.write(buffer, infile.gcount());
-    }
-
-    infile.close();
-  }
-
-  outfile.close();
-  std::cout << "Datei erfolgreich zusammengefügt: " << output_file << std::endl;
-}
 std::filesystem::path project_root = std::filesystem::current_path().parent_path();
 std::filesystem::path test_path_germany(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs"); //Alle nicht ASCII zeichen entfernt.
 fs_dir test_files_germany(test_path_germany);
-/*
+
 TEST(routing, gpu_raptor_germany) {
   timetable tt;
   std::cout << "Lade Fahrplan..." << std::endl;
-  tt.date_range_ = {date::sys_days{2024_y / September / 27},
+  tt.date_range_ = {date::sys_days{2024_y / September / 28},
                     date::sys_days{2024_y / September / 29}}; //test_files_germany only available until December 14
-  load_timetable({}, source_idx_t{0}, test_files_germany, tt); //files müssen ohne sonderzeichen sein!
+  load_timetable({}, source_idx_t{0}, test_files_germany, tt); //files müssen ohne nicht ascii zeichen sein!
   std::cout << "Fahrplan geladen." << std::endl;
 
   std::cout << "Finalisiere Fahrplan..." << std::endl;
@@ -222,8 +193,7 @@ TEST(routing, gpu_raptor_germany) {
   }
   EXPECT_EQ(ss1.str(), ss2.str());
 }
-*/
-/*
+
 TEST(routing, gpu_raptor) {
   using namespace date;
   timetable tt;
@@ -245,11 +215,14 @@ TEST(routing, gpu_raptor) {
       .destination_ = {{tt.locations_.location_id_to_idx_.at(
                             {.id_ = "0000004", .src_ = src}),
                         10_minutes, 77U}}};
-  generate_ontrip_train_query(tt, t->first, 1, q);
+
 
   auto gtt = translate_tt_in_gtt(tt);
-  //auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
-  auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q));
+
+  generate_ontrip_train_query(tt, t->first, 1, q);
+  auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
+
+
 
   std::stringstream ss1;
   ss1 << "\n";
@@ -257,16 +230,17 @@ TEST(routing, gpu_raptor) {
     x.print(std::cout, tt);
     ss1 << "\n\n";
   }
-
+generate_ontrip_train_query(tt, t->first, 1, q);
+  auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q));
   std::stringstream ss2;
   ss2 << "\n";
   for (auto const& x :  results_gpu) {
     x.print(std::cout, tt);
     ss2 << "\n\n";
   }
-  //EXPECT_EQ(ss1.str(), ss2.str());
+  EXPECT_EQ(ss1.str(), ss2.str());
 }
-*/
+
 
 
 TEST(routing, gpu_raptor_forward) {
@@ -332,5 +306,50 @@ TEST(routing, gpu_raptor_backwards) {
     ss2 << "\n\n";
   }
   EXPECT_EQ(ss1.str(), ss2.str());
+  destroy_gpu_timetable(gtt);
+}
+TEST(routing, gpu_raptor_ontrip_train) {
+  using namespace date;
+  timetable tt;
+  tt.date_range_ = full_period();
+  constexpr auto const src = source_idx_t{0U};
+  load_timetable(src, loader::hrd::hrd_5_20_26, files(), tt);
+  finalize(tt);
+  auto gtt = translate_tt_in_gtt(tt);
+
+  auto const t = get_ref_transport(
+      tt, {"3374/0000008/1350/0000006/2950/", source_idx_t{0}},
+      March / 29 / 2020, false);
+  ASSERT_TRUE(t.has_value());
+
+  auto q = routing::query{
+      .start_time_ = {},
+      .start_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
+      .dest_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
+      .start_ = {},
+      .destination_ = {{tt.locations_.location_id_to_idx_.at(
+                            {.id_ = "0000004", .src_ = src}),
+                        10_minutes, 77U}}};
+  /*
+  generate_ontrip_train_query(tt, t->first, 1, q);
+
+  auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
+  std::stringstream ss1;
+  ss1 << "\n";
+  for (auto const& x :  results_cpu) {
+    x.print(std::cout, tt);
+    ss1 << "\n\n";
+  }
+   */
+  generate_ontrip_train_query(tt, t->first, 1, q);
+  auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q));
+  printf("GPU:");
+  std::stringstream ss2;
+  ss2 << "\n";
+  for (auto const& x :  results_gpu) {
+    x.print(std::cout, tt);
+    ss2 << "\n\n";
+  }
+  //EXPECT_EQ(ss1.str(), ss2.str());
   destroy_gpu_timetable(gtt);
 }
