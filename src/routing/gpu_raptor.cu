@@ -903,7 +903,6 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
         ? 0 : dir<SearchDir>((*transfer_time)[gpu_location_idx_t{l_idx}]).count();
     const auto fp_target_time =
         static_cast<gpu_delta_t>(tmp_[l_idx] + tt);
-    assert(k!=2 && l_idx!=2);
     if(is_better<SearchDir>(fp_target_time, best_[l_idx])
         && is_better<SearchDir>(fp_target_time, time_at_dest_[k])){
       if(lb_[l_idx] == kUnreachable
@@ -914,7 +913,7 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
       ++stats_[l_idx%32].n_earliest_arrival_updated_by_footpath_;
       printf("column_count_round_times_: %d",column_count_round_times_);
       if(fp_target_time==435 || fp_target_time==495 || fp_target_time==465){
-        printf("GPU Fehler transfers k=%d, l_idx=%d fptt=%d", k, l_idx, fp_target_time);
+        printf("GPU Fehler transfers k=%d, l_idx=%d fptt=%d at %d", k, l_idx, fp_target_time, k * column_count_round_times_ + l_idx);
       }
       bool updated = update_arrival(round_times_, k * column_count_round_times_ + l_idx, fp_target_time);
       best_[l_idx] = fp_target_time;

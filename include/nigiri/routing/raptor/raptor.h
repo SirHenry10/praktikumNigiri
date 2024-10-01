@@ -150,6 +150,7 @@ struct raptor {
       }
 
       if (!any_marked) {
+        printf("CPU return round %d", k);
         trace_print_state_after_round();
         break;
       }
@@ -343,6 +344,9 @@ private:
         ++stats_.n_earliest_arrival_updated_by_footpath_;
         if(k==1)
         printf("fp_target CPU: %d,i: %d",fp_target_time,i);
+        if(fp_target_time==495 || fp_target_time==465 || fp_target_time==435){
+          printf("CPU Fehler transfers k=%d i=%d fp=%d at %d", k, i, fp_target_time, k*state_.round_times_.n_columns_+i);
+        }
         state_.round_times_[k][i] = fp_target_time;
         state_.best_[i] = fp_target_time;
         state_.station_mark_[i] = true;
@@ -395,6 +399,9 @@ private:
 
           ++stats_.n_earliest_arrival_updated_by_footpath_;
           printf("CPU footpaths update_arrivals %d ,value: %d", k * state_.round_times_.n_columns_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
+          if(fp_target_time==495){
+            printf("CPU Fehler footpaths %d", k);
+          }
           state_.round_times_[k][to_idx(fp.target())] = fp_target_time;
           state_.best_[to_idx(fp.target())] = fp_target_time;
           state_.station_mark_[to_idx(fp.target())] = true;
@@ -427,6 +434,9 @@ private:
         printf("CPU intermodal_footpaths end_time: %d, kIntermodalTarget: %d",end_time,state_.best_[kIntermodalTarget]);
         if (is_better(end_time, state_.best_[kIntermodalTarget])) {
           printf("CPU intermodal_footpaths update_arrivals %d ,value: %d ,k: %d", (k) * state_.round_times_.n_columns_ + kIntermodalTarget,end_time,k);
+          if(end_time==495){
+            printf("CPU Fehler intermodal footpath %d", k);
+          }
           state_.round_times_[k][kIntermodalTarget] = end_time;
           state_.best_[kIntermodalTarget] = end_time;
           update_time_at_dest(k, end_time);
