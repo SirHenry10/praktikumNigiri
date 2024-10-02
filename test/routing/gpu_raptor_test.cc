@@ -6,7 +6,6 @@
 #include "nigiri/loader/hrd/load_timetable.h"
 #include "nigiri/loader/init_finish.h"
 #include "nigiri/lookup/get_transport.h"
-#include "nigiri/lookup/get_transport.h"
 #include "nigiri/routing/gpu_raptor_translator.h"
 #include "nigiri/routing/gpu_types.h"
 #include "nigiri/routing/ontrip_train.h"
@@ -157,26 +156,33 @@ fs_dir test_files_germany(test_path_germany);
 TEST(routing, gpu_raptor_germany) {
   timetable tt;
   std::cout << "Lade Fahrplan..." << std::endl;
-  tt.date_range_ = {date::sys_days{2024_y / September / 28},
+  tt.date_range_ = {date::sys_days{2024_y / September / 25},
                     date::sys_days{2024_y / September / 29}}; //test_files_germany only available until December 14
-  load_timetable({}, source_idx_t{0}, test_files_germany, tt); //files müssen ohne nicht ascii zeichen sein!
+  loader::gtfs::load_timetable({}, source_idx_t{0}, test_files_germany, tt); //only ASCII zeichen!
   std::cout << "Fahrplan geladen." << std::endl;
 
   std::cout << "Finalisiere Fahrplan..." << std::endl;
-  finalize(tt);
+  loader::finalize(tt);
   std::cout << "Fahrplan finalisiert." << std::endl;
   auto gtt = translate_tt_in_gtt(tt);
 
   std::cout << "Starte Raptor-Suche..." << std::endl;
   //Flensburg Holzkrugweg -> Oberstdorf, Campingplatz
+
+  auto start_cpu = std::chrono::high_resolution_clock::now();
   auto const results_cpu = raptor_search(tt, nullptr, "de:01001:27334::1", "de:09780:9256:0:1",
                                          sys_days{September / 28 / 2024} + 2h,
                                          nigiri::direction::kBackward);
+  auto end_cpu = std::chrono::high_resolution_clock::now();
+  auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
 
+  auto start_gpu = std::chrono::high_resolution_clock::now();
   std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
   auto const results_gpu = raptor_search(tt, nullptr ,gtt, "de:01001:27334::1", "de:09780:9256:0:1",
                                          sys_days{September / 28 / 2024} + 2h,
                                          nigiri::direction::kBackward);
+  auto end_gpu = std::chrono::high_resolution_clock::now();
+  auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
   std::cout << "Raptor-Suche abgeschlossen." << std::endl;
   std::stringstream ss1;
@@ -191,10 +197,15 @@ TEST(routing, gpu_raptor_germany) {
     x.print(std::cout, tt);
     ss2 << "\n\n";
   }
+  std::cout << ss2.str();
+  // Output the benchmarking results
+  std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+  std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
   EXPECT_EQ(ss1.str(), ss2.str());
+  destroy_gpu_timetable(gtt);
 }
 
-TEST(routing, gpu_raptor) {
+TEST(routing, gpu_raptor_on_train_1) {
   using namespace date;
   timetable tt;
   tt.date_range_ = full_period();
@@ -206,8 +217,8 @@ TEST(routing, gpu_raptor) {
       tt, {"3374/0000008/1350/0000006/2950/", source_idx_t{0}},
       March / 29 / 2020, false);
   ASSERT_TRUE(t.has_value());
-
-  auto q = routing::query{
+  auto gtt = translate_tt_in_gtt(tt);
+  auto q1 = routing::query{
       .start_time_ = {},
       .start_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
       .dest_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
@@ -216,26 +227,33 @@ TEST(routing, gpu_raptor) {
                             {.id_ = "0000004", .src_ = src}),
                         10_minutes, 77U}}};
 
-
-  auto gtt = translate_tt_in_gtt(tt);
-
-  generate_ontrip_train_query(tt, t->first, 1, q);
-  auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
+  generate_ontrip_train_query(tt, t->first, 1, q1);
+  auto const results_cpu = raptor_search(tt, nullptr, std::move(q1));
   std::stringstream ss1;
   ss1 << "\n";
   for (auto const& x :  results_cpu) {
     x.print(std::cout, tt);
     ss1 << "\n\n";
   }
-  generate_ontrip_train_query(tt, t->first, 1, q);
-  auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q));
+  auto q2 = routing::query{
+      .start_time_ = {},
+      .start_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
+      .dest_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
+      .start_ = {},
+      .destination_ = {{tt.locations_.location_id_to_idx_.at(
+                            {.id_ = "0000004", .src_ = src}),
+                        10_minutes, 77U}}};
+  generate_ontrip_train_query(tt, t->first, 1, q2);
+  auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q2));
   std::stringstream ss2;
   ss2 << "\n";
   for (auto const& x :  results_gpu) {
     x.print(std::cout, tt);
     ss2 << "\n\n";
   }
+  std::cout << ss2.str();
   EXPECT_EQ(ss1.str(), ss2.str());
+  destroy_gpu_timetable(gtt);
 }
 
 
@@ -264,7 +282,6 @@ TEST(routing, gpu_raptor_forward) {
     x.print(std::cout, tt);
     ss1 << "\n\n";
   }
-
   // GPU Benchmarking
   auto start_gpu = std::chrono::high_resolution_clock::now();
   auto const results_gpu = raptor_search(
@@ -280,12 +297,13 @@ TEST(routing, gpu_raptor_forward) {
     x.print(std::cout, tt);
     ss2 << "\n\n";
   }
-
+  std::cout << ss2.str();
   EXPECT_EQ(ss1.str(), ss2.str());
 
   // Output the benchmarking results
   std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
   std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+  destroy_gpu_timetable(gtt);
 }
 
 
@@ -335,7 +353,7 @@ TEST(routing, gpu_raptor_ontrip_train) {
       March / 29 / 2020, false);
   ASSERT_TRUE(t.has_value());
 
-  auto q = routing::query{
+  auto q1 = routing::query{
       .start_time_ = {},
       .start_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
       .dest_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
@@ -344,17 +362,25 @@ TEST(routing, gpu_raptor_ontrip_train) {
                             {.id_ = "0000004", .src_ = src}),
                         10_minutes, 77U}}};
 
-  /*generate_ontrip_train_query(tt, t->first, 1, q);
+  generate_ontrip_train_query(tt, t->first, 1, q1);
 
-  auto const results_cpu = raptor_search(tt, nullptr, std::move(q));
+  auto const results_cpu = raptor_search(tt, nullptr, std::move(q1));
   std::stringstream ss1;
   ss1 << "\n";
   for (auto const& x :  results_cpu) {
     x.print(std::cout, tt);
     ss1 << "\n\n";
-  }*/
-  generate_ontrip_train_query(tt, t->first, 1, q);
-  auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q));
+  }
+  auto q2 = routing::query{
+      .start_time_ = {},
+      .start_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
+      .dest_match_mode_ = nigiri::routing::location_match_mode::kIntermodal,
+      .start_ = {},
+      .destination_ = {{tt.locations_.location_id_to_idx_.at(
+                            {.id_ = "0000004", .src_ = src}),
+                        10_minutes, 77U}}};
+  generate_ontrip_train_query(tt, t->first, 1, q2);
+  auto const results_gpu = raptor_search(tt, nullptr,gtt, std::move(q2));
   printf("GPU:");
   std::stringstream ss2;
   ss2 << "\n";
@@ -362,6 +388,183 @@ TEST(routing, gpu_raptor_ontrip_train) {
     x.print(std::cout, tt);
     ss2 << "\n\n";
   }
+  std::cout << ss2.str();
+  EXPECT_EQ(ss1.str(), ss2.str());
+  destroy_gpu_timetable(gtt);
+}
+
+namespace {
+mem_dir gtrfs_test_files() {
+  return mem_dir::read(R"(
+     "(
+# agency.txt
+agency_name,agency_url,agency_timezone,agency_lang,agency_phone,agency_fare_url,agency_id
+"grt",https://grt.ca,America/New_York,en,519-585-7555,http://www.grt.ca/en/fares/FarePrices.asp,grt
+
+# stops.txt
+stop_id,stop_code,stop_name,stop_desc,stop_lat,stop_lon,zone_id,stop_url,location_type,parent_station,wheelchair_boarding,platform_code
+2351,2351,Block Line Station,,  43.422095, -80.462740,,
+1033,1033,Block Line / Hanover,,  43.419023, -80.466600,,,0,,1,
+2086,2086,Block Line / Kingswood,,  43.417796, -80.473666,,,0,,1,
+2885,2885,Block Line / Strasburg,,  43.415733, -80.480340,,,0,,1,
+2888,2888,Block Line / Laurentian,,  43.412766, -80.491494,,,0,,1,
+3189,3189,Block Line / Westmount,,  43.411515, -80.498966,,,0,,1,
+3895,3895,Fischer-Hallman / Westmount,,  43.406717, -80.500091,,,0,,1,
+3893,3893,Fischer-Hallman / Activa,,  43.414221, -80.508534,,,0,,1,
+2969,2969,Fischer-Hallman / Ottawa,,  43.416570, -80.510880,,,0,,1,
+2971,2971,Fischer-Hallman / Mcgarry,,  43.423420, -80.518818,,,0,,1,
+2986,2986,Fischer-Hallman / Queens,,  43.428585, -80.523337,,,0,,1,
+3891,3891,Fischer-Hallman / Highland,,  43.431587, -80.525376,,,0,,1,
+3143,3143,Fischer-Hallman / Victoria,,  43.436843, -80.529202,,,0,,1,
+3144,3144,Fischer-Hallman / Stoke,,  43.439462, -80.535435,,,0,,1,
+3146,3146,Fischer-Hallman / University Ave.,,  43.444402, -80.545691,,,0,,1,
+1992,1992,Fischer-Hallman / Thorndale,,  43.448678, -80.550034,,,0,,1,
+1972,1972,Fischer-Hallman / Erb,,  43.452906, -80.553686,,,0,,1,
+3465,3465,Fischer-Hallman / Keats Way,,  43.458370, -80.557824,,,0,,1,
+3890,3890,Fischer-Hallman / Columbia,,  43.467368, -80.565646,,,0,,1,
+1117,1117,Columbia / U.W. - Columbia Lake Village,,  43.469091, -80.561788,,,0,,1,
+3899,3899,Columbia / University Of Waterloo,,  43.474462, -80.546591,,,0,,1,
+1223,1223,University Of Waterloo Station,,  43.474023, -80.540433,,
+3887,3887,Phillip / Columbia,,  43.476409, -80.539399,,,0,,1,
+2524,2524,Columbia / Hazel,,  43.480027, -80.531130,,,0,,1,
+4073,4073,King / Columbia,,  43.482448, -80.526106,,,0,,1,
+1916,1916,King / Weber,,  43.484988, -80.526677,,,0,,1,
+1918,1918,King / Manulife,,  43.491207, -80.528026,,,0,,1,
+1127,1127,Conestoga Station,,  43.498036, -80.528999,,
+
+# calendar_dates.txt
+service_id,date,exception_type
+201-Weekday-66-23SUMM-1111100,20230703,1
+201-Weekday-66-23SUMM-1111100,20230704,1
+201-Weekday-66-23SUMM-1111100,20230705,1
+201-Weekday-66-23SUMM-1111100,20230706,1
+201-Weekday-66-23SUMM-1111100,20230707,1
+201-Weekday-66-23SUMM-1111100,20230710,1
+201-Weekday-66-23SUMM-1111100,20230711,1
+201-Weekday-66-23SUMM-1111100,20230712,1
+201-Weekday-66-23SUMM-1111100,20230713,1
+201-Weekday-66-23SUMM-1111100,20230714,1
+201-Weekday-66-23SUMM-1111100,20230717,1
+201-Weekday-66-23SUMM-1111100,20230718,1
+201-Weekday-66-23SUMM-1111100,20230719,1
+201-Weekday-66-23SUMM-1111100,20230720,1
+201-Weekday-66-23SUMM-1111100,20230721,1
+201-Weekday-66-23SUMM-1111100,20230724,1
+201-Weekday-66-23SUMM-1111100,20230725,1
+201-Weekday-66-23SUMM-1111100,20230726,1
+201-Weekday-66-23SUMM-1111100,20230727,1
+201-Weekday-66-23SUMM-1111100,20230728,1
+201-Weekday-66-23SUMM-1111100,20230731,1
+201-Weekday-66-23SUMM-1111100,20230801,1
+201-Weekday-66-23SUMM-1111100,20230802,1
+201-Weekday-66-23SUMM-1111100,20230803,1
+201-Weekday-66-23SUMM-1111100,20230804,1
+201-Weekday-66-23SUMM-1111100,20230808,1
+201-Weekday-66-23SUMM-1111100,20230809,1
+201-Weekday-66-23SUMM-1111100,20230810,1
+201-Weekday-66-23SUMM-1111100,20230811,1
+201-Weekday-66-23SUMM-1111100,20230814,1
+201-Weekday-66-23SUMM-1111100,20230815,1
+201-Weekday-66-23SUMM-1111100,20230816,1
+201-Weekday-66-23SUMM-1111100,20230817,1
+201-Weekday-66-23SUMM-1111100,20230818,1
+201-Weekday-66-23SUMM-1111100,20230821,1
+201-Weekday-66-23SUMM-1111100,20230822,1
+201-Weekday-66-23SUMM-1111100,20230823,1
+201-Weekday-66-23SUMM-1111100,20230824,1
+201-Weekday-66-23SUMM-1111100,20230825,1
+201-Weekday-66-23SUMM-1111100,20230828,1
+201-Weekday-66-23SUMM-1111100,20230829,1
+201-Weekday-66-23SUMM-1111100,20230830,1
+201-Weekday-66-23SUMM-1111100,20230831,1
+201-Weekday-66-23SUMM-1111100,20230901,1
+
+# routes.txt
+route_id,agency_id,route_short_name,route_long_name,route_desc,route_type
+201,grt,iXpress Fischer-Hallman,,3,https://www.grt.ca/en/schedules-maps/schedules.aspx
+
+# trips.txt
+route_id,service_id,trip_id,trip_headsign,direction_id,block_id,shape_id,wheelchair_accessible,bikes_allowed
+201,201-Weekday-66-23SUMM-1111100,3248651,Conestoga Station,0,340341,2010025,1,1
+
+# stop_times.txt
+trip_id,arrival_time,departure_time,stop_id,stop_sequence,pickup_type,drop_off_type
+3248651,05:15:00,05:15:00,2351,1,0,0
+3248651,05:16:00,05:16:00,1033,2,0,0
+3248651,05:18:00,05:18:00,2086,3,0,0
+3248651,05:19:00,05:19:00,2885,4,0,0
+3248651,05:21:00,05:21:00,2888,5,0,0
+3248651,05:22:00,05:22:00,3189,6,0,0
+3248651,05:24:00,05:24:00,3895,7,0,0
+3248651,05:26:00,05:26:00,3893,8,0,0
+3248651,05:27:00,05:27:00,2969,9,0,0
+3248651,05:29:00,05:29:00,2971,10,0,0
+3248651,05:31:00,05:31:00,2986,11,0,0
+3248651,05:32:00,05:32:00,3891,12,0,0
+3248651,05:33:00,05:33:00,3143,13,0,0
+3248651,05:35:00,05:35:00,3144,14,0,0
+3248651,05:37:00,05:37:00,3146,15,0,0
+3248651,05:38:00,05:38:00,1992,16,0,0
+3248651,05:39:00,05:39:00,1972,17,0,0
+3248651,05:40:00,05:40:00,3465,18,0,0
+3248651,05:42:00,05:42:00,3890,19,0,0
+3248651,05:43:00,05:43:00,1117,20,0,0
+3248651,05:46:00,05:46:00,3899,21,0,0
+3248651,05:47:00,05:49:00,1223,22,0,0
+3248651,05:50:00,05:50:00,3887,23,0,0
+3248651,05:53:00,05:53:00,2524,24,0,0
+3248651,05:54:00,05:54:00,4073,25,0,0
+3248651,05:55:00,05:55:00,1916,26,0,0
+3248651,05:56:00,05:56:00,1918,27,0,0
+3248651,05:58:00,05:58:00,1127,28,1,0
+)");
+}
+}  // namespace
+TEST(routing, gtfs_gpu_raptor) {
+  // Load static timetable.
+  timetable tt;
+  register_special_stations(tt);
+  tt.date_range_ = {date::sys_days{2023_y / August / 9},
+                    date::sys_days{2023_y / August / 12}};
+  load_timetable({}, source_idx_t{0}, gtrfs_test_files(), tt);
+  finalize(tt);
+  auto gtt = translate_tt_in_gtt(tt);
+
+  // CPU Benchmarking
+  auto start_cpu = std::chrono::high_resolution_clock::now();
+  auto const results_cpu = raptor_search(
+      tt, nullptr, "2351", "1127",
+      interval{unixtime_t{sys_days{2023_y / August / 10}} + 5_hours,
+               unixtime_t{sys_days{2023_y / August / 11}} + 6_hours});
+  auto end_cpu = std::chrono::high_resolution_clock::now();
+  auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+
+  std::stringstream ss1;
+  ss1 << "\n";
+  for (auto const& x :  results_cpu) {
+    x.print(std::cout, tt);
+    ss1 << "\n\n";
+  }
+  // GPU Benchmarking
+  auto start_gpu = std::chrono::high_resolution_clock::now();
+  auto const results_gpu = raptor_search(
+      tt, nullptr, gtt, "2351", "1127",
+      interval{unixtime_t{sys_days{2023_y / August / 10}} + 5_hours,
+               unixtime_t{sys_days{2023_y / August / 11}} + 6_hours});
+  auto end_gpu = std::chrono::high_resolution_clock::now();
+  auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+
+  std::stringstream ss2;
+  ss2 << "\n";
+  for (auto const& x : results_gpu) {
+    x.print(std::cout, tt);
+    ss2 << "\n\n";
+  }
+  std::cout << ss2.str();
   //EXPECT_EQ(ss1.str(), ss2.str());
+
+  // Output the benchmarking results
+  std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+  std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
   destroy_gpu_timetable(gtt);
 }

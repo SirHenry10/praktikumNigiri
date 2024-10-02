@@ -48,35 +48,31 @@ __device__ void reset_store(unsigned int* store, int const store_size) {
   }
 }
 
+template <gpu_direction SearchDir>
 __device__ bool update_arrival(gpu_delta_t* base_,
                                const unsigned int l_idx, gpu_delta_t const val){
   gpu_delta_t* const arr_address = &base_[l_idx];
   auto* base_address = (unsigned int*)((size_t)arr_address & ~2);
-  unsigned int old_value, assumed, new_value;
-
-  old_value = *base_address;
-
-    assumed = old_value;
+  int old_value, new_value;
+  do {
+    // Lese den gesamten 32-Bit-Wert atomar
+    old_value = atomicCAS(base_address, *base_address, *base_address);
 
     // Setze den 16-Bit-Wert korrekt in die oberen oder unteren 16 Bit
     if ((size_t)arr_address & 2) {
-      // Aktualisiere die oberen 16 Bits
-      new_value = (assumed & 0x0000FFFF) | ((val & 0xFFFF) << 16);
+      // Wir arbeiten an den oberen 16 Bits
+      unsigned int old_upper = (old_value >> 16) & 0xFFFF;
+      unsigned int new_upper = get_best<SearchDir>(old_upper, val);
+      new_value = (old_value & 0x0000FFFF) | (new_upper << 16);
     } else {
-      // Aktualisiere die unteren 16 Bits
-      new_value = (assumed & 0xFFFF0000) | (val & 0xFFFF);
+      // Wir arbeiten an den unteren 16 Bits
+      unsigned int old_lower = old_value & 0xFFFF;
+      unsigned int new_lower = get_best<SearchDir>(old_lower, val);
+      new_value = (old_value & 0xFFFF0000) | new_lower;
     }
 
-    // Wenn der Wert bereits derselbe ist, dann kein Update nötig
-    if (new_value == old_value) {
-      printf("update arrivals False: %d\n", val);
-      return false;
-    }
-
-    printf("update arrivals True: %d\n", val);
-    old_value = atomicCAS(base_address, assumed, new_value);
-
-
+    // Versuche, den neuen 32-Bit-Wert atomar zu schreiben, falls sich der Wert geändert hat
+  } while (atomicCAS(base_address, old_value, new_value) != old_value);
   return true;
 }
 
@@ -567,7 +563,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
                   gpu_delta const* route_stop_times,
                   gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
   auto const stop_seq = (*route_location_seq)[r];
-  printf("Test k: %d",k);
+  printf("GPU Test k: %d",k);
   // diese Variable ist das Problem beim Parallelisieren
   auto et = gpu_transport{};
   // hier gehen wir durch alle Stops der Route r → das wollen wir in update_smaller/bigger machen
@@ -580,7 +576,11 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
 
     // wenn transportmittel an dem Tag nicht fährt &
     // wenn station nicht markiert ist, wird diese übersprungen → springt zur nächsten station
+    if(k==2)
+      printf("continue -1 k==2 GPU i:%d",i);
     if (!et.is_valid() && !marked(prev_station_mark_, l_idx)) {
+      if(k==2)
+        printf("continue 0 k==2 GPU i:%d",i);
       continue;
     }
     auto current_best = kInvalidGpuDelta<SearchDir>;
@@ -605,6 +605,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         // dann wird frühste Ankunftszeit an dieser Station aktualisiert
         // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
         ++stats_[get_global_thread_id()%32].n_earliest_arrival_updated_by_route_;
+        //update_arrival<SearchDir>(tmp_,l_idx,get_best<SearchDir>(by_transport, tmp_[l_idx]));
         tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
         mark(station_mark_, l_idx);
         current_best = by_transport;
@@ -617,10 +618,13 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     // oder es keine ausgehenden/eingehenden transportmittel gibt
     // oder die Station nicht markiert war
     if(k==2)
-      printf("counter k==2 GPU" );
+      printf("continue k==2 GPU is_last: %d, out: %d, prev: %d",is_last,!((SearchDir == gpu_direction::kForward)? stp.in_allowed() : stp.out_allowed()),!marked(prev_station_mark_, l_idx));
+
     if (is_last || !((SearchDir == gpu_direction::kForward) ? stp.in_allowed() : stp.out_allowed()) ||
         !marked(prev_station_mark_, l_idx)) {
       //dann wird diese übersprungen
+      if(k==2)
+        printf("continue k==2 GPU" );
       continue;
     }
 
@@ -642,8 +646,9 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     // vorherige Ankunftszeit an der Station
     printf("GPU K %d", k);
     auto const prev_round_time = round_times_[(k-1) * column_count_round_times_ + l_idx];
-    if(k==2) printf("GPU l_idx: %d",l_idx);
-    if(k==3)printf("GPU round_times k=1 %d, idx: %d", prev_round_time, (k-1) * column_count_round_times_ + l_idx);
+    if(k==2) printf("GPU l_idx: %d, test round_time = 50: %d",l_idx,round_times_[49]);
+    if(k==2)printf("GPU round_times k=2 %d, idx: %d", prev_round_time, (k-1) * column_count_round_times_ + l_idx);
+    if(k==2)printf("assert i:%d",i);
     assert(prev_round_time != kInvalidGpuDelta<SearchDir>);
     // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
     //printf("GPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
@@ -715,12 +720,13 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
     printf("loop_routes: begin2");
   }
   //Hier gehen wir durch alle Routen wie in update_routes_dev von Julian
+
   auto const stride = blockDim.y * gridDim.x;
   auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
   /*
   for(auto r_idx = start_r_id;
        r_idx < n_routes; r_idx += stride){
-    */
+*/
   if(get_global_thread_id() == 0)
   for (auto r_idx = 0U; r_idx != n_routes; ++r_idx) {
 
@@ -808,6 +814,7 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
 
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
+  printf("n_locations update transfers: %d",n_locations);
   for(auto l_idx = global_t_id;
        l_idx < n_locations; l_idx += global_stride){
 
@@ -829,7 +836,7 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
       ++stats_[l_idx%32].n_earliest_arrival_updated_by_footpath_;
       printf("GPU Fehler transfers k=%d, l_idx=%d fptt=%d at %d", k, l_idx, fp_target_time, k * column_count_round_times_ + l_idx);
 
-      bool updated = update_arrival(round_times_, k * column_count_round_times_ + l_idx, fp_target_time);
+      bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ + l_idx, fp_target_time);
       best_[l_idx] = fp_target_time;
       if(updated){
         mark(station_mark_, l_idx);
@@ -885,7 +892,7 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
       if(fp_target_time==435 || fp_target_time==495 || fp_target_time==465){
         printf("GPU Fehler footpaths k=%d, l_idx=%d fptt=%d", k, idx, fp_target_time);
       }
-      bool updated = update_arrival(round_times_, k * column_count_round_times_ +
+      bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ +
                             gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
       best_[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
       if(updated){
@@ -921,7 +928,7 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
           if(end_time==435 || end_time==495 || end_time==465){
             printf("GPU Fehler intermodalfootpaths k=%d, l_idx=%d et=%d", k, idx, end_time);
           }
-          bool updated = update_arrival(round_times_, k * column_count_round_times_ +
+          bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ +
                                            gpu_kIntermodalTarget->v_, end_time);
           best_[gpu_to_idx(*gpu_kIntermodalTarget)] = end_time;
           update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
@@ -961,21 +968,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                              gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                              gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz){
-
-  assert((*route_location_seq).data_.el_ != nullptr);
-  assert((*route_location_seq).bucket_starts_.el_ != nullptr);
-  assert((*location_routes).data_.el_ != nullptr);
-  assert((*location_routes).bucket_starts_.el_ != nullptr);
-  assert((*route_stop_time_ranges).el_ != nullptr);
-  assert((*route_transport_ranges).el_ != nullptr);
-  assert((*bitfields).el_ != nullptr);
-  assert((*transport_traffic_days).el_ != nullptr);
-  assert((*transfer_time).el_ != nullptr);
-  assert((*gpu_footpaths_in).data_.el_ != nullptr);
-  assert((*gpu_footpaths_in).bucket_starts_.el_ != nullptr);
-  assert((*gpu_footpaths_out).data_.el_ != nullptr);
-  assert((*gpu_footpaths_out).bucket_starts_.el_ != nullptr);
-  assert((*route_clasz).el_ != nullptr);
   // update_time_at_dest für alle locations
   if(get_global_thread_id() ==0){
   printf("raptor_round: %d \n",k);
@@ -1220,20 +1212,6 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
-  assert((*route_location_seq).data_.el_ != nullptr);
-  assert((*route_location_seq).bucket_starts_.el_ != nullptr);
-  assert((*location_routes).data_.el_ != nullptr);
-  assert((*location_routes).bucket_starts_.el_ != nullptr);
-  assert((*route_stop_time_ranges).el_ != nullptr);
-  assert((*route_transport_ranges).el_ != nullptr);
-  assert((*bitfields).el_ != nullptr);
-  assert((*transport_traffic_days).el_ != nullptr);
-  assert((*transfer_time).el_ != nullptr);
-  assert((*gpu_footpaths_in).data_.el_ != nullptr);
-  assert((*gpu_footpaths_in).bucket_starts_.el_ != nullptr);
-  assert((*gpu_footpaths_out).data_.el_ != nullptr);
-  assert((*gpu_footpaths_out).bucket_starts_.el_ != nullptr);
-  assert((*route_clasz).el_ != nullptr);
   init_arrivals<SearchDir, Rt>(*worst_time_at_dest, base,
                 time_at_dest, route_stop_times,route_transport_ranges,date_range);
 

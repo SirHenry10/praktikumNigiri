@@ -177,6 +177,7 @@ struct raptor {
       }
       if (!any_marked) {
         trace_print_state_after_round();
+        printf("break k:%d",k);
         break;
       }
 
@@ -343,7 +344,7 @@ private:
 
         ++stats_.n_earliest_arrival_updated_by_footpath_;
         if(k==1)
-        printf("fp_target CPU: %d,i: %d",fp_target_time,i);
+        printf("fp_target CPU k %d: %d,i: %d ",k,fp_target_time,i);
         if(fp_target_time==495 || fp_target_time==465 || fp_target_time==435){
           printf("CPU Fehler transfers k=%d i=%d fp=%d at %d", k, i, fp_target_time, k*state_.round_times_.n_columns_+i);
         }
@@ -508,6 +509,7 @@ private:
   }
 
   bool update_route(unsigned const k, route_idx_t const r) {
+    printf("CPU Test k: %d",k);
     auto const stop_seq = tt_.route_location_seq_[r];
     bool any_marked = false; // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
     // diese Variable ist das Problem beim Parallelisieren
@@ -525,6 +527,8 @@ private:
       if (!et.is_valid() && !state_.prev_station_mark_[l_idx]) {
         trace("┊ │k={}  stop_idx={} {}: not marked, no et - skip\n", k,
               stop_idx, location{tt_, location_idx_t{l_idx}});
+        if(k==2)
+          printf("continue 0 k==2 CPU,et.valid: %d,prev_marked:%d,i:%d",!et.is_valid(),!state_.prev_station_mark_[l_idx],i);
         continue;
       }
 
@@ -615,7 +619,8 @@ private:
       if (is_last || !(kFwd ? stp.in_allowed() : stp.out_allowed()) ||
           !state_.prev_station_mark_[l_idx]) {
         //dann wird diese übersprungen
-
+        if(k==2)
+          printf("continue k==2 CPU is_last: %d, out: %d, prev: %d, i %d ",is_last,!(kFwd ? stp.in_allowed() : stp.out_allowed()),!state_.prev_station_mark_[l_idx],i);
         continue;
       }
 
@@ -638,7 +643,7 @@ private:
       if(k==2)printf("prev_round_time %d", prev_round_time);
       printf("CPU k %d", k);
       if (k==3) assert(2==1);
-      if(k==3)printf("CPU round_times k=1 %d, idx: %d", prev_round_time, (k-1) * state_.round_times_.n_columns_ + l_idx);
+      if(k==2)printf("CPU round_times k=2 %d, idx: %d", prev_round_time, (k-1) * state_.round_times_.n_columns_ + l_idx);
       assert(prev_round_time != kInvalid);
       // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
       //printf("CPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
