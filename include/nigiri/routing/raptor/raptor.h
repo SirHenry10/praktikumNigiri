@@ -96,10 +96,6 @@ struct raptor {
     trace_upd("adding start {}: {}\n", location{tt_, l}, t);
     state_.best_[to_idx(l)] = unix_to_delta(base(), t);
     state_.round_times_[0U][to_idx(l)] = unix_to_delta(base(), t);
-    printf("rt cpu: %d",unix_to_delta(base(), t));
-    printf("internal cpu: %d",tt_.internal_interval_days());
-    printf("from cpu %d",tt_.date_range_.from_);
-    printf("to cpu %d",tt_.date_range_.to_);
     state_.station_mark_[to_idx(l)] = true;
   }
 
@@ -150,7 +146,6 @@ struct raptor {
       }
 
       if (!any_marked) {
-        printf("CPU return round %d", k);
         trace_print_state_after_round();
         break;
       }
@@ -167,17 +162,9 @@ struct raptor {
                           ? loop_rt_routes<false>(k)
                           : loop_rt_routes<true>(k);
       }
-      if(k==2) {
-        for (int i = 0; i < tt_.n_locations(); ++i) {
-          if (state_.station_mark_[i] == true)
-            printf("CPU station_marked after loop round 1: %d ,stelle i: %d", 1, i);
-          else
-            printf("CPU station_marked after loop round 1: %d ,stelle i: %d", 0, i);
-        }
-      }
+
       if (!any_marked) {
         trace_print_state_after_round();
-        printf("break k:%d",k);
         break;
       }
 
@@ -188,14 +175,6 @@ struct raptor {
 
       //SYNC
       update_transfers(k); // loop in update_transfers parallelisieren
-
-      if(k==2)
-        for(int j = 0; j<state_.round_times_.n_rows_;++j) {
-          for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
-            printf("round_time CPU after update_transfers: %d", state_.round_times_[j][i]);
-          }
-        }
-
       //SYNC
       update_footpaths(k, prf_idx);
       //SYNC
@@ -231,18 +210,6 @@ struct raptor {
         }
       }
     }
-
-    for(int j = 0; j<state_.round_times_.n_rows_;++j) {
-      for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
-        printf("CPU round_time finish: %d", state_.round_times_[j][i]);
-      }
-    }
-
-    std::cerr << "n_routing_time_ cpu:"<<stats_.n_routing_time_ << std::endl;
-    std::cerr << "n_footpaths_visited_ cpu:"<<stats_.n_footpaths_visited_ << std::endl;
-    std::cerr << "n_routes_visited_ cpu:"<<stats_.n_routes_visited_ << std::endl;
-    std::cerr << "n_earliest_trip_calls_ cpu:"<<stats_.n_earliest_trip_calls_ << std::endl;
-    std::cerr << "n_earliest_arrival_updated_by_footpath_ cpu:"<<stats_.n_earliest_arrival_updated_by_footpath_ << std::endl;
   }
 
   void reconstruct(query const& q, journey& j) {
@@ -268,31 +235,9 @@ private:
           }
         }
         ++stats_.n_routes_visited_;
-        if(k==2){
-        for (int i = 0; i< tt_.n_routes(); ++i){
-          if (state_.route_mark_[i] == true)
-          printf("CPU route_marked bevor round 2: %d ,stelle i: %d", 1, i);
-          else
-            printf("CPU route_marked bevor round 2: %d ,stelle i: %d", 0, i);
-        }
-        for (int i = 0; i< tt_.n_locations(); ++i){
-          if (state_.prev_station_mark_[i] == true)
-            printf("CPU stations_marked bevor round 2: %d ,stelle i: %d", 1, i);
-          else
-            printf("CPU stations_marked bevor round 2: %d ,stelle i: %d", 0, i);
-        }
-        }
         trace("┊ ├k={} updating route {}\n", k, r);
-        if(k == 2){
-          for(int j = 0; j<state_.round_times_.n_rows_;++j) {
-            for (int i = 0; i < state_.round_times_.n_columns_; ++i) {
-              printf("round_time CPU bevor 2 Runde: %d", state_.round_times_[j][i]);
-            }
-          }
-        }
+
         any_marked |= update_route(k, r);
-      }else{
-        printf("HELLO");
       }
     }
     return any_marked;
@@ -335,7 +280,6 @@ private:
           static_cast<delta_t>(state_.tmp_[i] + transfer_time);
       if (is_better(fp_target_time, state_.best_[i]) &&
           is_better(fp_target_time, time_at_dest_[k])) {
-        printf("CPU transfer in round %d", k);
         if (lb_[i] == kUnreachable ||
             !is_better(fp_target_time + dir(lb_[i]), time_at_dest_[k])) {
           ++stats_.fp_update_prevented_by_lower_bound_;
@@ -343,11 +287,7 @@ private:
         }
 
         ++stats_.n_earliest_arrival_updated_by_footpath_;
-        if(k==1)
-        printf("fp_target CPU k %d: %d,i: %d ",k,fp_target_time,i);
-        if(fp_target_time==495 || fp_target_time==465 || fp_target_time==435){
-          printf("CPU Fehler transfers k=%d i=%d fp=%d at %d", k, i, fp_target_time, k*state_.round_times_.n_columns_+i);
-        }
+
         state_.round_times_[k][i] = fp_target_time;
         state_.best_[i] = fp_target_time;
         state_.station_mark_[i] = true;
@@ -399,10 +339,6 @@ private:
               to_unix(state_.best_[to_idx(fp.target())]), fp_target_time);
 
           ++stats_.n_earliest_arrival_updated_by_footpath_;
-          printf("CPU footpaths update_arrivals %d ,value: %d", k * state_.round_times_.n_columns_ + gpu_to_idx(gpu_location_idx_t{fp.target_}),fp_target_time);
-          if(fp_target_time==495){
-            printf("CPU Fehler footpaths %d", k);
-          }
           state_.round_times_[k][to_idx(fp.target())] = fp_target_time;
           state_.best_[to_idx(fp.target())] = fp_target_time;
           state_.station_mark_[to_idx(fp.target())] = true;
@@ -432,12 +368,7 @@ private:
         auto const end_time = clamp(get_best(state_.best_[i], state_.tmp_[i]) +
                                     dir(dist_to_end_[i]));
 
-        printf("CPU intermodal_footpaths end_time: %d, kIntermodalTarget: %d",end_time,state_.best_[kIntermodalTarget]);
         if (is_better(end_time, state_.best_[kIntermodalTarget])) {
-          printf("CPU intermodal_footpaths update_arrivals %d ,value: %d ,k: %d", (k) * state_.round_times_.n_columns_ + kIntermodalTarget,end_time,k);
-          if(end_time==495){
-            printf("CPU Fehler intermodal footpath %d", k);
-          }
           state_.round_times_[k][kIntermodalTarget] = end_time;
           state_.best_[kIntermodalTarget] = end_time;
           update_time_at_dest(k, end_time);
@@ -509,7 +440,6 @@ private:
   }
 
   bool update_route(unsigned const k, route_idx_t const r) {
-    printf("CPU Test k: %d",k);
     auto const stop_seq = tt_.route_location_seq_[r];
     bool any_marked = false; // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
     // diese Variable ist das Problem beim Parallelisieren
@@ -527,8 +457,6 @@ private:
       if (!et.is_valid() && !state_.prev_station_mark_[l_idx]) {
         trace("┊ │k={}  stop_idx={} {}: not marked, no et - skip\n", k,
               stop_idx, location{tt_, location_idx_t{l_idx}});
-        if(k==2)
-          printf("continue 0 k==2 CPU,et.valid: %d,prev_marked:%d,i:%d",!et.is_valid(),!state_.prev_station_mark_[l_idx],i);
         continue;
       }
 
@@ -542,7 +470,6 @@ private:
 
       auto current_best = kInvalid;
       //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
-      printf("valid %d, round %d", et.is_valid(), k);
       if (et.is_valid() && (kFwd ? stp.out_allowed() : stp.in_allowed())) {
 
         // wann transportmittel an dieser station ankommt
@@ -574,9 +501,6 @@ private:
           state_.station_mark_[l_idx] = true;
           current_best = by_transport;
           any_marked = true;
-          if(k ==2){
-            printf("round2: true");
-          }
         } else {
           trace(
               "┊ │k={}    *** NO UPD: at={}, name={}, dbg={}, "
@@ -614,13 +538,9 @@ private:
       // wenn es die letzte Station in der Route ist
       // oder es keine ausgehenden/eingehenden transportmittel gibt
       // oder die Station nicht markiert war
-      if(k==2)
-        printf("counter k==2 CPU" );
       if (is_last || !(kFwd ? stp.in_allowed() : stp.out_allowed()) ||
           !state_.prev_station_mark_[l_idx]) {
         //dann wird diese übersprungen
-        if(k==2)
-          printf("continue k==2 CPU is_last: %d, out: %d, prev: %d, i %d ",is_last,!(kFwd ? stp.in_allowed() : stp.out_allowed()),!state_.prev_station_mark_[l_idx],i);
         continue;
       }
 
@@ -639,21 +559,14 @@ private:
               : kInvalid;
       // vorherige Ankunftszeit an der Station
       auto const prev_round_time = state_.round_times_[k - 1][l_idx];
-      if(k==2) printf("CPU l_idx: %d, kInvalid: %d",l_idx,kInvalid);
-      if(k==2)printf("prev_round_time %d", prev_round_time);
-      printf("CPU k %d", k);
-      if (k==3) assert(2==1);
-      if(k==2)printf("CPU round_times k=2 %d, idx: %d", prev_round_time, (k-1) * state_.round_times_.n_columns_ + l_idx);
       assert(prev_round_time != kInvalid);
       // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
-      //printf("CPU prev_round_time %d, et_time_at_stop %d", prev_round_time, et_time_at_stop);
       if (is_better_or_eq(prev_round_time, et_time_at_stop)) {
         auto const [day, mam] = split(prev_round_time);
         // Hier muss leader election stattfinden
         // dann wird neues Transportmittel, das am frühsten von station abfährt
         auto const new_et = get_earliest_transport(k, r, stop_idx, day, mam,
                                                    stp.location_idx());
-        printf("CPU new_et valid %d, K: %d", new_et.is_valid(), k);
         current_best =
             get_best(current_best, state_.best_[l_idx], state_.tmp_[l_idx]);
         // wenn neues Transportmittel an diesem Tag fährt und
@@ -689,7 +602,6 @@ private:
 
     auto const event_times = tt_.event_times_at_stop(
         r, stop_idx, kFwd ? event_type::kDep : event_type::kArr);
-    printf("cpu r %d, stop_idx %d",r,stop_idx);
 
     auto const seek_first_day = [&]() {
       return linear_lb(get_begin_it(event_times), get_end_it(event_times),
@@ -698,7 +610,6 @@ private:
                          return is_better(a.mam(), b.count());
                        });
     };
-    printf("CPU mem: %d",mam_at_stop);
 #if defined(NIGIRI_TRACING)
     auto const l_idx =
         stop{tt_.route_location_seq_[r][stop_idx]}.location_idx();
@@ -714,12 +625,7 @@ private:
       auto const ev_time_range =
           it_range{i == 0U ? seek_first_day() : get_begin_it(event_times),
                    get_end_it(event_times)};
-      printf("CPU i: %d,seek_first_day: %d",i,seek_first_day);
-      printf("cpu ev_time_range %d",ev_time_range.begin());
-      printf("cpu ev_time_range %d",ev_time_range.end());
-      for (auto r :event_times) {
-        printf("cpu event_time: %d",r);
-      }
+
       if (ev_time_range.empty()) {
         continue;
       }
@@ -743,7 +649,6 @@ private:
               to_unix(time_at_dest_[k]));
           return {transport_idx_t::invalid(), day_idx_t::invalid()};
         }
-        printf("CPU Test1: rtr , t_offset: %d, k: %d , it %d!",t_offset,k,it);
         auto const t = tt_.route_transport_ranges_[r][t_offset];
 
         if (i == 0U && !is_better_or_eq(mam_at_stop.count(), ev_mam)) {
@@ -759,8 +664,6 @@ private:
         auto const ev_day_offset = ev.days();
         auto const start_day =
             static_cast<std::size_t>(as_int(day) - ev_day_offset);
-        if (k==1 && i==0)
-          printf("return cpu");
         if (!is_transport_active(t, start_day)) {
           trace(
               "┊ │k={}      => transport={}, name={}, dbg={}, day={}/{}, "
@@ -769,7 +672,6 @@ private:
               "transport_mam={}, transport_time={} => NO TRAFFIC!\n",
               k, t, tt_.transport_name(t), tt_.dbg(t), i, day, ev_day_offset,
               mam_at_stop, ev_mam, ev);
-          printf("cpu is transport , k %d",k);
           continue;
         }
 
@@ -791,21 +693,11 @@ private:
     if constexpr (Rt) {
       return rtt_->bitfields_[rtt_->transport_traffic_days_[t]].test(day);
     } else {
-      printf("cpu num_blocks: %d",tt_.bitfields_[tt_.transport_traffic_days_[t]].num_blocks);
-      printf("cpu bits_per_blocks: %d",tt_.bitfields_[tt_.transport_traffic_days_[t]].bits_per_block);
-      printf("size: %d",tt_.bitfields_[tt_.transport_traffic_days_[t]].size());
-      printf("cpu test day: %d",day);
-      if(day == 8)
-      assert(2 == 1);
       if (day >= tt_.bitfields_[tt_.transport_traffic_days_[t]].size()) {
-
         return false;
       }
       auto const block = tt_.bitfields_[tt_.transport_traffic_days_[t]].blocks_[day / tt_.bitfields_[tt_.transport_traffic_days_[t]].bits_per_block];
       auto const bit = (day % tt_.bitfields_[tt_.transport_traffic_days_[t]].bits_per_block);
-      printf("cpu test bit: %d",bit);
-      printf("cpu test block: %d",block);
-      printf("cpu test day: %d",day);
       return (block & (std::uint64_t{1U} << bit)) != 0U;
     }
   }
@@ -818,9 +710,7 @@ private:
           tt_.to_unixtime(
               t.day_,
               tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).as_duration()));
-    printf("CPU clamp %d",to_delta(t.day_,
-tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).count()));
-    printf("event_mam cpu: %d",tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).count());
+
     return to_delta(t.day_,
                     tt_.event_mam(r, t.t_idx_, stop_idx, ev_type).count());
   }
