@@ -272,6 +272,7 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
       // alle station nach leader können jetzt updaten, wenn der transport an dem Tag fährt
       if(t_id<active_stop_count){
         auto const t_offset = (SearchDir == gpu_direction::kForward) ?  static_cast<cuda::std::size_t>(&*it - departure_times.data()) : static_cast<cuda::std::size_t>(&*it - arrival_times.data());
+        printf("r=%d t_offset=%d ", r.v_, t_offset);
         auto const t2 = (*route_transport_ranges)[r][t_offset];
         if(t_id > leader ) {
             if (is_transport_active<SearchDir, Rt>(
@@ -570,9 +571,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
 
     // wenn transportmittel an dem Tag nicht fährt &
     // wenn station nicht markiert ist, wird diese übersprungen → springt zur nächsten station
-    if(k==2)
     if (!et.is_valid() && !marked(prev_station_mark_, l_idx)) {
-      if(k==2)
       continue;
     }
     auto current_best = kInvalidGpuDelta<SearchDir>;
@@ -694,8 +693,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
   }
   this_grid().sync();
   auto const global_t_id = get_global_thread_id();
-  if(get_global_thread_id() ==0){
-  }
+
   //Hier gehen wir durch alle Routen wie in update_routes_dev von Julian
 
   auto const stride = blockDim.y * gridDim.x;
@@ -1019,7 +1017,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
 
   if(!*any_station_marked_){
-    if(get_global_thread_id() == 0)
     return;
   }
   //ToDo: ICH habe mal das return raus geschoben weil warum sollte nur der 0 thread returnen
