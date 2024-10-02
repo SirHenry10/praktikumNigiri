@@ -93,7 +93,6 @@ __device__ inline gpu_sys_days base(gpu_day_idx_t* base,gpu_interval<gpu_sys_day
   return gpu_internal_interval_days(date_range_ptr).from_ + as_int(*base) * gpu_days{1};
 }
 __host__ inline gpu_sys_days cpu_base(gpu_timetable const* gtt, gpu_day_idx_t base) {
-  printf("internal: %d", gtt->cpu_internal_interval_days().from_);
   return gtt->cpu_internal_interval_days().from_ + as_int(base) * gpu_days{1};
 }
 template<gpu_direction SearchDir>
@@ -145,17 +144,13 @@ struct gpu_raptor {
         mem_{mem}
         {
 
-    std::cerr << "gpu_raptor()" << std::endl;
     mem_->reset_arrivals_async();
-    std::cerr << "gpu_raptor() before copy_array" << std::endl;
     std::unique_ptr<bool[]> copy_array(new bool[is_dest.size()]);
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];
     }
-    std::cerr << "gpu_raptor() 1 " << dist_to_dest.size() << std::endl;
     auto const kIntermodalTarget  =
         gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
-    std::cerr << "gpu_raptor() before copy_to_Devices" << std::endl;
     cpu_base_ = base;
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
@@ -180,7 +175,6 @@ struct gpu_raptor {
   }
   ~gpu_raptor(){
 
-    std::cerr << "gpu_raptor() destroy" << std::endl;
       copy_to_device_destroy(allowed_claszes_,
                            dist_to_end_,
                            dist_to_end_size_,
@@ -205,9 +199,7 @@ struct gpu_raptor {
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
-    std::cerr << "Test gpu_raptor::add_start() start" << std::endl;
     add_start_gpu(l,t,mem_,gtt_,cpu_base_,kInvalid);
-    std::cerr << "Test gpu_raptor::add_start() end" << std::endl;
   }
 
 
@@ -216,7 +208,6 @@ struct gpu_raptor {
              uint8_t const& max_transfers,
              gpu_unixtime_t const& worst_time_at_dest,
              gpu_profile_idx_t const& prf_idx){
-    std::cerr << "Test gpu_raptor::execute() start" << std::endl;
     //start_time muss rüber das bei trace,max_transfers muss nicht malloced werden, worst_time_at_Dest muss rüber kopiert werden, prf_idx muss kopiert werden
     gpu_unixtime_t* start_time_ptr = nullptr;
     gpu_unixtime_t* worst_time_at_dest_ptr = nullptr;
@@ -267,9 +258,7 @@ struct gpu_raptor {
                            (void*)&gtt_->locations_.gpu_footpaths_out_,
                            (void*)&gtt_->route_clasz_};
     launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
-    std::cerr << "Test gpu_raptor::launch_kernel() bevor mem" << std::endl;
     copy_back(mem_);
-    std::cerr << "Test gpu_raptor::launch_kernel() bevor mem2" << std::endl;
     //copy stats from host to raptor attribute
     gpu_raptor_stats tmp{};
     for (int i = 0; i<32; ++i) {
@@ -283,21 +272,9 @@ struct gpu_raptor {
       tmp.route_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].route_update_prevented_by_lower_bound_;
     }
 
-    for(int j = 0; j<mem_->host_.row_count_round_times_;++j) {
-        for (int i = 0; i < mem_->host_.column_count_round_times_; ++i) {
-          printf("round_time GPU out side of Kernel: %d", mem_->host_.round_times_[j*mem_->host_.row_count_round_times_+i]);
-        }
-    }
 
-    std::cerr << "n_routing_time_ gpu:"<<tmp.n_routing_time_ << std::endl;
-    std::cerr << "n_footpaths_visited_ gpu:"<<tmp.n_footpaths_visited_ << std::endl;
-    std::cerr << "n_routes_visited_ gpu:"<<tmp.n_routes_visited_ << std::endl;
-    std::cerr << "n_earliest_trip_calls_ gpu:"<<tmp.n_earliest_trip_calls_ << std::endl;
-    std::cerr << "n_earliest_arrival_updated_by_footpath_ gpu:"<<tmp.n_earliest_arrival_updated_by_footpath_ << std::endl;
     stats_ = tmp;
-    std::cerr << "Test gpu_raptor::execute() bevor destroy" << std::endl;
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
-    std::cerr << "Test gpu_raptor::execute() ende" << std::endl;
   }
   gpu_timetable const* gtt_{nullptr};
   mem* mem_{nullptr};

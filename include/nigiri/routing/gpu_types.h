@@ -194,7 +194,6 @@ struct gpu_bitset {
     }
     auto const block = blocks_[i / bits_per_block];
     auto const bit = (i % bits_per_block);
-    printf("gpu test bit: %d,block: %d,day %d, bits_per_block %d",bit,block,i,bits_per_block);
     return (block & (block_t{1U} << bit)) != 0U;
   }
 
