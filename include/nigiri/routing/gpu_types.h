@@ -37,7 +37,7 @@ struct gpu_strong {
   __host__ __device__ gpu_strong& operator=(gpu_strong const& o) = default;
 
   __host__ __device__ static gpu_strong invalid() {
-    return gpu_strong{std::numeric_limits<T>::max()};
+    return gpu_strong{cuda::std::numeric_limits<T>::max()};
   }
 
   __host__ __device__ gpu_strong& operator++() {

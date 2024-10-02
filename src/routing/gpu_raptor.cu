@@ -183,87 +183,87 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
   printf("Test_update_route_smaller32");
   auto const t_id = threadIdx.x;
   auto const stop_seq = (*route_location_seq)[r];
-  auto stop_idx = -1;
+  auto stop_idx = cuda::std::numeric_limits<gpu_stop_idx_t >::max();
   gpu_stop stp{};
   unsigned int l_idx;
-  //bool is_last;
+  int16_t is_last = 0;
   gpu_delta_t prev_round_time = ((SearchDir == gpu_direction::kForward) ? cuda::std::numeric_limits<gpu_delta_t>::max()
                                                                  : cuda::std::numeric_limits<gpu_delta_t>::min());
 
   unsigned leader = stop_seq.size();
   unsigned int active_stop_count = stop_seq.size();
 
-  //TODO: muss eigentlich hier weil prev_round_time falsch wird
-  printf("active_stop_count: %d",active_stop_count);
-  if(t_id >= active_stop_count) { //solte doch eigentlich egal sein da wir smaller sind oder?
-    printf("aussotiert0");
-    return;
-  }
+  if(t_id < active_stop_count) { //solte doch eigentlich egal sein da wir smaller sind oder?
     stop_idx = static_cast<gpu_stop_idx_t>(
         (SearchDir == gpu_direction::kForward) ? t_id : stop_seq.size() - t_id - 1U);
-
-    stp = gpu_stop{stop_seq[stop_idx]};
-
-    l_idx = gpu_to_idx(stp.gpu_location_idx());
-
-    auto is_last = t_id == stop_seq.size() - 1U;
-
-    if (lb_[l_idx] == kUnreachable) { //TODO: maybe kucken ob richtig? bzw. ob weg
-      // dann wird Durchgehen dieser Route abgebrochen
-      printf("aussotiert2");
-      return; //break ist gleich alle thread returnen
-    }
     prev_round_time = round_times_[(k-1) * column_count_round_times_ + l_idx];
+    stp = gpu_stop{stop_seq[stop_idx]};
+    l_idx = gpu_to_idx(stp.gpu_location_idx());
+    is_last = t_id == stop_seq.size() - 1U;
+  }
 
-    assert(__any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::max())&&
-             __any_sync(FULL_MASK, prev_round_time!=cuda::std::numeric_limits<gpu_delta_t>::min()));
+  if(!__any_sync(FULL_MASK, valid<SearchDir>(prev_round_time))){
+    return;
+  }
+
 
   // berechnen von allen möglichen trips(Abfahrt-/Ankunftszeiten) von dieser station
-  auto const splitter = gpu_split_day_mam(*base_, prev_round_time);
-  //TODO: hier ist prev_round_time numeric_limit need fix
-  auto const day_at_stop = splitter.first;
-  auto const mam = splitter.second;
+  gpu_day_idx_t day_at_stop = gpu_day_idx_t{cuda::std::numeric_limits<gpu_day_idx_t>::max()-1};
+  cuda::std::chrono::duration<int16_t, cuda::std::ratio<60>> mam;
+  if (t_id< active_stop_count){
+    auto const splitter = gpu_split_day_mam(*base_, prev_round_time);
+    //TODO: hier ist prev_round_time numeric_limit need fix
+    day_at_stop = splitter.first;
+    mam = splitter.second;
+  }
   auto const n_days_to_iterate = get_smaller(
       gpu_kMaxTravelTime.count() / 1440 + 1,
       (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
   assert(route_stop_time_ranges->el_ != nullptr);
-  auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_stop_time_ranges,route_transport_ranges, route_stop_times);
-  auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_stop_time_ranges,route_transport_ranges, route_stop_times);
-  auto const seek_first_day = [&]() {
-    return linear_lb(gpu_get_begin_it<SearchDir>(departure_times),
-                     gpu_get_end_it<SearchDir>(departure_times), mam,
-                     [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
-                       return is_better<SearchDir>(a.mam_, b.count());
-                     });
-  };
-  gpu_transport_idx_t t = gpu_transport_idx_t::invalid();
-  gpu_delta_t dep_t = (SearchDir == gpu_direction::kForward) ? dep_t = cuda::std::numeric_limits<gpu_delta_t>::max() : cuda::std::numeric_limits<gpu_delta_t>::min();
-  int i_f = 0;
+
   for (auto i = 0U; i < n_days_to_iterate; ++i){ // die Schleife geht durch alle Tage
+    auto const arrival_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kArr, route_stop_time_ranges,route_transport_ranges, route_stop_times);
+    auto const departure_times = gpu_event_times_at_stop(r, stop_idx, gpu_event_type::kDep, route_stop_time_ranges,route_transport_ranges, route_stop_times);
+    auto const times = (SearchDir == gpu_direction::kForward) ? departure_times : arrival_times;
+    auto const seek_first_day = [&]() {
+      return linear_lb(gpu_get_begin_it<SearchDir>(times),
+                       gpu_get_end_it<SearchDir>(times), mam,
+                       [&](gpu_delta const a, gpu_minutes_after_midnight_t const b) {
+                         return is_better<SearchDir>(a.mam_, b.count());
+                       });
+    };
+    gpu_transport_idx_t t = gpu_transport_idx_t::invalid();
+    gpu_delta_t dep_t = (SearchDir == gpu_direction::kForward) ? dep_t = cuda::std::numeric_limits<gpu_delta_t>::max() : cuda::std::numeric_limits<gpu_delta_t>::min();
+    int i_f = 0;
     auto const ev_time_range =
-        gpu_it_range{gpu_day_idx_t{i} == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(departure_times),
-                 gpu_get_end_it<SearchDir>(departure_times)};
-    if (ev_time_range.empty()) {
-      printf("aussotiert3");
-      return;
-    }
+        gpu_it_range{gpu_day_idx_t{i} == 0U ? seek_first_day() : gpu_get_begin_it<SearchDir>(times),
+                 gpu_get_end_it<SearchDir>(times)};
+    bool emty = true;
+
     auto day = (SearchDir == gpu_direction::kForward) ? day_at_stop + gpu_day_idx_t{i} : day_at_stop - gpu_day_idx_t{i};
-    for (auto it = begin(ev_time_range); it < end(ev_time_range); ++it){ // die Schleife geht durch alle Zeiten
+    for (auto it = begin(ev_time_range); it < end(ev_time_range) || emty; ++it){ // die Schleife geht durch alle Zeiten
+      emty = false;
       if(t_id < active_stop_count){
         ++stats_[t_id%32].n_earliest_trip_calls_;
-        auto const t_offset = (SearchDir == gpu_direction::kForward) ? static_cast<cuda::std::size_t>(&*it - departure_times.data()) : static_cast<cuda::std::size_t>(&*it - arrival_times.data());
+        auto const t_offset = static_cast<cuda::std::size_t>(&*it - times.data());
         t = (*route_transport_ranges)[r][t_offset];
         auto const dep = *it;
         auto const dep_mam = dep.mam_;
         dep_t = to_gpu_delta(day, dep_mam, base_);
 
       }
+      auto current_best = get_best<SearchDir>(round_times_[(k - 1)*column_count_round_times_ + l_idx],
+                                         tmp_[l_idx], best_[l_idx]);
       // election of leader
       unsigned ballot = __ballot_sync(
           FULL_MASK, (t_id < active_stop_count) && valid<SearchDir>(prev_round_time)  &&
-                         valid<SearchDir>(dep_t) &&
+                         valid<SearchDir>(dep_t) && lb_[l_idx] != kUnreachable &&
                          (is_better_or_eq<SearchDir>(prev_round_time,dep_t)) &&
-                         is_transport_active<SearchDir, Rt>(t, as_int(day), transport_traffic_days, bitfields));
+                         is_transport_active<SearchDir, Rt>(t, as_int(day), transport_traffic_days, bitfields)
+                             &&(SearchDir == gpu_direction::kForward ? stp.out_allowed() : stp.in_allowed())
+                                && is_better<SearchDir>(dep_t + dir<SearchDir>(lb_[l_idx]), time_at_dest_[k])
+                                &&is_better<SearchDir>(dep_t, current_best)
+                                    && !marked(prev_station_mark_,l_idx));
       //ist immer true
       leader = __ffs(ballot) - 1;
       // alle station nach leader können jetzt updaten, wenn der transport an dem Tag fährt
@@ -284,7 +284,7 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
             auto const arr = *it;
             auto const arr_mam = arr.mam_;
             auto const arr_t = to_gpu_delta(day, arr_mam, base_);
-            bool updated = update_arrival(tmp_, stop_idx, arr_t);
+            bool updated = update_arrival<SearchDir>(tmp_, stop_idx, arr_t);
             if (updated) {
               printf("marked GPU smaller32");
               mark(station_mark_, stop_idx);
@@ -416,7 +416,7 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
             auto const arr_mam = arr.mam_;
             auto const arr_t = to_gpu_delta(day, arr_mam, base_);
 
-            bool updated = update_arrival(tmp_, stop_idx, arr_t);
+            bool updated = update_arrival<SearchDir>(tmp_, stop_idx, arr_t);
             if(updated){
               mark(station_mark_, stop_idx);
               local_any_station = true;
@@ -435,7 +435,7 @@ __device__ void update_route_bigger32(unsigned const k, gpu_route_idx_t r,
               auto const arr_mam = arr.mam_;
               auto const arr_t = to_gpu_delta(day, arr_mam, base_);
 
-              bool updated = update_arrival(tmp_, stop_idx, arr_t);
+              bool updated = update_arrival<SearchDir>(tmp_, stop_idx, arr_t);
               if(updated){
                 mark(station_mark_, stop_idx);
                 local_any_station = true;
@@ -723,13 +723,13 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
 
   auto const stride = blockDim.y * gridDim.x;
   auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
-  /*
+
   for(auto r_idx = start_r_id;
        r_idx < n_routes; r_idx += stride){
-*/
+  /*
   if(get_global_thread_id() == 0)
   for (auto r_idx = 0U; r_idx != n_routes; ++r_idx) {
-
+  */
     auto const r = gpu_route_idx_t{r_idx};
     if(!marked(route_mark_, r_idx)) {
       continue;
@@ -749,7 +749,7 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
       // also sollte vielleicht diese Schleife mit allen auf einmal durchgangen werden???
       // parameter stimmen noch nicht
       // parallele update_route
-      /*
+
       if((*route_location_seq)[gpu_route_idx_t{r_idx}].size() <= 32){ // die Route hat <= 32 stops
         update_route_smaller32<SearchDir, Rt>(k, r, stats_, prev_station_mark_, best_,
                                                       round_times_, column_count_round_times_, tmp_, kMaxTravelTimeTicks_,
@@ -788,11 +788,12 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                                                    gpu_footpaths_out,
                                                                    route_clasz);
 
-      }*/
+      }
+      /*
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     column_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
                                     base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
-
+        */
        }
 
 
