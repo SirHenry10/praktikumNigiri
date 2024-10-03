@@ -174,7 +174,6 @@ struct gpu_raptor {
                     kMaxTravelTimeTicks_);
   }
   ~gpu_raptor(){
-
       copy_to_device_destroy(allowed_claszes_,
                            dist_to_end_,
                            dist_to_end_size_,
@@ -272,8 +271,8 @@ struct gpu_raptor {
       tmp.route_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].route_update_prevented_by_lower_bound_;
     }
 
-
     stats_ = tmp;
+    printf("gpu:%d",stats_.n_routes_visited_);
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
   }
   gpu_timetable const* gtt_{nullptr};

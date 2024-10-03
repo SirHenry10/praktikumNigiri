@@ -154,6 +154,7 @@ struct raptor {
       utl::fill(state_.station_mark_, false);
 
       //weiteres Markieren
+      printf("CPU K: %d",k);
       any_marked = (allowed_claszes_ == all_clasz_allowed())
                        ? loop_routes<false>(k)
                        : loop_routes<true>(k);

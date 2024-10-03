@@ -889,7 +889,6 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
       if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
         auto const end_time = gpu_clamp(get_best<SearchDir>(best_[idx], tmp_[idx]) + dir<SearchDir>(dist_to_end_[idx]));
         if(is_better<SearchDir>(end_time, best_[gpu_to_idx(*gpu_kIntermodalTarget)])){
-
           bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ +
                                            gpu_kIntermodalTarget->v_, end_time);
           best_[gpu_to_idx(*gpu_kIntermodalTarget)] = end_time;
@@ -976,8 +975,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   //ToDo: ich hab return raus gezogen da sonst endlosschleife...
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
-
-
+  printf("GPU K: %d",k);
   (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, column_count_round_times_, tmp_, lb_, n_days_,
@@ -1017,6 +1015,8 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
 
   if(!*any_station_marked_){
+    if (global_t_id == 0)
+    printf("any_station_marked");
     return;
   }
   //ToDo: ICH habe mal das return raus geschoben weil warum sollte nur der 0 thread returnen
@@ -1205,6 +1205,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
   cudaError_t code;
+  printf("copy to device");
   auto dist_to_end_size = dist_to_dest.size();
 
   allowed_claszes_ = nullptr;
@@ -1254,17 +1255,28 @@ void copy_to_device_destroy(
     std::uint16_t* & kUnreachable_,
     gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_){
-  cudaFree(allowed_claszes_);
-  cudaFree(dist_to_end_);
-  cudaFree(dist_to_end_size_);
-  cudaFree(base_);
-  cudaFree(is_dest_);
-  cudaFree(lb_);
-  cudaFree(n_days_);
-  cudaFree(kUnreachable_);
-  cudaFree(kIntermodalTarget_);
-  cudaFree(kMaxTravelTimeTicks_);
+  printf("destroy copy");
   cudaDeviceSynchronize();
+  cudaFree(allowed_claszes_);
+  allowed_claszes_ = nullptr;
+  cudaFree(dist_to_end_);
+  dist_to_end_ = nullptr;
+  cudaFree(dist_to_end_size_);
+  dist_to_end_size_ = nullptr;
+  cudaFree(base_);
+  base_ = nullptr;
+  cudaFree(is_dest_);
+  is_dest_ = nullptr;
+  cudaFree(lb_);
+  lb_ = nullptr;
+  cudaFree(n_days_);
+  n_days_ = nullptr;
+  cudaFree(kUnreachable_);
+  kUnreachable_ = nullptr;
+  cudaFree(kIntermodalTarget_);
+  kIntermodalTarget_ = nullptr;
+  cudaFree(kMaxTravelTimeTicks_);
+  kMaxTravelTimeTicks_ = nullptr;
   auto const last_error = cudaGetLastError();
   if (last_error != cudaSuccess) {
     printf("CUDA error: %s at " STR(last_error) " %s:%d\n",
@@ -1311,26 +1323,14 @@ inline void fetch_arrivals_async(mem* mem, cudaStream_t s) {
       mem->host_.best_.data(), mem->device_.best_,
       sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
   cuda_check();
-  cudaMemcpyAsync(
-      mem->host_.station_mark_.data(), mem->device_.station_mark_,
-      sizeof(uint32_t)*((mem->device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
-  cuda_check();
-  cudaMemcpyAsync(
-      mem->host_.prev_station_mark_.data(), mem->device_.prev_station_mark_,
-      sizeof(uint32_t)*((mem->device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
-  cuda_check();
-  cudaMemcpyAsync(
-      mem->host_.route_mark_.data(), mem->device_.route_mark_,
-      sizeof(uint32_t)*((mem->device_.n_routes_/32)+1), cudaMemcpyDeviceToHost, s);
-  cuda_check(); //TODO: keine ahnung warum hier kein cuda check geht
 }
 void copy_back(mem* mem){
   cuda_check();
-  //cuda_sync_stream(mem->context_.proc_stream_);
+  cuda_sync_stream(mem->context_.proc_stream_);
   fetch_arrivals_async(mem,mem->context_.transfer_stream_);
   cuda_check();
-  //cuda_sync_stream(mem->context_.transfer_stream_);
-
+  cuda_sync_stream(mem->context_.transfer_stream_);
+  cuda_check();
 }
 
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable const* gtt_,gpu_day_idx_t base_,short const kInvalid){
@@ -1420,6 +1420,7 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t*& start_time_ptr,
                       gpu_unixtime_t*& worst_time_at_dest_ptr,
                       gpu_profile_idx_t*& prf_idx_ptr){
+  printf("copy args");
   cudaError_t code;
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,start_time_ptr,start_time,1);
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
@@ -1434,8 +1435,13 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
 void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
                               gpu_unixtime_t* worst_time_at_dest_ptr,
                               gpu_profile_idx_t* prf_idx_ptr){
+  printf("destroy args");
+  cudaDeviceSynchronize();
   cudaFree(start_time_ptr);
+  start_time_ptr = nullptr;
   cudaFree(worst_time_at_dest_ptr);
+  worst_time_at_dest_ptr = nullptr;
   cudaFree(prf_idx_ptr);
-  //cuda_check();
+  prf_idx_ptr = nullptr;
+  cuda_check();
 }

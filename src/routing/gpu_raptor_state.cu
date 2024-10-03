@@ -42,11 +42,9 @@ device_context::device_context(device_id const device_id)
   cuda_check();
   cudaStreamCreate(&transfer_stream_);
   cuda_check();
-  std::cerr << "device_context ende" << std::endl;
 }
 
 void device_context::destroy() {
-  std::cerr << "device_context destroy!!!" << std::endl;
   cudaSetDevice(id_);
   cuda_check();
   cudaStreamDestroy(proc_stream_);
@@ -119,18 +117,26 @@ device_memory::device_memory(uint32_t n_locations,
 
 void device_memory::destroy() {
   cudaFree(time_at_dest_);
+  time_at_dest_ = nullptr;
   cudaFree(tmp_);
+  tmp_ = nullptr;
   cudaFree(best_);
+  best_ = nullptr;
   cudaFree(round_times_);
+  round_times_ = nullptr;
   cudaFree(station_mark_);
+  station_mark_ = nullptr;
   cudaFree(prev_station_mark_);
+  prev_station_mark_ = nullptr;
   cudaFree(route_mark_);
+  route_mark_ = nullptr;
   cudaFree(any_station_marked_);
+  any_station_marked_ = nullptr;
   cudaFree(stats_);
+  stats_ = nullptr;
 }
 
 void device_memory::reset_async(cudaStream_t s) {
-  std::cerr << "reset_all" << std::endl;
   std::vector<gpu_delta_t> invalid_time_at_dest((gpu_kMaxTransfers+1), invalid_);
   cudaMemcpyAsync(time_at_dest_, invalid_time_at_dest.data(), (gpu_kMaxTransfers+1) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   std::vector<gpu_delta_t> invalid_n_locations(n_locations_, invalid_);
@@ -150,7 +156,6 @@ void device_memory::reset_async(cudaStream_t s) {
   //additional_start_count_ = invalid<decltype(additional_start_count_)>;
 }
 void device_memory::next_start_time_async(cudaStream_t s) {
-  std::cerr << "reset_start_time" << std::endl;
   std::vector<gpu_delta_t> invalid_n_locations(n_locations_, invalid_);
   cudaMemcpyAsync(tmp_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   cudaMemcpyAsync(best_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
@@ -159,17 +164,13 @@ void device_memory::next_start_time_async(cudaStream_t s) {
   cudaMemsetAsync(route_mark_, 0000, ((n_routes_/32)+1)*sizeof(uint32_t), s);
 }
 void device_memory::reset_arrivals_async(cudaStream_t s) {
-  std::cerr << "reset_arrivals async start" << std::endl;
   std::vector<gpu_delta_t> invalid_time_at_dest((gpu_kMaxTransfers+1), invalid_);
 
   size_t size = (gpu_kMaxTransfers + 1) * sizeof(gpu_delta_t);
-  std::cerr << "reset_arrivals async test1" << std::endl;
   cudaMemcpyAsync(time_at_dest_, invalid_time_at_dest.data(), (gpu_kMaxTransfers+1) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
 
-  std::cerr << "reset_arrivals async mid" << std::endl;
   std::vector<gpu_delta_t> invalid_round_times(column_count_round_times_*row_count_round_times_, invalid_);
   cudaMemcpyAsync(round_times_,invalid_round_times.data(),column_count_round_times_*row_count_round_times_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
-  std::cerr << "reset_arrivals async end" << std::endl;
 }
 mem::mem(uint32_t n_locations,
          uint32_t n_routes,
@@ -204,8 +205,8 @@ gpu_raptor_state::mem_idx gpu_raptor_state::get_mem_idx() {
 
 loaned_mem::loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid) {
   auto const idx = store.get_mem_idx();
-  lock_ = std::unique_lock(store.memory_mutexes_[idx]);
   mem_ = std::move(store.memory_[idx]);
+  store.memory_[idx].reset();
   mem_.get()->device_.invalid_ = invalid;
 }
 
@@ -218,8 +219,6 @@ loaned_mem::~loaned_mem() {
 void mem::reset_arrivals_async(){
   device_.reset_arrivals_async(context_.proc_stream_);
   cuda_sync_stream(context_.proc_stream_);
-  //TODO: weiß nicht ob ucda_sync_stream?
-  std::cerr << "reset_arrivals async ende ende" << std::endl;
 }
 void mem::next_start_time_async(){
   device_.next_start_time_async(context_.proc_stream_);

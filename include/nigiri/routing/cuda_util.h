@@ -19,15 +19,11 @@ printf("%s (%d): %s\n", __FILE__, __LINE__, err_str);  \
 
 inline void cuda_sync_stream(cudaStream_t const& stream) {
   cudaEvent_t event{};
-  std::cerr << "Test gpu_raptor::launch_kernel() cuda_sync_stream" << std::endl;
   cudaEventCreateWithFlags(&event,
                            cudaEventBlockingSync | cudaEventDisableTiming);
   cudaEventRecord(event, stream);
-  std::cerr << "Test gpu_raptor::launch_kernel() cuda_sync_stream1" << std::endl;
   cudaEventSynchronize(event);
-  std::cerr << "Test gpu_raptor::launch_kernel() cuda_sync_stream2" << std::endl;
   cudaEventDestroy(event);
-    std::cerr << "Test gpu_raptor::launch_kernel() cuda_sync_stream3" << std::endl;
   cuda_check();
 }
 

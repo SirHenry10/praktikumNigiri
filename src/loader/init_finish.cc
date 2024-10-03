@@ -48,9 +48,7 @@ void finalize(timetable& tt,
         });
   }
   build_footpaths(tt, adjust_footpaths, merge_duplicates, max_footpath_length);
-  std::cout << "begin build_lb_graph kForwards" << std::endl;
   build_lb_graph<direction::kForward>(tt);
-  std::cout << "begin build_lb_graph kBackwards" << std::endl;
   build_lb_graph<direction::kBackward>(tt);
 }
 

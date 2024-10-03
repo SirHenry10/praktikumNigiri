@@ -150,15 +150,16 @@ TEST(routing, gpu_types) {
 
 }
 std::filesystem::path project_root = std::filesystem::current_path().parent_path();
-std::filesystem::path test_path_germany(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs"); //Alle nicht ASCII zeichen entfernt.
-fs_dir test_files_germany(test_path_germany);
+std::filesystem::path test_path_germany(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs.zip");
+auto const german_dir = zip_dir{test_path_germany};
 
 TEST(routing, gpu_raptor_germany) {
   timetable tt;
   std::cout << "Lade Fahrplan..." << std::endl;
   tt.date_range_ = {date::sys_days{2024_y / September / 25},
-                    date::sys_days{2024_y / September / 29}}; //test_files_germany only available until December 14
-  loader::gtfs::load_timetable({}, source_idx_t{0}, test_files_germany, tt); //only ASCII zeichen!
+                    date::sys_days{2024_y / September / 25}}; //test_files_germany only available until December 14
+  loader::register_special_stations(tt);
+  loader::gtfs::load_timetable({}, source_idx_t{0}, german_dir, tt);
   std::cout << "Fahrplan geladen." << std::endl;
 
   std::cout << "Finalisiere Fahrplan..." << std::endl;
@@ -167,19 +168,20 @@ TEST(routing, gpu_raptor_germany) {
   auto gtt = translate_tt_in_gtt(tt);
 
   std::cout << "Starte Raptor-Suche..." << std::endl;
-  //Flensburg Holzkrugweg -> Oberstdorf, Campingplatz
+  //Flensburg Holzkrugweg de:01001:27334::1 -> Oberstdorf, Campingplatz de:09780:9256:0:1
 
   auto start_cpu = std::chrono::high_resolution_clock::now();
-  auto const results_cpu = raptor_search(tt, nullptr, "de:01001:27334::1", "de:09780:9256:0:1",
-                                         sys_days{September / 28 / 2024} + 2h,
+//nach frankfurt: de:06412:10:5:35 , Darmstadt Nordbahnhof: de:06411:4720 // mit 25 September 2024 2 Uhr not working GPU!!!
+  auto const results_cpu = raptor_search(tt, nullptr, "de:06411:4720", "de:06412:10:5:35",
+                                         sys_days{September / 25 / 2024} + 2h,
                                          nigiri::direction::kBackward);
   auto end_cpu = std::chrono::high_resolution_clock::now();
   auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
 
   auto start_gpu = std::chrono::high_resolution_clock::now();
   std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
-  auto const results_gpu = raptor_search(tt, nullptr ,gtt, "de:01001:27334::1", "de:09780:9256:0:1",
-                                         sys_days{September / 28 / 2024} + 2h,
+  auto const results_gpu = raptor_search(tt, nullptr ,gtt, "de:06411:4720", "de:06412:10:5:35",
+                                         sys_days{September / 25 / 2024} + 2h,
                                          nigiri::direction::kBackward);
   auto end_gpu = std::chrono::high_resolution_clock::now();
   auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
@@ -201,6 +203,7 @@ TEST(routing, gpu_raptor_germany) {
   // Output the benchmarking results
   std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
   std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+  printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
   EXPECT_EQ(ss1.str(), ss2.str());
   destroy_gpu_timetable(gtt);
 }
