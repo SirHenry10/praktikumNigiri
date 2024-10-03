@@ -77,7 +77,7 @@ void copy_gpu_vector_map_to_device(const gpu_vector_map<KeyType, ValueType>* h_m
   CUDA_CALL(cudaMemcpy(&(d_map->el_), &d_data, sizeof(gpu_vector<ValueType>), cudaMemcpyHostToDevice));
   CUDA_CALL(cudaMemcpy(&(d_map->used_size_), &h_map->used_size_, sizeof(h_map->used_size_), cudaMemcpyHostToDevice));
   CUDA_CALL(cudaMemcpy(&(d_map->allocated_size_), &h_map->allocated_size_, sizeof(h_map->allocated_size_), cudaMemcpyHostToDevice));
-  CUDA_CALL(cudaMemcpy(&(d_map->self_allocated_), &h_map->self_allocated_, sizeof(h_map->self_allocated_), cudaMemcpyHostToDevice))
+  CUDA_CALL(cudaMemcpy(&(d_map->self_allocated_), &h_map->self_allocated_, sizeof(h_map->self_allocated_), cudaMemcpyHostToDevice));
 
   device_bytes += sizeof(gpu_vector_map<KeyType, ValueType>);
   return;
@@ -227,12 +227,8 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
 
   std::cerr << "n_routes: " << gtt->n_locations_ << std::endl;
 
-  printf("from %d",date_range->from_);
-  printf("to %d",date_range->to_);
   gtt->cpu_date_range_ = date_range;
 
-  printf("from2 %d",gtt->cpu_date_range_->from_);
-  printf("to2 %d",gtt->cpu_date_range_->to_);
   device_bytes += sizeof(gpu_interval<gpu_sys_days> const*);
   //TODO: muss ich auch auf device_bytes drauf rechnen cpu_date_range_???
   //TODO: für was werden device bytse genutzt?
