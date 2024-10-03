@@ -154,7 +154,6 @@ struct raptor {
       utl::fill(state_.station_mark_, false);
 
       //weiteres Markieren
-      printf("CPU K: %d",k);
       any_marked = (allowed_claszes_ == all_clasz_allowed())
                        ? loop_routes<false>(k)
                        : loop_routes<true>(k);
@@ -472,7 +471,6 @@ private:
       auto current_best = kInvalid;
       //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
       if (et.is_valid() && (kFwd ? stp.out_allowed() : stp.in_allowed())) {
-
         // wann transportmittel an dieser station ankommt
         auto const by_transport = time_at_stop(
             r, et, stop_idx, kFwd ? event_type::kArr : event_type::kDep);
@@ -483,6 +481,7 @@ private:
                by_transport != std::numeric_limits<delta_t>::max());
         // wenn Ankunftszeit dieses Transportmittels besser ist als beste Ankunftszeit für station
         // & vor frühster Ankunftszeit am Ziel liegt
+
         if (is_better(by_transport, current_best) &&
             is_better(by_transport, time_at_dest_[k]) &&
             lb_[l_idx] != kUnreachable &&
@@ -494,7 +493,6 @@ private:
               by_transport, current_best,
               !is_better(by_transport, current_best) ? "NOT" : "",
               location{tt_, stp.location_idx()});
-
           // dann wird frühste Ankunftszeit an dieser Station aktualisiert
           // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
           ++stats_.n_earliest_arrival_updated_by_route_;

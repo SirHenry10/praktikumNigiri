@@ -97,6 +97,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
         atomicOr(reinterpret_cast<int*>(any_station_marked),1);
       }
       for (auto r : (*location_routes_)[gpu_location_idx_t{idx}]) {
+
         mark(route_marks, gpu_to_idx(r));
       }
     }
@@ -272,7 +273,6 @@ __device__ void update_route_smaller32(const unsigned k,const gpu_route_idx_t r,
       // alle station nach leader können jetzt updaten, wenn der transport an dem Tag fährt
       if(t_id<active_stop_count){
         auto const t_offset = (SearchDir == gpu_direction::kForward) ?  static_cast<cuda::std::size_t>(&*it - departure_times.data()) : static_cast<cuda::std::size_t>(&*it - arrival_times.data());
-        printf("r=%d t_offset=%d ", r.v_, t_offset);
         auto const t2 = (*route_transport_ranges)[r][t_offset];
         if(t_id > leader ) {
             if (is_transport_active<SearchDir, Rt>(
@@ -588,7 +588,6 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
              by_transport != cuda::std::numeric_limits<gpu_delta_t>::max());
       // wenn Ankunftszeit dieses Transportmittels besser ist als beste Ankunftszeit für station
       // & vor frühster Ankunftszeit am Ziel liegt
-
       if (is_better<SearchDir>(by_transport, current_best) &&
           is_better<SearchDir>(by_transport, time_at_dest_[k]) &&
           lb_[l_idx] != kUnreachable &&
@@ -647,14 +646,12 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
           get_best<SearchDir>(current_best, best_[l_idx], tmp_[l_idx]);
       // wenn neues Transportmittel an diesem Tag fährt und
       // bisherige beste Ankunftszeit Invalid ist ODER Ankunftszeit an Station besser als Ankunftszeit von neuem Transportmittel
-
       if (new_et.is_valid() &&
           (current_best == kInvalidGpuDelta<SearchDir> ||
            is_better_or_eq<SearchDir>(
                time_at_stop<SearchDir, Rt>(r, new_et, stop_idx,
                             (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, *base_, route_stop_time_ranges, route_transport_ranges, route_stop_times),
                et_time_at_stop))) {
-
         // dann wird neues Transportmittel genommen
         et = new_et;
       }
@@ -704,9 +701,8 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
   */
   if(get_global_thread_id() == 0)
   for (auto r_idx = 0U; r_idx != n_routes; ++r_idx) {
-
     auto const r = gpu_route_idx_t{r_idx};
-    if(!marked(route_mark_, r_idx)) {
+    if(!marked(route_mark_, r_idx)) { //TODO: nix makiert
       continue;
     }
       if constexpr (WithClaszFilter){
@@ -761,7 +757,6 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                                                    route_clasz);
 
       }*/
-
         update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
                                     column_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
                                     base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
@@ -975,7 +970,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   //ToDo: ich hab return raus gezogen da sonst endlosschleife...
   // loop_routes mit true oder false
   // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
-  printf("GPU K: %d",k);
   (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, column_count_round_times_, tmp_, lb_, n_days_,
@@ -1015,8 +1009,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   this_grid().sync();
 
   if(!*any_station_marked_){
-    if (global_t_id == 0)
-    printf("any_station_marked");
     return;
   }
   //ToDo: ICH habe mal das return raus geschoben weil warum sollte nur der 0 thread returnen
@@ -1205,7 +1197,6 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
   cudaError_t code;
-  printf("copy to device");
   auto dist_to_end_size = dist_to_dest.size();
 
   allowed_claszes_ = nullptr;
@@ -1255,7 +1246,6 @@ void copy_to_device_destroy(
     std::uint16_t* & kUnreachable_,
     gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_){
-  printf("destroy copy");
   cudaDeviceSynchronize();
   cudaFree(allowed_claszes_);
   allowed_claszes_ = nullptr;
@@ -1335,26 +1325,31 @@ void copy_back(mem* mem){
 
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable const* gtt_,gpu_day_idx_t base_,short const kInvalid){
   trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
-  std::vector<gpu_delta_t> best_new(mem_->device_.n_locations_,kInvalid);
-  std::vector<gpu_delta_t> round_times_new((mem_->device_.column_count_round_times_*mem_->device_.row_count_round_times_),kInvalid);
-  best_new[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_,base_), t);
-  //TODO: hier fehler da base nur auf device funktioniert!
-  round_times_new[0U*mem_->device_.column_count_round_times_+ gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_,base_), t);
 
-  //TODO: fix station_mark ist kein bool!
-  std::vector<uint32_t> gpu_station_mark((( mem_->device_.n_locations_/32)+1),0);
+
+  std::vector<gpu_delta_t> best_new(mem_->device_.n_locations_, kInvalid);
+  std::vector<gpu_delta_t> round_times_new(mem_->device_.column_count_round_times_ * mem_->device_.row_count_round_times_, kInvalid);
+  std::vector<uint32_t> gpu_station_mark((mem_->device_.n_locations_ / 32) + 1, 0);
+
+  // Kopiere bestehende Daten von der GPU auf den Host
+  cudaMemcpy(best_new.data(), mem_->device_.best_, mem_->device_.n_locations_ * sizeof(gpu_delta_t), cudaMemcpyDeviceToHost);
+  cudaMemcpy(round_times_new.data(), mem_->device_.round_times_, round_times_new.size() * sizeof(gpu_delta_t), cudaMemcpyDeviceToHost);
+  cudaMemcpy(gpu_station_mark.data(), mem_->device_.station_mark_, gpu_station_mark.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+  cuda_check();
+
+  // Füge die neuen Daten hinzu
+  best_new[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, base_), t);
+  round_times_new[0U * mem_->device_.column_count_round_times_ + gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, base_), t);
+
+  // Setze den Station-Mark
   unsigned int const store_idx = (gpu_to_idx(l) >> 5);  // divide by 32
   unsigned int const mask = 1 << (gpu_to_idx(l) % 32);
-  gpu_station_mark[store_idx] |= mask; //TODO: das ist bullshit so makiert man keine station also mit nur l
-  unsigned int const store_idx2 = (gpu_to_idx(l) >> 5);  // divide by 32
-  unsigned int const val = gpu_station_mark[store_idx];
-  unsigned int const mask2 = 1 << (gpu_to_idx(l) % 32);
-  auto testerina = (bool)(val & mask2);
-  cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.n_locations_*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cuda_check();
-  cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size()*sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cuda_check();
-  cudaMemcpy(mem_->device_.station_mark_, gpu_station_mark.data(), ((mem_->device_.n_locations_/32)+1)*sizeof(uint32_t), cudaMemcpyHostToDevice);
+  gpu_station_mark[store_idx] |= mask;
+
+  // Kopiere die aktualisierten Daten zurück auf die GPU
+  cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size() * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem_->device_.station_mark_, gpu_station_mark.data(), gpu_station_mark.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
 }
 std::unique_ptr<mem> gpu_mem(
@@ -1420,7 +1415,7 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t*& start_time_ptr,
                       gpu_unixtime_t*& worst_time_at_dest_ptr,
                       gpu_profile_idx_t*& prf_idx_ptr){
-  printf("copy args");
+
   cudaError_t code;
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,start_time_ptr,start_time,1);
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
@@ -1435,7 +1430,7 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
 void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
                               gpu_unixtime_t* worst_time_at_dest_ptr,
                               gpu_profile_idx_t* prf_idx_ptr){
-  printf("destroy args");
+
   cudaDeviceSynchronize();
   cudaFree(start_time_ptr);
   start_time_ptr = nullptr;

@@ -150,8 +150,10 @@ TEST(routing, gpu_types) {
 
 }
 std::filesystem::path project_root = std::filesystem::current_path().parent_path();
-std::filesystem::path test_path_germany(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs.zip");
-auto const german_dir = zip_dir{test_path_germany};
+std::filesystem::path test_path_germany_zip(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs.zip");
+std::filesystem::path test_path_germany(project_root / "test/routing/20240916_fahrplaene_gesamtdeutschland_gtfs");
+auto const german_dir_zip = zip_dir{test_path_germany_zip};
+auto const german_dir = fs_dir{test_path_germany};
 
 TEST(routing, gpu_raptor_germany) {
   timetable tt;
@@ -159,7 +161,7 @@ TEST(routing, gpu_raptor_germany) {
   tt.date_range_ = {date::sys_days{2024_y / September / 25},
                     date::sys_days{2024_y / September / 25}}; //test_files_germany only available until December 14
   loader::register_special_stations(tt);
-  loader::gtfs::load_timetable({}, source_idx_t{0}, german_dir, tt);
+  loader::gtfs::load_timetable({}, source_idx_t{0}, german_dir_zip, tt);
   std::cout << "Fahrplan geladen." << std::endl;
 
   std::cout << "Finalisiere Fahrplan..." << std::endl;
