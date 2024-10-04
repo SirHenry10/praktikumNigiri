@@ -175,7 +175,7 @@ TEST(routing, gpu_raptor_germany) {
   auto start_cpu = std::chrono::high_resolution_clock::now();
 //nach frankfurt: de:06412:10:5:35 , Darmstadt Nordbahnhof: de:06411:4720 // mit 25 September 2024 2 Uhr not working GPU!!!
   auto const results_cpu = raptor_search(tt, nullptr, "de:06411:4720", "de:06412:10:5:35",
-                                         sys_days{September / 25 / 2024} + 2h,
+                                         sys_days{September / 25 / 2024} + 12h,
                                          nigiri::direction::kBackward);
   auto end_cpu = std::chrono::high_resolution_clock::now();
   auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
@@ -183,7 +183,7 @@ TEST(routing, gpu_raptor_germany) {
   auto start_gpu = std::chrono::high_resolution_clock::now();
   std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
   auto const results_gpu = raptor_search(tt, nullptr ,gtt, "de:06411:4720", "de:06412:10:5:35",
-                                         sys_days{September / 25 / 2024} + 2h,
+                                         sys_days{September / 25 / 2024} + 12h,
                                          nigiri::direction::kBackward);
   auto end_gpu = std::chrono::high_resolution_clock::now();
   auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
