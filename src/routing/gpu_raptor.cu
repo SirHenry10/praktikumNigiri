@@ -47,6 +47,14 @@ __device__ void reset_store(unsigned int* store, int const store_size) {
     store[idx] = 0;
   }
 }
+__device__ void swap_b_reset(unsigned int* store_a, unsigned int* store_b, int const store_size) {
+  auto const t_id = get_global_thread_id();
+  auto const stride = get_global_stride();
+  for (auto idx = t_id; idx < store_size; idx += stride) {
+    store_a[idx] = store_b[idx];
+    store_b[idx] = 0;
+  }
+}
 
 template <gpu_direction SearchDir>
 __device__ bool update_arrival(gpu_delta_t* base_,
@@ -944,7 +952,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if(get_global_thread_id()==0){
     atomicAnd(reinterpret_cast<int*>(any_station_marked_),0);
   }
-  this_grid().sync();
 
   convert_station_to_route_marks<SearchDir, Rt>(station_mark_, route_mark_,
                                  any_station_marked_, location_routes, n_locations);
@@ -955,15 +962,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
     return;
   }
 
-  if(get_global_thread_id()==0){
-    // swap
-    cuda::std::swap(prev_station_mark_,station_mark_);
-    // fill
-
-    for(int j = 0; j < ((n_locations/32)+1); j++){
-      station_mark_[j] = 0x0000;
-    }
-  }
+  swap_b_reset(prev_station_mark_,station_mark_,(n_locations/32)+1);
 
   this_grid().sync();
 
@@ -1011,27 +1010,12 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   if(!*any_station_marked_){
     return;
   }
-  //ToDo: ICH habe mal das return raus geschoben weil warum sollte nur der 0 thread returnen
 
+  swap_b_reset(prev_station_mark_,station_mark_,(n_locations/32)+1);
 
-  if(get_global_thread_id()==0){
-
-    // fill
-    for(int i = 0; i < ((n_routes/32)+1); i++){
-      route_mark_[i] = 0x0000;
-    }
-    // swap
-    cuda::std::swap(prev_station_mark_,station_mark_);
-    // fill
-    for(int j = 0; j < ((n_locations/32)+1); j++){
-      station_mark_[j] = 0x0000; // soll es auf false setzen
-    }
-
-  }
+  reset_store(route_mark_,(n_routes/32)+1);
 
   this_grid().sync();
-  //TODO: warum hier eigentlich noch ein check?
-
 
   // update_transfers
   update_transfers<SearchDir, Rt>(k, is_dest_, dist_to_end_, dist_to_end_size_,
