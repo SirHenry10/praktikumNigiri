@@ -60,8 +60,9 @@ template <gpu_direction SearchDir>
 __device__ bool update_arrival(gpu_delta_t* base_,
                                const unsigned int l_idx, gpu_delta_t const val){
   gpu_delta_t* const arr_address = &base_[l_idx];
-  auto* base_address = (unsigned int*)((size_t)arr_address & ~2);
+  auto* base_address = (int*)((size_t)arr_address & ~2);  // Verwende `int*` für vorzeichenbehaftete Werte
   int old_value, new_value;
+
   do {
     // Lese den gesamten 32-Bit-Wert atomar
     old_value = atomicCAS(base_address, *base_address, *base_address);
@@ -69,18 +70,23 @@ __device__ bool update_arrival(gpu_delta_t* base_,
     // Setze den 16-Bit-Wert korrekt in die oberen oder unteren 16 Bit
     if ((size_t)arr_address & 2) {
       // Wir arbeiten an den oberen 16 Bits
-      unsigned int old_upper = (old_value >> 16) & 0xFFFF;
-      unsigned int new_upper = get_best<SearchDir>(old_upper, val);
+      int old_upper = (old_value >> 16) & 0xFFFF;
+      // Korrektur für negative Werte
+      old_upper = (old_upper << 16) >> 16;
+      int new_upper = get_best<SearchDir>(old_upper, val);
       new_value = (old_value & 0x0000FFFF) | (new_upper << 16);
     } else {
       // Wir arbeiten an den unteren 16 Bits
-      unsigned int old_lower = old_value & 0xFFFF;
-      unsigned int new_lower = get_best<SearchDir>(old_lower, val);
-      new_value = (old_value & 0xFFFF0000) | new_lower;
+      int old_lower = old_value & 0xFFFF;
+      // Korrektur für negative Werte
+      old_lower = (old_lower << 16) >> 16;
+      int new_lower = get_best<SearchDir>(old_lower, val);
+      new_value = (old_value & 0xFFFF0000) | (new_lower & 0xFFFF);
     }
 
     // Versuche, den neuen 32-Bit-Wert atomar zu schreiben, falls sich der Wert geändert hat
   } while (atomicCAS(base_address, old_value, new_value) != old_value);
+
   return true;
 }
 
@@ -638,6 +644,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
             : kInvalidGpuDelta<SearchDir>;
     // vorherige Ankunftszeit an der Station
     auto const prev_round_time = round_times_[(k-1) * column_count_round_times_ + l_idx];
+
     assert(prev_round_time != kInvalidGpuDelta<SearchDir>);
     // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
 
@@ -808,7 +815,6 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
         continue;
       }
       ++stats_[l_idx%32].n_earliest_arrival_updated_by_footpath_;
-
       bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ + l_idx, fp_target_time);
       best_[l_idx] = fp_target_time;
       if(updated){
@@ -860,7 +866,6 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
         }
       }
       ++stats_[idx%32].n_earliest_arrival_updated_by_footpath_;
-
       bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ +
                             gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
       best_[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
@@ -966,9 +971,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
 
   this_grid().sync();
 
-  //ToDo: ich hab return raus gezogen da sonst endlosschleife...
-  // loop_routes mit true oder false
-  // any_station_marked soll nur einmal gesetzt werden, aber loop_routes soll mit allen threads durchlaufen werden?
   (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
                                                              stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
                                                              round_times_, column_count_round_times_, tmp_, lb_, n_days_,
@@ -1310,8 +1312,6 @@ void copy_back(mem* mem){
 
 void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable const* gtt_,gpu_day_idx_t base_,short const kInvalid){
   trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
-
-
   std::vector<gpu_delta_t> best_new(mem_->device_.n_locations_, kInvalid);
   std::vector<gpu_delta_t> round_times_new(mem_->device_.column_count_round_times_ * mem_->device_.row_count_round_times_, kInvalid);
   std::vector<uint32_t> gpu_station_mark((mem_->device_.n_locations_ / 32) + 1, 0);
@@ -1325,12 +1325,10 @@ void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,
   // Füge die neuen Daten hinzu
   best_new[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, base_), t);
   round_times_new[0U * mem_->device_.column_count_round_times_ + gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, base_), t);
-
   // Setze den Station-Mark
   unsigned int const store_idx = (gpu_to_idx(l) >> 5);  // divide by 32
   unsigned int const mask = 1 << (gpu_to_idx(l) % 32);
   gpu_station_mark[store_idx] |= mask;
-
   // Kopiere die aktualisierten Daten zurück auf die GPU
   cudaMemcpy(mem_->device_.best_, best_new.data(), mem_->device_.n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cudaMemcpy(mem_->device_.round_times_, round_times_new.data(), round_times_new.size() * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);

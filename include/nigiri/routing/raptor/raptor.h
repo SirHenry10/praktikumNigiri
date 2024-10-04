@@ -287,7 +287,6 @@ private:
         }
 
         ++stats_.n_earliest_arrival_updated_by_footpath_;
-
         state_.round_times_[k][i] = fp_target_time;
         state_.best_[i] = fp_target_time;
         state_.station_mark_[i] = true;
@@ -337,7 +336,6 @@ private:
               k, location{tt_, l_idx}, to_unix(state_.tmp_[to_idx(l_idx)]),
               fp.duration(), location{tt_, fp.target()},
               to_unix(state_.best_[to_idx(fp.target())]), fp_target_time);
-
           ++stats_.n_earliest_arrival_updated_by_footpath_;
           state_.round_times_[k][to_idx(fp.target())] = fp_target_time;
           state_.best_[to_idx(fp.target())] = fp_target_time;

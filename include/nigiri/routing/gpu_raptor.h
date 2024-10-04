@@ -273,7 +273,6 @@ struct gpu_raptor {
     }
 
     stats_ = tmp;
-    printf("gpu:%d",stats_.n_routes_visited_);
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
   }
   gpu_timetable const* gtt_{nullptr};
