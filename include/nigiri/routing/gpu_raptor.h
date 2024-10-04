@@ -145,6 +145,7 @@ struct gpu_raptor {
         {
 
     mem_->reset_arrivals_async();
+
     std::unique_ptr<bool[]> copy_array(new bool[is_dest.size()]);
     for (int i = 0; i<is_dest.size();i++){
       copy_array[i] = is_dest[i];

@@ -1196,6 +1196,8 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & kUnreachable_,
                      gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
+  printf(" ");//DO NOT DELETE, SUPPRESSES Assertion failed: __acrt_first_block == header
+  //Wahrscheinlich von übergeben Parametern das die nicht direkt richtig sind
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
 
@@ -1246,7 +1248,6 @@ void copy_to_device_destroy(
     std::uint16_t* & kUnreachable_,
     gpu_location_idx_t* & kIntermodalTarget_,
     short* & kMaxTravelTimeTicks_){
-  cudaDeviceSynchronize();
   cudaFree(allowed_claszes_);
   allowed_claszes_ = nullptr;
   cudaFree(dist_to_end_);
@@ -1415,7 +1416,6 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t*& start_time_ptr,
                       gpu_unixtime_t*& worst_time_at_dest_ptr,
                       gpu_profile_idx_t*& prf_idx_ptr){
-
   cudaError_t code;
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,start_time_ptr,start_time,1);
   CUDA_COPY_TO_DEVICE(gpu_unixtime_t,worst_time_at_dest_ptr,worst_time_at_dest,1);
@@ -1430,8 +1430,6 @@ void copy_to_gpu_args(gpu_unixtime_t const* start_time,
 void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
                               gpu_unixtime_t* worst_time_at_dest_ptr,
                               gpu_profile_idx_t* prf_idx_ptr){
-
-  cudaDeviceSynchronize();
   cudaFree(start_time_ptr);
   start_time_ptr = nullptr;
   cudaFree(worst_time_at_dest_ptr);
