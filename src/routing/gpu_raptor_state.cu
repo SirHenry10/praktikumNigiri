@@ -16,7 +16,7 @@ std::pair<dim3, dim3> get_launch_paramters(
    auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
 
      //TODO: Changed for GTX 1080 herausfinden wie allgemein halten
-   int32_t max_blocks_per_sm = 2;
+   int32_t max_blocks_per_sm = 4;
    int32_t num_blocks = mp_count * max_blocks_per_sm;
 
    int32_t num_sms = prop.multiProcessorCount;  // 20 SMs bei GTX 1080
@@ -105,7 +105,7 @@ device_memory::device_memory(uint32_t n_locations,
   cudaMalloc(&route_mark_, ((n_routes_/32)+1) * sizeof(uint32_t));
   cuda_check();
   any_station_marked_ = nullptr;
-  cudaMalloc(&any_station_marked_, sizeof(bool));
+  cudaMalloc(&any_station_marked_, sizeof(int));
   cuda_check();
   stats_ = nullptr;
   cudaMalloc(&stats_,32*sizeof(gpu_raptor_stats));
@@ -147,7 +147,7 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemsetAsync(station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
   cudaMemsetAsync(prev_station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
   cudaMemsetAsync(route_mark_, 0000, ((n_routes_/32)+1)*sizeof(uint32_t), s);
-  cudaMemsetAsync(any_station_marked_, 0000, sizeof(bool), s);
+  cudaMemsetAsync(any_station_marked_, 0000, sizeof(int), s);
   gpu_raptor_stats init_value = {};
 
   for (int i = 0; i < 32; ++i) {

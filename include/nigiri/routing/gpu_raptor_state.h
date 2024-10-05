@@ -122,7 +122,7 @@ struct device_memory {
   uint32_t* station_mark_{};
   uint32_t* prev_station_mark_{};
   uint32_t* route_mark_{};
-  bool* any_station_marked_{};
+  int* any_station_marked_{};
   uint32_t n_locations_{};
   uint32_t n_routes_{};
   uint32_t row_count_round_times_{};
