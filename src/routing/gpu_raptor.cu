@@ -609,8 +609,8 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         // dann wird frühste Ankunftszeit an dieser Station aktualisiert
         // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
         ++stats_[get_global_thread_id()%32].n_earliest_arrival_updated_by_route_;
-        //update_arrival<SearchDir>(tmp_,l_idx,get_best<SearchDir>(by_transport, tmp_[l_idx]));
-        tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
+        update_arrival<SearchDir>(tmp_,l_idx,get_best<SearchDir>(by_transport, tmp_[l_idx]));
+        //tmp_[l_idx] = get_best<SearchDir>(by_transport, tmp_[l_idx]);
         mark(station_mark_, l_idx);
         current_best = by_transport;
         atomicOr(reinterpret_cast<int*>(any_station_marked_),1);
@@ -711,11 +711,12 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
   auto const stride = blockDim.y * gridDim.x;
   auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
 
-  /*for(auto r_idx = start_r_id;
+  for(auto r_idx = start_r_id;
        r_idx < n_routes; r_idx += stride){
-  */
+    /*
   if(get_global_thread_id() == 0)
   for (auto r_idx = 0U; r_idx != n_routes; ++r_idx) {
+     */
     auto const r = gpu_route_idx_t{r_idx};
     if(!marked(route_mark_, r_idx)) { //TODO: nix makiert
       continue;
@@ -777,9 +778,6 @@ __device__ void loop_routes(unsigned const k, bool* any_station_marked_, uint32_
                                     base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
 
        }
-
-
-  this_grid().sync();
 }
 
 template <gpu_direction SearchDir, bool Rt>
