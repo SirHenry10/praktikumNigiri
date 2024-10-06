@@ -13,8 +13,7 @@ extern "C"{
 void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::vector<std::uint16_t> const& dist_to_dest,
                      gpu_day_idx_t const& base,
-                     std::unique_ptr<bool[]> const& is_dest,
-                     std::size_t is_dest_size,
+                     std::vector<uint8_t> const& is_dest,
                      std::vector<std::uint16_t> const& lb,
                      int const& n_days,
                      std::uint16_t const& kUnreachable,
@@ -134,7 +133,7 @@ struct gpu_raptor {
 
   gpu_raptor(gpu_timetable const* gtt,
              mem* mem,
-         std::vector<bool>& is_dest,
+         std::vector<uint8_t>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
          std::vector<std::uint16_t>& lb,
          gpu_day_idx_t const& base,
@@ -150,10 +149,12 @@ struct gpu_raptor {
     auto start_bevor_copy = std::chrono::high_resolution_clock::now();
 
 
+    auto start_reset_a = std::chrono::high_resolution_clock::now();
     mem_->reset_arrivals_async();
+    auto end_reset_a = std::chrono::high_resolution_clock::now();
+    auto reset_a_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reset_a - start_reset_a).count();
+    std::cout << "reset_a Time: " << reset_a_duration << " microseconds\n";
 
-    std::unique_ptr<bool[]> copy_array(new bool[is_dest.size()]);
-    std::copy(is_dest.begin(), is_dest.end(), copy_array.get());
     auto const kIntermodalTarget  =
         gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
     cpu_base_ = base;
@@ -165,8 +166,7 @@ struct gpu_raptor {
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
-                    copy_array,
-                    is_dest.size(),
+                    is_dest,
                     lb,
                     n_days,//error,
                     kUnreachable,

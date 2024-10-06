@@ -30,6 +30,7 @@ struct search_state {
   std::vector<std::uint16_t> travel_time_lower_bound_;
   std::vector<bool> is_destination_;
   std::vector<std::uint16_t> dist_to_dest_;
+  std::vector<std::uint8_t > is_destination_gpu_;
   std::vector<start> starts_;
   pareto_set<journey> results_;
 };
@@ -110,8 +111,8 @@ struct search {
     stats_.fastest_direct_ =
         static_cast<std::uint64_t>(fastest_direct_.count());
 
-    collect_destinations(tt_, q_.destination_, q_.dest_match_mode_,
-                         state_.is_destination_, state_.dist_to_dest_);
+    collect_destinations_gpu(tt_, q_.destination_, q_.dest_match_mode_,
+                         state_.is_destination_gpu_, state_.dist_to_dest_);
 
     if constexpr (Algo::kUseLowerBounds) {
       UTL_START_TIMING(lb);
@@ -148,7 +149,7 @@ struct search {
         rtt_,
         gtt_,
         algo_state,
-        state_.is_destination_,
+        state_.is_destination_gpu_,
         state_.dist_to_dest_,
         state_.travel_time_lower_bound_,
         day_idx_t{std::chrono::duration_cast<date::days>(

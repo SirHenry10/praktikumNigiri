@@ -74,6 +74,9 @@ __device__ bool update_arrival(gpu_delta_t* base_,
       // Korrektur für negative Werte
       old_upper = (old_upper << 16) >> 16;
       int new_upper = get_best<SearchDir>(old_upper, val);
+      if (new_upper == old_upper) {
+        return false;
+      }
       new_value = (old_value & 0x0000FFFF) | (new_upper << 16);
     } else {
       // Wir arbeiten an den unteren 16 Bits
@@ -81,10 +84,10 @@ __device__ bool update_arrival(gpu_delta_t* base_,
       // Korrektur für negative Werte
       old_lower = (old_lower << 16) >> 16;
       int new_lower = get_best<SearchDir>(old_lower, val);
+      if (new_lower == old_lower){
+        return false;
+      }
       new_value = (old_value & 0xFFFF0000) | (new_lower & 0xFFFF);
-    }
-    if (new_value == old_value) {
-      return false;
     }
     // Versuche, den neuen 32-Bit-Wert atomar zu schreiben, falls sich der Wert geändert hat
   } while (atomicCAS(base_address, old_value, new_value) != old_value);
@@ -813,8 +816,7 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
 void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::vector<std::uint16_t> const& dist_to_dest,
                      gpu_day_idx_t const& base,
-                     std::unique_ptr<bool[]> const& is_dest,
-                     std::size_t is_dest_size,
+                     std::vector<uint8_t> const& is_dest,
                      std::vector<std::uint16_t> const& lb,
                      int const& n_days,
                      std::uint16_t const& kUnreachable,
@@ -845,7 +847,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
   base_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_day_idx_t, base_, &base, 1);
   is_dest_ = nullptr;
-  CUDA_COPY_TO_DEVICE(bool, is_dest_, is_dest.get(), is_dest_size);
+  CUDA_COPY_TO_DEVICE(bool, is_dest_, is_dest.data(), is_dest.size());
   lb_ = nullptr;
   CUDA_COPY_TO_DEVICE(std::uint16_t, lb_, lb.data(), lb.size());
   n_days_ = nullptr;
@@ -975,51 +977,49 @@ std::unique_ptr<mem> gpu_mem(
     std::vector<bool>& route_mark,
     gpu_direction search_dir,
     gpu_timetable const* gtt){
-  short kInvalid = 0;
-  if(search_dir == gpu_direction::kForward){
-    kInvalid = kInvalidGpuDelta<gpu_direction::kForward>;
-  } else{
-    kInvalid = kInvalidGpuDelta<gpu_direction::kBackward>;
+
+  short kInvalid = (search_dir == gpu_direction::kForward)
+                       ? kInvalidGpuDelta<gpu_direction::kForward>
+                       : kInvalidGpuDelta<gpu_direction::kBackward>;
+
+  size_t num_uint32_locations = (gtt->n_locations_ / 32) + 1;
+
+  std::vector<uint32_t> gpu_station_mark(num_uint32_locations, 0);
+  std::vector<uint32_t> gpu_prev_station_mark(num_uint32_locations, 0);
+  std::vector<uint32_t> gpu_route_mark((gtt->n_routes_ / 32) + 1, 0);
+
+  size_t count = station_mark.size();
+  for (size_t i = 0; i < count; ++i) {
+    // Station Mark
+    gpu_station_mark[i / 32] |= (station_mark[i] << (i % 32));
+
+    // Previous Station Mark
+    gpu_prev_station_mark[i / 32] |= (prev_station_mark[i] << (i % 32));
   }
-  std::vector<uint32_t> gpu_station_mark(((gtt->n_locations_/32)+1));
-  for (size_t i = 0; i < station_mark.size(); ++i) {
-    size_t uint32_i = i / 32;
-    size_t bit_i = i % 32;
-    if (station_mark[i]) {
-      gpu_station_mark[uint32_i] |= (1u << bit_i);
-    }
-  }
-  std::vector<uint32_t> gpu_prev_station_mark(((gtt->n_locations_/32)+1));
-  for (size_t i = 0; i < prev_station_mark.size(); ++i) {
-    size_t uint32_i = i / 32;
-    size_t bit_i = i % 32;
-    if (prev_station_mark[i]) {
-      gpu_prev_station_mark[uint32_i] |= (1u << bit_i);
-    }
-  }
-  std::vector<uint32_t> gpu_route_mark(((gtt->n_routes_/32)+1));
+
+
   for (size_t i = 0; i < route_mark.size(); ++i) {
-    size_t uint32_i = i / 32;
-    size_t bit_i = i % 32;
     if (route_mark[i]) {
-      gpu_route_mark[uint32_i] |= (1u << bit_i);
+      gpu_route_mark[i / 32] |= (1u << (i % 32));
     }
   }
+
   gpu_raptor_state state;
   state.init(*gtt, kInvalid);
-  loaned_mem loan(state,kInvalid);
+  loaned_mem loan(state, kInvalid);
   std::unique_ptr<mem> mem = std::move(loan.mem_);
 
-  cudaMemcpy(mem.get()->device_.tmp_, tmp.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.tmp_, tmp.data(), gtt->n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem.get()->device_.best_, best.data(), (gtt->n_locations_) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.best_, best.data(), gtt->n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem.get()->device_.station_mark_, gpu_station_mark.data(), ((gtt->n_locations_/32)+1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.station_mark_, gpu_station_mark.data(), num_uint32_locations * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem.get()->device_.prev_station_mark_, gpu_prev_station_mark.data(), ((gtt->n_locations_/32)+1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.prev_station_mark_, gpu_prev_station_mark.data(), num_uint32_locations * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem.get()->device_.route_mark_, gpu_route_mark.data(), ((gtt->n_routes_/32)+1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.route_mark_, gpu_route_mark.data(), ((gtt->n_routes_ / 32) + 1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
+
   cudaDeviceSynchronize();
   return mem;
 }

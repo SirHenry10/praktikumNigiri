@@ -38,7 +38,7 @@ struct gpu_raptor_translator {
                         nigiri::rt_timetable const* rtt,
                         gpu_timetable const* gtt,
                         algo_state_t & state,
-                        std::vector<bool>& is_dest,
+                        std::vector<uint8_t>& is_dest,
                         std::vector<std::uint16_t>& dist_to_dest,
                         std::vector<std::uint16_t>& lb,
                         nigiri::day_idx_t const base,
@@ -64,7 +64,7 @@ struct gpu_raptor_translator {
   nigiri::timetable const& tt_;
   nigiri::rt_timetable const* rtt_{nullptr};
   algo_state_t & state_;
-  std::vector<bool>& is_dest_;
+  std::vector<uint8_t>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
   std::vector<std::uint16_t>& lb_;
   std::array<nigiri::delta_t, nigiri::routing::kMaxTransfers + 1> time_at_dest_;
@@ -210,7 +210,7 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
     nigiri::rt_timetable const* rtt,
     gpu_timetable const* gtt,
     algo_state_t & state,
-    std::vector<bool>& is_dest,
+    std::vector<uint8_t>& is_dest,
     std::vector<std::uint16_t>& dist_to_dest,
     std::vector<std::uint16_t>& lb,
     nigiri::day_idx_t const base,
