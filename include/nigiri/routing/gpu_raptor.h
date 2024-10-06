@@ -7,7 +7,7 @@
 #include "nigiri/routing/gpu_timetable.h"
 #include "nigiri/routing/pareto_set.h"
 #include "nigiri/routing/raptor/debug.h"
-//selbst sabotiert wegen import
+#include "utl/helpers/algorithm.h"
 #include <variant>
 extern "C"{
 void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
@@ -58,7 +58,7 @@ std::unique_ptr<mem> gpu_mem(
     std::vector<bool>& route_mark,
     gpu_direction search_dir,
     gpu_timetable const* gtt);
-void add_start_gpu(gpu_location_idx_t const l, gpu_unixtime_t const t,mem* mem_,gpu_timetable const* gtt_,gpu_day_idx_t base_,short const kInvalid);
+void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& round_times,std::vector<uint32_t>& station_mark,mem* mem);
 
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
@@ -141,18 +141,27 @@ struct gpu_raptor {
          gpu_clasz_mask_t const& allowed_claszes,
              int const& n_days)
       : gtt_{gtt},
-        mem_{mem}
+        mem_{mem},
+        best_(mem_->device_.n_locations_, kInvalid),
+        round_times_(mem_->device_.column_count_round_times_ * mem_->device_.row_count_round_times_, kInvalid),
+        station_mark_((mem_->device_.n_locations_ / 32) + 1, 0),
+        added_start_(false)
         {
+    auto start_bevor_copy = std::chrono::high_resolution_clock::now();
+
 
     mem_->reset_arrivals_async();
 
     std::unique_ptr<bool[]> copy_array(new bool[is_dest.size()]);
-    for (int i = 0; i<is_dest.size();i++){
-      copy_array[i] = is_dest[i];
-    }
+    std::copy(is_dest.begin(), is_dest.end(), copy_array.get());
     auto const kIntermodalTarget  =
         gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
     cpu_base_ = base;
+
+    auto end_bevor_copy = std::chrono::high_resolution_clock::now();
+    auto end_bevor_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_bevor_copy - start_bevor_copy).count();
+    std::cout << "end_bevor Time: " << end_bevor_duration << " microseconds\n";
+    auto start_copy = std::chrono::high_resolution_clock::now();
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
@@ -173,6 +182,9 @@ struct gpu_raptor {
                     kUnreachable_,
                     kIntermodalTarget_,
                     kMaxTravelTimeTicks_);
+    auto end_copy = std::chrono::high_resolution_clock::now();
+    auto copy_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_copy - start_copy).count();
+    std::cout << "copy Time: " << copy_duration << " microseconds\n";
   }
   ~gpu_raptor(){
       copy_to_device_destroy(allowed_claszes_,
@@ -191,15 +203,26 @@ struct gpu_raptor {
   }
 
   void reset_arrivals() {
+    utl::fill(round_times_,kInvalid);
+    added_start_ = true;
     mem_->reset_arrivals_async();
   }
 
   void next_start_time() {
+    utl::fill(best_, kInvalid);
+    utl::fill(station_mark_, 0);
+    added_start_ = true;
     mem_->next_start_time_async();
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
-    add_start_gpu(l,t,mem_,gtt_,cpu_base_,kInvalid);
+    trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
+    best_[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
+    round_times_[0U * mem_->device_.column_count_round_times_ + gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
+    unsigned int const store_idx = (gpu_to_idx(l) >> 5);  // divide by 32
+    unsigned int const mask = 1 << (gpu_to_idx(l) % 32);
+    station_mark_[store_idx] |= mask;
+    added_start_ = true;
   }
 
 
@@ -209,6 +232,15 @@ struct gpu_raptor {
              gpu_unixtime_t const& worst_time_at_dest,
              gpu_profile_idx_t const& prf_idx){
     //start_time muss rüber das bei trace,max_transfers muss nicht malloced werden, worst_time_at_Dest muss rüber kopiert werden, prf_idx muss kopiert werden
+
+    auto start_add_new = std::chrono::high_resolution_clock::now();
+    if (added_start_){
+      add_start_gpu(best_,round_times_,station_mark_,mem_);
+      added_start_ = false;
+    }
+    auto end_add_new = std::chrono::high_resolution_clock::now();
+    auto add_new_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_add_new - start_add_new).count();
+    std::cout << "add_new Time: " << add_new_duration << " microseconds\n";
     gpu_unixtime_t* start_time_ptr = nullptr;
     gpu_unixtime_t* worst_time_at_dest_ptr = nullptr;
     gpu_profile_idx_t* prf_idx_ptr = nullptr;
@@ -289,4 +321,8 @@ struct gpu_raptor {
   std::uint16_t* kUnreachable_{nullptr};
   gpu_location_idx_t* kIntermodalTarget_{nullptr};
   short* kMaxTravelTimeTicks_{nullptr};
+  std::vector<gpu_delta_t> best_;
+  std::vector<gpu_delta_t> round_times_;
+  std::vector<uint32_t> station_mark_;
+  bool added_start_;
 };
