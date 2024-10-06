@@ -954,13 +954,13 @@ inline void fetch_arrivals_async(mem* mem, cudaStream_t s) {
       sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
       mem->host_.station_mark_.data(), mem->device_.station_mark_,
-      sizeof(uint32_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+      sizeof(uint32_t)*((mem->device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
       mem->host_.prev_station_mark_.data(), mem->device_.prev_station_mark_,
-      sizeof(uint32_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+      sizeof(uint32_t)*((mem->device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
       mem->host_.route_mark_.data(), mem->device_.route_mark_,
-      sizeof(uint32_t)*mem->device_.n_routes_, cudaMemcpyDeviceToHost, s);
+      sizeof(uint32_t)*((mem->device_.n_routes_/32)+1), cudaMemcpyDeviceToHost, s);
   cuda_check();
 }
 void copy_back(mem* mem){
