@@ -182,5 +182,19 @@ struct loaned_mem {
   std::unique_ptr<mem> mem_{nullptr};
   std::unique_lock<std::mutex> lock_{};
 };
+struct storage_raptor_state {
+  storage_raptor_state() = default;
+  storage_raptor_state(storage_raptor_state const&) = delete;
+  storage_raptor_state& operator=(storage_raptor_state const&) = delete;
+  storage_raptor_state(storage_raptor_state&&) = default;
+  storage_raptor_state& operator=(storage_raptor_state&&) = default;
+  ~storage_raptor_state() = default;
 
+  std::vector<gpu_delta_t> tmp_;
+  std::vector<gpu_delta_t> best_;
+  std::vector<uint32_t> station_mark_;
+  std::vector<uint32_t> prev_station_mark_;
+  std::vector<uint32_t> route_mark_;
+  std::vector<uint32_t> rt_transport_mark_;
+};
 

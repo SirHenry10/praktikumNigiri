@@ -316,6 +316,8 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
         auto updated = update_arrival<SearchDir>(tmp_,l_idx,get_best<SearchDir>(by_transport, tmp_[l_idx]));
         if (updated){
+          if(k==3)
+          printf("GPU tmp: %d , by_transport: %d ",tmp_[l_idx],by_transport);
           ++stats_[get_global_thread_id()%32].n_earliest_arrival_updated_by_route_;
           mark(station_mark_, l_idx);
           current_best = by_transport;
@@ -941,18 +943,24 @@ inline void fetch_arrivals_async(mem* mem, cudaStream_t s) {
   cudaMemcpyAsync(
       mem->host_.round_times_.data(), mem->device_.round_times_,
       sizeof(gpu_delta_t)*mem->host_.row_count_round_times_*mem->host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.stats_.data(), mem->device_.stats_,
       sizeof(gpu_raptor_stats)*32, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.tmp_.data(), mem->device_.tmp_,
       sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
-  cuda_check();
   cudaMemcpyAsync(
       mem->host_.best_.data(), mem->device_.best_,
       sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      mem->host_.station_mark_.data(), mem->device_.station_mark_,
+      sizeof(uint32_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      mem->host_.prev_station_mark_.data(), mem->device_.prev_station_mark_,
+      sizeof(uint32_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      mem->host_.route_mark_.data(), mem->device_.route_mark_,
+      sizeof(uint32_t)*mem->device_.n_routes_, cudaMemcpyDeviceToHost, s);
   cuda_check();
 }
 void copy_back(mem* mem){
@@ -970,11 +978,7 @@ void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& rou
   cudaMemcpy(mem->device_.station_mark_, station_mark.data(), station_mark.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
 }
 std::unique_ptr<mem> gpu_mem(
-    std::vector<gpu_delta_t>& tmp,
-    std::vector<gpu_delta_t>& best,
-    std::vector<bool>& station_mark,
-    std::vector<bool>& prev_station_mark,
-    std::vector<bool>& route_mark,
+    storage_raptor_state& s_raptor_state,
     gpu_direction search_dir,
     gpu_timetable const* gtt){
 
@@ -983,43 +987,23 @@ std::unique_ptr<mem> gpu_mem(
                        : kInvalidGpuDelta<gpu_direction::kBackward>;
 
   size_t num_uint32_locations = (gtt->n_locations_ / 32) + 1;
-
-  std::vector<uint32_t> gpu_station_mark(num_uint32_locations, 0);
-  std::vector<uint32_t> gpu_prev_station_mark(num_uint32_locations, 0);
-  std::vector<uint32_t> gpu_route_mark((gtt->n_routes_ / 32) + 1, 0);
-
-  size_t count = station_mark.size();
-  for (size_t i = 0; i < count; ++i) {
-    // Station Mark
-    gpu_station_mark[i / 32] |= (station_mark[i] << (i % 32));
-
-    // Previous Station Mark
-    gpu_prev_station_mark[i / 32] |= (prev_station_mark[i] << (i % 32));
-  }
-
-
-  for (size_t i = 0; i < route_mark.size(); ++i) {
-    if (route_mark[i]) {
-      gpu_route_mark[i / 32] |= (1u << (i % 32));
-    }
-  }
+  s_raptor_state.tmp_.resize(gtt->n_locations_,kInvalid);
+  s_raptor_state.best_.resize(gtt->n_locations_,kInvalid);
+  s_raptor_state.station_mark_.resize(num_uint32_locations,0);
+  s_raptor_state.prev_station_mark_.resize(num_uint32_locations,0);
+  s_raptor_state.route_mark_.resize(((gtt->n_routes_ / 32) + 1),0);
 
   gpu_raptor_state state;
   state.init(*gtt, kInvalid);
   loaned_mem loan(state, kInvalid);
   std::unique_ptr<mem> mem = std::move(loan.mem_);
 
-  cudaMemcpy(mem->device_.tmp_, tmp.data(), gtt->n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.tmp_, s_raptor_state.tmp_.data(), gtt->n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.best_, s_raptor_state.best_.data(), gtt->n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.station_mark_, s_raptor_state.station_mark_.data(), num_uint32_locations * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.prev_station_mark_, s_raptor_state.prev_station_mark_.data(), num_uint32_locations * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem->device_.route_mark_, s_raptor_state.route_mark_.data(), ((gtt->n_routes_ / 32) + 1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
   cuda_check();
-  cudaMemcpy(mem->device_.best_, best.data(), gtt->n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cuda_check();
-  cudaMemcpy(mem->device_.station_mark_, gpu_station_mark.data(), num_uint32_locations * sizeof(uint32_t), cudaMemcpyHostToDevice);
-  cuda_check();
-  cudaMemcpy(mem->device_.prev_station_mark_, gpu_prev_station_mark.data(), num_uint32_locations * sizeof(uint32_t), cudaMemcpyHostToDevice);
-  cuda_check();
-  cudaMemcpy(mem->device_.route_mark_, gpu_route_mark.data(), ((gtt->n_routes_ / 32) + 1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
-  cuda_check();
-
   cudaDeviceSynchronize();
   return mem;
 }

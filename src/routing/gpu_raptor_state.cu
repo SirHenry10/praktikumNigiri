@@ -16,7 +16,7 @@ std::pair<dim3, dim3> get_launch_paramters(
    auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
 
      //TODO: Changed for GTX 1080 herausfinden wie allgemein halten
-   int32_t max_blocks_per_sm = 4;
+   int32_t max_blocks_per_sm = 2;
    int32_t num_blocks = mp_count * max_blocks_per_sm;
 
    int32_t num_sms = prop.multiProcessorCount;  // 20 SMs bei GTX 1080

@@ -50,11 +50,7 @@ void launch_kernel(void** args,
 void copy_back(mem* mem);
 
 std::unique_ptr<mem> gpu_mem(
-    std::vector<gpu_delta_t>& tmp,
-    std::vector<gpu_delta_t>& best,
-    std::vector<bool>& station_mark,
-    std::vector<bool>& prev_station_mark,
-    std::vector<bool>& route_mark,
+    storage_raptor_state& s_raptor_state,
     gpu_direction search_dir,
     gpu_timetable const* gtt);
 void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& round_times,std::vector<uint32_t>& station_mark,mem* mem);

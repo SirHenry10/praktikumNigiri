@@ -20,7 +20,7 @@ template <nigiri::direction SearchDir, bool Rt>
 struct gpu_raptor_translator {
   static constexpr auto const kInvalid = nigiri::kInvalidDelta<SearchDir>;
   static constexpr bool kUseLowerBounds = true;
-  using algo_state_t = nigiri::routing::raptor_state;
+  using algo_state_t = storage_raptor_state;
   using algo_stats_t = gpu_raptor_stats;
   static nigiri::direction const cpu_direction_ = SearchDir;
   static gpu_direction const gpu_direction_ =
@@ -63,7 +63,8 @@ struct gpu_raptor_translator {
 
   nigiri::timetable const& tt_;
   nigiri::rt_timetable const* rtt_{nullptr};
-  algo_state_t & state_;
+  algo_state_t& state_;
+  nigiri::routing::raptor_state cpu_state_;
   std::vector<uint8_t>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
   std::vector<std::uint16_t>& lb_;
@@ -115,7 +116,7 @@ void gpu_raptor_translator<SearchDir, Rt>::execute(
       continue;
     }
     for (auto k = 1U; k != end_k; ++k) {
-      auto const dest_time = state_.round_times_[k][i];
+      auto const dest_time = cpu_state_.round_times_[k][i];
       if (dest_time != kInvalid) {
         trace("ADDING JOURNEY: start={}, dest={} @ {}, transfers={}\n",
               start_time, delta_to_unix(base(), state_.round_times_[k][i]),
@@ -146,7 +147,7 @@ void gpu_raptor_translator<SearchDir, Rt>::reconstruct(const query& q,
                                                        journey& j){
 
   auto start_reconstruct = std::chrono::high_resolution_clock::now();
-  reconstruct_journey<SearchDir>(tt_, rtt_, q,state_, j, base(), base_);
+  reconstruct_journey<SearchDir>(tt_, rtt_, q,cpu_state_, j, base(), base_);
   auto end_reconstruct = std::chrono::high_resolution_clock::now();
   auto reconstruct_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reconstruct - start_reconstruct).count();
   std::cout << "reconstruct Time: " << reconstruct_duration << " microseconds\n";
@@ -228,7 +229,7 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
       n_routes_{tt.n_routes()},
       n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
       allowed_claszes_{allowed_claszes}{
-
+  cpu_state_ = routing::raptor_state{};
   auto start_constuct = std::chrono::high_resolution_clock::now();
   auto& gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
   auto& gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
@@ -346,10 +347,7 @@ void gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
 
 template <nigiri::direction SearchDir, bool Rt>
 std::unique_ptr<mem> gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable const* gtt) {
-  state_.resize(n_locations_,n_routes_,n_rt_transports_);
-  auto& tmp = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.tmp_);
-  auto& best = *reinterpret_cast<std::vector<gpu_delta_t>*>(&state_.best_);
-  return gpu_mem(tmp,best,state_.station_mark_,state_.prev_station_mark_,state_.route_mark_,gpu_direction_,gtt);
+  return gpu_mem(state_,gpu_direction_,gtt);
 }
 
 template <nigiri::direction SearchDir, bool Rt>
@@ -364,7 +362,12 @@ void gpu_raptor_translator<SearchDir, Rt>::gpu_covert_to_r_state() {
   matrix.resize(gpu_rows,gpu_columns);
   matrix.entries_ = std::move(vec);
 
-  state_.tmp_ = gpu_tmp;
-  state_.best_ = gpu_best;
-  state_.round_times_ = matrix;
+  cpu_state_.tmp_ = gpu_tmp;
+  cpu_state_.best_ = gpu_best;
+  cpu_state_.round_times_ = matrix;
+  state_.tmp_ = mem_->host_.tmp_;
+  state_.best_ = mem_->host_.best_;
+  state_.station_mark_ = mem_->host_.station_mark_;
+  state_.prev_station_mark_ = mem_->host_.prev_station_mark_;
+  state_.route_mark_ = mem_->host_.route_mark_;
 }
