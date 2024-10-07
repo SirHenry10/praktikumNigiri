@@ -20,7 +20,7 @@ template <nigiri::direction SearchDir, bool Rt>
 struct gpu_raptor_translator {
   static constexpr auto const kInvalid = nigiri::kInvalidDelta<SearchDir>;
   static constexpr bool kUseLowerBounds = true;
-  using algo_state_t = storage_raptor_state;
+  using algo_state_t = mem;
   using algo_stats_t = gpu_raptor_stats;
   static nigiri::direction const cpu_direction_ = SearchDir;
   static gpu_direction const gpu_direction_ =
@@ -31,7 +31,6 @@ struct gpu_raptor_translator {
       std::unique_ptr<gpu_raptor<gpu_direction::kBackward, true>>,
       std::unique_ptr<gpu_raptor<gpu_direction::kBackward, false>>
       > gpu_r_;
-  std::unique_ptr<mem> mem_;
   gpu_timetable const* gtt_;
 
   gpu_raptor_translator(nigiri::timetable const& tt,
@@ -43,7 +42,6 @@ struct gpu_raptor_translator {
                         std::vector<std::uint16_t>& lb,
                         nigiri::day_idx_t const base,
                         nigiri::routing::clasz_mask_t const allowed_claszes);
-  ~gpu_raptor_translator();
   algo_stats_t get_stats();
   void reset_arrivals();
 
@@ -64,24 +62,17 @@ struct gpu_raptor_translator {
   nigiri::timetable const& tt_;
   nigiri::rt_timetable const* rtt_{nullptr};
   algo_state_t& state_;
-  nigiri::routing::raptor_state cpu_state_;
   std::vector<uint8_t>& is_dest_;
   std::vector<std::uint16_t>& dist_to_end_;
   std::vector<std::uint16_t>& lb_;
-  std::array<nigiri::delta_t, nigiri::routing::kMaxTransfers + 1> time_at_dest_;
   nigiri::day_idx_t base_;
-  int n_days_;
-  std::uint32_t n_locations_, n_routes_, n_rt_transports_;
   nigiri::routing::clasz_mask_t allowed_claszes_;
-  static bool test(bool hi);
 private:
   date::sys_days base() const;
   void get_gpu_roundtimes(nigiri::unixtime_t const start_time,
                                   uint8_t const max_transfers,
                                   nigiri::unixtime_t const worst_time_at_dest,
                                   nigiri::profile_idx_t const prf_idx);
-  std::unique_ptr<mem> get_gpu_mem(gpu_timetable const* gtt);
-  void gpu_covert_to_r_state();
 };
 #pragma once
 
@@ -107,16 +98,15 @@ void gpu_raptor_translator<SearchDir, Rt>::execute(
   auto start_execute = std::chrono::high_resolution_clock::now();
   get_gpu_roundtimes(start_time,max_transfers,worst_time_at_dest,prf_idx);
   // Konstruktion der Ergebnis-Journey
-  //TODO: kann wieder die normale round_times aus dem raptor_state verwenden da ich ja zurück übersetzen
   auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
   auto start_journey = std::chrono::high_resolution_clock::now();
-  for (auto i = 0U; i != n_locations_; ++i) {
+  for (auto i = 0U; i != tt_.n_locations(); ++i) {
     auto const is_dest = is_dest_[i];
     if (!is_dest) {
       continue;
     }
     for (auto k = 1U; k != end_k; ++k) {
-      auto const dest_time = cpu_state_.round_times_[k][i];
+      auto const dest_time = state_.host_.round_times_[k*state_.host_.column_count_round_times_ + i];
       if (dest_time != kInvalid) {
         trace("ADDING JOURNEY: start={}, dest={} @ {}, transfers={}\n",
               start_time, delta_to_unix(base(), state_.round_times_[k][i]),
@@ -147,7 +137,7 @@ void gpu_raptor_translator<SearchDir, Rt>::reconstruct(const query& q,
                                                        journey& j){
 
   auto start_reconstruct = std::chrono::high_resolution_clock::now();
-  reconstruct_journey<SearchDir>(tt_, rtt_, q,cpu_state_, j, base(), base_);
+  reconstruct_journey_gpu<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
   auto end_reconstruct = std::chrono::high_resolution_clock::now();
   auto reconstruct_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reconstruct - start_reconstruct).count();
   std::cout << "reconstruct Time: " << reconstruct_duration << " microseconds\n";
@@ -224,34 +214,19 @@ gpu_raptor_translator<SearchDir, Rt>::gpu_raptor_translator(
       dist_to_end_{dist_to_dest},
       lb_{lb},
       base_{base},
-      n_days_{tt_.internal_interval_days().size().count()},
-      n_locations_{tt_.n_locations()},
-      n_routes_{tt.n_routes()},
-      n_rt_transports_{Rt ? rtt->n_rt_transports() : 0U},
       allowed_claszes_{allowed_claszes}{
-  cpu_state_ = routing::raptor_state{};
   auto start_constuct = std::chrono::high_resolution_clock::now();
   auto& gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
   auto& gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
-  auto start_mem = std::chrono::high_resolution_clock::now();
-  mem_ = std::move(get_gpu_mem(gtt));
-  auto end_mem = std::chrono::high_resolution_clock::now();
-  auto mem_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_mem - start_mem).count();
-  std::cout << "mem Time: " << mem_duration << " microseconds\n";
-  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt_,mem_.get(), is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes,tt_.internal_interval_days().size().count()); //TODO: next SEH error also falscher pointer oder so...
+  gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt_,state_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes,tt_.internal_interval_days().size().count()); //TODO: next SEH error also falscher pointer oder so...
   auto end_constuct = std::chrono::high_resolution_clock::now();
   auto constuct_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_constuct - start_constuct).count();
   std::cout << "constuct Time: " << constuct_duration << " microseconds\n";
 }
-template <nigiri::direction SearchDir, bool Rt>
-gpu_raptor_translator<SearchDir, Rt>::~gpu_raptor_translator(){
-  if (mem_ != nullptr) {
-    mem_.reset();
-  }
-};
 using algo_stats_t = gpu_raptor_stats;
 template <nigiri::direction SearchDir, bool Rt>
 algo_stats_t gpu_raptor_translator<SearchDir, Rt>::get_stats() {
+  auto start_stats = std::chrono::high_resolution_clock::now();
   if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
     return get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->get_stats();
   } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
@@ -261,6 +236,9 @@ algo_stats_t gpu_raptor_translator<SearchDir, Rt>::get_stats() {
   } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
     return get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->get_stats();
   }
+  auto end_stats = std::chrono::high_resolution_clock::now();
+  auto stats_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_stats - start_stats).count();
+  std::cout << "stats Time: " << stats_duration << " microseconds\n";
 }
 
 template <nigiri::direction SearchDir, bool Rt>
@@ -342,32 +320,6 @@ void gpu_raptor_translator<SearchDir, Rt>::get_gpu_roundtimes(
   } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
     get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->execute(gpu_start_time,max_transfers,gpu_worst_time_at_dest,prf_idx);
   }
-  gpu_covert_to_r_state();
 }
 
-template <nigiri::direction SearchDir, bool Rt>
-std::unique_ptr<mem> gpu_raptor_translator<SearchDir, Rt>::get_gpu_mem(gpu_timetable const* gtt) {
-  return gpu_mem(state_,gpu_direction_,gtt);
-}
 
-template <nigiri::direction SearchDir, bool Rt>
-void gpu_raptor_translator<SearchDir, Rt>::gpu_covert_to_r_state() {
-  auto gpu_tmp = mem_->host_.tmp_;
-  auto gpu_best = mem_->host_.best_;
-  auto gpu_round_times = mem_->host_.round_times_;
-  auto gpu_columns = mem_->device_.column_count_round_times_;
-  auto gpu_rows = mem_->device_.row_count_round_times_;
-  vector<gpu_delta_t> vec(gpu_round_times.data(), gpu_round_times.data() + gpu_rows * gpu_columns);
-  cista::raw::flat_matrix<delta_t> matrix;
-  matrix.resize(gpu_rows,gpu_columns);
-  matrix.entries_ = std::move(vec);
-
-  cpu_state_.tmp_ = gpu_tmp;
-  cpu_state_.best_ = gpu_best;
-  cpu_state_.round_times_ = matrix;
-  state_.tmp_ = mem_->host_.tmp_;
-  state_.best_ = mem_->host_.best_;
-  state_.station_mark_ = mem_->host_.station_mark_;
-  state_.prev_station_mark_ = mem_->host_.prev_station_mark_;
-  state_.route_mark_ = mem_->host_.route_mark_;
-}

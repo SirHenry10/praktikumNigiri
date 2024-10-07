@@ -4,10 +4,6 @@
 
 #include <cooperative_groups.h>
 using namespace cooperative_groups;
-// leader type must be unsigned 32bit
-// no leader is a zero ballot vote (all 0) minus 1 => with underflow all 1's
-constexpr unsigned int FULL_MASK = 0xFFFFffff;
-constexpr unsigned int NO_LEADER = FULL_MASK;
 
 __device__ __forceinline__ unsigned int get_block_thread_id() {
   return threadIdx.x + (blockDim.x * threadIdx.y);
@@ -98,7 +94,7 @@ __device__ bool update_arrival(gpu_delta_t* base_,
 template <gpu_direction SearchDir, bool Rt>
 __device__ void update_time_at_dest(unsigned const k, gpu_delta_t const t, gpu_delta_t * time_at_dest_){
   for (auto i = k; i < gpu_kMaxTransfers+1; ++i) {
-    time_at_dest_[i] = get_best<SearchDir>(time_at_dest_[i], t);
+    update_arrival<SearchDir>(time_at_dest_,i,t);
   }
 }
 
@@ -174,7 +170,6 @@ __device__ bool valid(gpu_delta_t t) {
   }
 }
 
-//hilfsmethode für update_route
 template <gpu_direction SearchDir, bool Rt>
 __device__ gpu_transport get_earliest_transport(unsigned const k,
                                                 gpu_route_idx_t const r,
@@ -259,7 +254,6 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
   return {};
 }
 
-//nicht parallele update_route
 template <gpu_direction SearchDir, bool Rt>
 __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
                   gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq,
@@ -316,8 +310,6 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
         // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
         auto updated = update_arrival<SearchDir>(tmp_,l_idx,get_best<SearchDir>(by_transport, tmp_[l_idx]));
         if (updated){
-          if(k==3)
-          printf("GPU tmp: %d , by_transport: %d ",tmp_[l_idx],by_transport);
           ++stats_[get_global_thread_id()%32].n_earliest_arrival_updated_by_route_;
           mark(station_mark_, l_idx);
           current_best = by_transport;
@@ -416,8 +408,9 @@ __device__ void loop_routes(unsigned const k, int* any_station_marked_, uint32_t
   auto const global_t_id = get_global_thread_id();
   auto const stride = blockDim.y * gridDim.x;
   auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
-  for(auto r_idx = start_r_id;
-       r_idx < n_routes; r_idx += stride){
+  auto const global_stride = get_global_stride();
+  for(auto r_idx = global_t_id;
+       r_idx < n_routes; r_idx += global_stride){
     auto const r = gpu_route_idx_t{r_idx};
     if(!marked(route_mark_, r_idx)) {
       continue;
@@ -543,19 +536,18 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
   }
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
-  if(global_t_id == 0){
-    for(auto idx = 0U; idx != n_locations; ++idx){
+  for(auto idx = global_t_id;
+       idx < n_locations; idx += global_stride){
       if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
         auto const end_time = gpu_clamp(get_best<SearchDir>(best_[idx], tmp_[idx]) + dir<SearchDir>(dist_to_end_[idx]));
-        if(is_better<SearchDir>(end_time, best_[gpu_to_idx(*gpu_kIntermodalTarget)])){
-          bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ +
-                                           gpu_kIntermodalTarget->v_, end_time);
-          best_[gpu_to_idx(*gpu_kIntermodalTarget)] = end_time;
-          update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
+        bool updated = update_arrival<SearchDir>(best_,gpu_to_idx(*gpu_kIntermodalTarget),end_time);
+        if (updated){
+            update_arrival<SearchDir>(round_times_, k * column_count_round_times_ +
+                                                        gpu_kIntermodalTarget->v_, end_time);
+            update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
         }
       }
     }
-  }
 }
 
 
@@ -834,7 +826,7 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & kUnreachable_,
                      gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
-  printf(" ");//DO NOT DELETE, SUPPRESSES Assertion failed: __acrt_first_block == header
+  //printf(" ");//DO NOT DELETE, SUPPRESSES Assertion failed: __acrt_first_block == header
   //Wahrscheinlich von übergeben Parametern das die nicht direkt richtig sind
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
@@ -939,73 +931,43 @@ void launch_kernel(void** args,
   cuda_check();
 }
 
-inline void fetch_arrivals_async(mem* mem, cudaStream_t s) {
+inline void fetch_arrivals_async(mem& mem, cudaStream_t s) {
   cudaMemcpyAsync(
-      mem->host_.round_times_.data(), mem->device_.round_times_,
-      sizeof(gpu_delta_t)*mem->host_.row_count_round_times_*mem->host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
+      mem.host_.round_times_.data(), mem.device_.round_times_,
+      sizeof(gpu_delta_t)*mem.host_.row_count_round_times_*mem.host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
-      mem->host_.stats_.data(), mem->device_.stats_,
+      mem.host_.stats_.data(), mem.device_.stats_,
       sizeof(gpu_raptor_stats)*32, cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
-      mem->host_.tmp_.data(), mem->device_.tmp_,
-      sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+      mem.host_.tmp_.data(), mem.device_.tmp_,
+      sizeof(gpu_delta_t)*mem.device_.n_locations_, cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
-      mem->host_.best_.data(), mem->device_.best_,
-      sizeof(gpu_delta_t)*mem->device_.n_locations_, cudaMemcpyDeviceToHost, s);
+      mem.host_.best_.data(), mem.device_.best_,
+      sizeof(gpu_delta_t)*mem.device_.n_locations_, cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
-      mem->host_.station_mark_.data(), mem->device_.station_mark_,
-      sizeof(uint32_t)*((mem->device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
+      mem.host_.station_mark_.data(), mem.device_.station_mark_,
+      sizeof(uint32_t)*((mem.device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
-      mem->host_.prev_station_mark_.data(), mem->device_.prev_station_mark_,
-      sizeof(uint32_t)*((mem->device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
+      mem.host_.prev_station_mark_.data(), mem.device_.prev_station_mark_,
+      sizeof(uint32_t)*((mem.device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
-      mem->host_.route_mark_.data(), mem->device_.route_mark_,
-      sizeof(uint32_t)*((mem->device_.n_routes_/32)+1), cudaMemcpyDeviceToHost, s);
+      mem.host_.route_mark_.data(), mem.device_.route_mark_,
+      sizeof(uint32_t)*((mem.device_.n_routes_/32)+1), cudaMemcpyDeviceToHost, s);
   cuda_check();
 }
-void copy_back(mem* mem){
+void copy_back(mem& mem){
   cuda_check();
-  cuda_sync_stream(mem->context_.proc_stream_);
-  fetch_arrivals_async(mem,mem->context_.transfer_stream_);
+  cuda_sync_stream(mem.context_.proc_stream_);
+  fetch_arrivals_async(mem,mem.context_.transfer_stream_);
   cuda_check();
-  cuda_sync_stream(mem->context_.transfer_stream_);
+  cuda_sync_stream(mem.context_.transfer_stream_);
   cuda_check();
 }
 
-void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& round_times,std::vector<uint32_t>& station_mark,mem* mem){
-  cudaMemcpy(mem->device_.best_, best.data(), mem->device_.n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem->device_.round_times_, round_times.data(), round_times.size() * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem->device_.station_mark_, station_mark.data(), station_mark.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
-}
-std::unique_ptr<mem> gpu_mem(
-    storage_raptor_state& s_raptor_state,
-    gpu_direction search_dir,
-    gpu_timetable const* gtt){
-
-  short kInvalid = (search_dir == gpu_direction::kForward)
-                       ? kInvalidGpuDelta<gpu_direction::kForward>
-                       : kInvalidGpuDelta<gpu_direction::kBackward>;
-
-  size_t num_uint32_locations = (gtt->n_locations_ / 32) + 1;
-  s_raptor_state.tmp_.resize(gtt->n_locations_,kInvalid);
-  s_raptor_state.best_.resize(gtt->n_locations_,kInvalid);
-  s_raptor_state.station_mark_.resize(num_uint32_locations,0);
-  s_raptor_state.prev_station_mark_.resize(num_uint32_locations,0);
-  s_raptor_state.route_mark_.resize(((gtt->n_routes_ / 32) + 1),0);
-
-  gpu_raptor_state state;
-  state.init(*gtt, kInvalid);
-  loaned_mem loan(state, kInvalid);
-  std::unique_ptr<mem> mem = std::move(loan.mem_);
-
-  cudaMemcpy(mem->device_.tmp_, s_raptor_state.tmp_.data(), gtt->n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem->device_.best_, s_raptor_state.best_.data(), gtt->n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem->device_.station_mark_, s_raptor_state.station_mark_.data(), num_uint32_locations * sizeof(uint32_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem->device_.prev_station_mark_, s_raptor_state.prev_station_mark_.data(), num_uint32_locations * sizeof(uint32_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem->device_.route_mark_, s_raptor_state.route_mark_.data(), ((gtt->n_routes_ / 32) + 1) * sizeof(uint32_t), cudaMemcpyHostToDevice);
-  cuda_check();
-  cudaDeviceSynchronize();
-  return mem;
+void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& round_times,std::vector<uint32_t>& station_mark,mem& mem){
+  cudaMemcpy(mem.device_.best_, best.data(), mem.device_.n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.device_.round_times_, round_times.data(), round_times.size() * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(mem.device_.station_mark_, station_mark.data(), station_mark.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
 }
 
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,

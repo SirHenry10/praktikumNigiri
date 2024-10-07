@@ -150,38 +150,6 @@ struct mem {
 };
 
 
-struct gpu_raptor_state {
-  using mem_idx = uint32_t;
-  static_assert(std::is_unsigned_v<mem_idx>);
-
-  void init(gpu_timetable const& gtt,gpu_delta_t invalid);
-
-  mem_idx get_mem_idx();
-
-  std::atomic<mem_idx> current_idx_{0};
-  static_assert(std::is_unsigned_v<decltype(current_idx_)::value_type>);
-
-  std::vector<std::unique_ptr<mem>> memory_;
-  std::vector<std::mutex> memory_mutexes_;
-};
-
-static_assert(
-    std::is_unsigned_v<decltype(std::declval<gpu_raptor_state>().get_mem_idx())>);
-
-struct loaned_mem {
-  loaned_mem() = delete;
-  loaned_mem(loaned_mem const&) = delete;
-  loaned_mem(loaned_mem const&&) = delete;
-  loaned_mem operator=(loaned_mem const&) = delete;
-  loaned_mem operator=(loaned_mem const&&) = delete;
-
-  explicit loaned_mem(gpu_raptor_state& store,gpu_delta_t invalid);
-
-  ~loaned_mem();
-
-  std::unique_ptr<mem> mem_{nullptr};
-  std::unique_lock<std::mutex> lock_{};
-};
 struct storage_raptor_state {
   storage_raptor_state() = default;
   storage_raptor_state(storage_raptor_state const&) = delete;

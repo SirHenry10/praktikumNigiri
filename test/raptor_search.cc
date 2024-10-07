@@ -25,14 +25,17 @@ pareto_set<routing::journey> raptor_search(timetable const& tt,
                                            routing::query q,
                                            gpu_timetable const* gtt = nullptr) {
   using algo_state_t = routing::raptor_state;
-  using gpu_algo_state_t = storage_raptor_state;
   static auto search_state = routing::search_state{};
   static auto algo_state = algo_state_t{};
-  static auto gpu_algo_state = gpu_algo_state_t{};
 
+  printf("Test2");
   if (rtt == nullptr) {
     if(gtt != nullptr){
-      //gpu_raptor without rtt
+      short kInvalid = (SearchDir == direction::kForward)
+                           ? kInvalidGpuDelta<gpu_direction::kForward>
+                           : kInvalidGpuDelta<gpu_direction::kBackward>;
+      printf("Test1");
+      mem gpu_algo_state(gtt->n_locations_,gtt->n_routes_,gpu_kMaxTransfers + 1U,gtt->n_locations_,kInvalid, 0);
       using algo_t = gpu_raptor_translator<SearchDir, false>;
       return *(routing::search<SearchDir, algo_t>{tt, rtt,gtt, search_state,
                                                   gpu_algo_state, std::move(q)}
@@ -47,7 +50,12 @@ pareto_set<routing::journey> raptor_search(timetable const& tt,
     }
   }else{
     if(gtt != nullptr){
-      //current state not working
+      short kInvalid = (SearchDir == direction::kForward)
+                           ? kInvalidGpuDelta<gpu_direction::kForward>
+                           : kInvalidGpuDelta<gpu_direction::kBackward>;
+      printf("Test1");
+      mem gpu_algo_state(gtt->n_locations_,gtt->n_routes_,gpu_kMaxTransfers + 1U,gtt->n_locations_,kInvalid, 0);
+
       using algo_t = gpu_raptor_translator<SearchDir, true>;
       return *(routing::search<SearchDir, algo_t>{tt, rtt,gtt, search_state,
                                                   gpu_algo_state, std::move(q)}

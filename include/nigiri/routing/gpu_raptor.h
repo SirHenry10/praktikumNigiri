@@ -47,13 +47,9 @@ void launch_kernel(void** args,
                           cudaStream_t s,
                           gpu_direction search_dir,
                           bool rt);
-void copy_back(mem* mem);
+void copy_back(mem& mem);
 
-std::unique_ptr<mem> gpu_mem(
-    storage_raptor_state& s_raptor_state,
-    gpu_direction search_dir,
-    gpu_timetable const* gtt);
-void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& round_times,std::vector<uint32_t>& station_mark,mem* mem);
+void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& round_times,std::vector<uint32_t>& station_mark,mem& mem);
 
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
@@ -128,7 +124,7 @@ struct gpu_raptor {
 
 
   gpu_raptor(gpu_timetable const* gtt,
-             mem* mem,
+             mem& mem,
          std::vector<uint8_t>& is_dest,
          std::vector<std::uint16_t>& dist_to_dest,
          std::vector<std::uint16_t>& lb,
@@ -137,16 +133,16 @@ struct gpu_raptor {
              int const& n_days)
       : gtt_{gtt},
         mem_{mem},
-        best_(mem_->device_.n_locations_, kInvalid),
-        round_times_(mem_->device_.column_count_round_times_ * mem_->device_.row_count_round_times_, kInvalid),
-        station_mark_((mem_->device_.n_locations_ / 32) + 1, 0),
+        best_(mem_.device_.n_locations_, kInvalid),
+        round_times_(mem_.device_.column_count_round_times_ * mem_.device_.row_count_round_times_, kInvalid),
+        station_mark_((mem_.device_.n_locations_ / 32) + 1, 0),
         added_start_(false)
         {
     auto start_bevor_copy = std::chrono::high_resolution_clock::now();
 
 
     auto start_reset_a = std::chrono::high_resolution_clock::now();
-    mem_->reset_arrivals_async();
+    mem_.reset_arrivals_async();
     auto end_reset_a = std::chrono::high_resolution_clock::now();
     auto reset_a_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reset_a - start_reset_a).count();
     std::cout << "reset_a Time: " << reset_a_duration << " microseconds\n";
@@ -201,20 +197,20 @@ struct gpu_raptor {
   void reset_arrivals() {
     utl::fill(round_times_,kInvalid);
     added_start_ = true;
-    mem_->reset_arrivals_async();
+    mem_.reset_arrivals_async();
   }
 
   void next_start_time() {
     utl::fill(best_, kInvalid);
     utl::fill(station_mark_, 0);
     added_start_ = true;
-    mem_->next_start_time_async();
+    mem_.next_start_time_async();
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
     trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
     best_[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
-    round_times_[0U * mem_->device_.column_count_round_times_ + gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
+    round_times_[0U * mem_.device_.column_count_round_times_ + gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
     unsigned int const store_idx = (gpu_to_idx(l) >> 5);  // divide by 32
     unsigned int const mask = 1 << (gpu_to_idx(l) % 32);
     station_mark_[store_idx] |= mask;
@@ -260,17 +256,17 @@ struct gpu_raptor {
                            (void*)&kUnreachable_,
                            (void*)&kIntermodalTarget_,
                            (void*)&kMaxTravelTimeTicks_,
-                           (void*)&mem_->device_.tmp_,
-                           (void*)&mem_->device_.best_,
-                           (void*)&mem_->device_.round_times_,
-                           (void*)&mem_->device_.time_at_dest_,
-                           (void*)&mem_->device_.station_mark_,
-                           (void*)&mem_->device_.prev_station_mark_,
-                           (void*)&mem_->device_.route_mark_,
-                           (void*)&mem_->device_.any_station_marked_,
-                           (void*)&mem_->device_.row_count_round_times_,
-                           (void*)&mem_->device_.column_count_round_times_,
-                           (void*)&mem_->device_.stats_,
+                           (void*)&mem_.device_.tmp_,
+                           (void*)&mem_.device_.best_,
+                           (void*)&mem_.device_.round_times_,
+                           (void*)&mem_.device_.time_at_dest_,
+                           (void*)&mem_.device_.station_mark_,
+                           (void*)&mem_.device_.prev_station_mark_,
+                           (void*)&mem_.device_.route_mark_,
+                           (void*)&mem_.device_.any_station_marked_,
+                           (void*)&mem_.device_.row_count_round_times_,
+                           (void*)&mem_.device_.column_count_round_times_,
+                           (void*)&mem_.device_.stats_,
                            (void*)&gtt_->route_stop_times_,
                            (void*)&gtt_->route_location_seq_,
                            (void*)&gtt_->location_routes_,
@@ -285,26 +281,26 @@ struct gpu_raptor {
                            (void*)&gtt_->locations_.gpu_footpaths_in_,
                            (void*)&gtt_->locations_.gpu_footpaths_out_,
                            (void*)&gtt_->route_clasz_};
-    launch_kernel(kernel_args, mem_->context_, mem_->context_.proc_stream_,SearchDir,Rt);
+    launch_kernel(kernel_args, mem_.context_, mem_.context_.proc_stream_,SearchDir,Rt);
     copy_back(mem_);
     //copy stats from host to raptor attribute
     gpu_raptor_stats tmp{};
     for (int i = 0; i<32; ++i) {
-      tmp.n_routing_time_ += mem_->host_.stats_[i].n_routing_time_;
-      tmp.n_footpaths_visited_ += mem_->host_.stats_[i].n_footpaths_visited_;
-      tmp.n_routes_visited_ += mem_->host_.stats_[i].n_routes_visited_;
-      tmp.n_earliest_trip_calls_ += mem_->host_.stats_[i].n_earliest_trip_calls_;
-      tmp.n_earliest_arrival_updated_by_route_ += mem_->host_.stats_[i].n_earliest_arrival_updated_by_route_;
-      tmp.n_earliest_arrival_updated_by_footpath_ += mem_->host_.stats_[i].n_earliest_arrival_updated_by_footpath_;
-      tmp.fp_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].fp_update_prevented_by_lower_bound_;
-      tmp.route_update_prevented_by_lower_bound_ += mem_->host_.stats_[i].route_update_prevented_by_lower_bound_;
+      tmp.n_routing_time_ += mem_.host_.stats_[i].n_routing_time_;
+      tmp.n_footpaths_visited_ += mem_.host_.stats_[i].n_footpaths_visited_;
+      tmp.n_routes_visited_ += mem_.host_.stats_[i].n_routes_visited_;
+      tmp.n_earliest_trip_calls_ += mem_.host_.stats_[i].n_earliest_trip_calls_;
+      tmp.n_earliest_arrival_updated_by_route_ += mem_.host_.stats_[i].n_earliest_arrival_updated_by_route_;
+      tmp.n_earliest_arrival_updated_by_footpath_ += mem_.host_.stats_[i].n_earliest_arrival_updated_by_footpath_;
+      tmp.fp_update_prevented_by_lower_bound_ += mem_.host_.stats_[i].fp_update_prevented_by_lower_bound_;
+      tmp.route_update_prevented_by_lower_bound_ += mem_.host_.stats_[i].route_update_prevented_by_lower_bound_;
     }
 
     stats_ = tmp;
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
   }
   gpu_timetable const* gtt_{nullptr};
-  mem* mem_{nullptr};
+  mem& mem_;
   bool* is_dest_{nullptr};
   uint16_t* dist_to_end_{nullptr};
   uint32_t* dist_to_end_size_{nullptr};
