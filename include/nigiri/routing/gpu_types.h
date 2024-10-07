@@ -17,7 +17,7 @@
 template <typename T, typename Tag>
 struct gpu_strong {
   using value_t = T;
-  __host__ __device__ gpu_strong() = default;
+  gpu_strong() = default;
   __host__ __device__ explicit gpu_strong(T const& v) noexcept(
       std::is_nothrow_copy_constructible_v<T>)
       : v_{v} {}
@@ -28,13 +28,13 @@ struct gpu_strong {
   __host__ __device__ explicit gpu_strong(X&& x) : v_{static_cast<T>(x)} {
   }
 
-  __host__ __device__ gpu_strong(gpu_strong&& o) noexcept(
+  gpu_strong(gpu_strong&& o) noexcept(
       std::is_nothrow_move_constructible_v<T>) = default;
-  __host__ __device__ gpu_strong& operator=(gpu_strong&& o) noexcept(
+  gpu_strong& operator=(gpu_strong&& o) noexcept(
       std::is_nothrow_move_constructible_v<T>) = default;
 
-  __host__ __device__ gpu_strong(gpu_strong const& o) = default;
-  __host__ __device__ gpu_strong& operator=(gpu_strong const& o) = default;
+  gpu_strong(gpu_strong const& o) = default;
+  gpu_strong& operator=(gpu_strong const& o) = default;
 
   __host__ __device__ static gpu_strong invalid() {
     return gpu_strong{cuda::std::numeric_limits<T>::max()};
@@ -146,23 +146,16 @@ struct gpu_bitset {
   static constexpr auto const num_blocks =
       Size / bits_per_block + (Size % bits_per_block == 0U ? 0U : 1U);
 
-  __host__ __device__ constexpr gpu_bitset() noexcept = default;
-  __host__ __device__ constexpr gpu_bitset(std::string_view s) noexcept { set(s); }
+  constexpr gpu_bitset() noexcept = default;
   __host__ __device__ static constexpr gpu_bitset max() {
     gpu_bitset ret;
     for (auto& b : ret.blocks_) {
-      b = std::numeric_limits<block_t>::max();
+      b = cuda::std::numeric_limits<block_t>::max();
     }
     return ret;
   }
 
   __host__ __device__ auto cista_members() noexcept { return std::tie(blocks_); }
-
-  __host__ __device__ constexpr void set(std::string_view s) noexcept {
-    for (std::size_t i = 0U; i != std::min(Size, s.size()); ++i) {
-      set(i, s[s.size() - i - 1U] != '0');
-    }
-  }
 
   __host__ __device__ constexpr void set(std::size_t const i, bool const val = true) noexcept {
     assert((i / bits_per_block) < num_blocks);
@@ -217,15 +210,6 @@ struct gpu_bitset {
     } else {
       return blocks_[num_blocks - 1U];
     }
-  }
-
-  __host__ __device__ std::string to_string() const {
-    std::string s{};
-    s.resize(Size);
-    for (std::size_t i = 0U; i != Size; ++i) {
-      s[i] = test(Size - i - 1U) ? '1' : '0';
-    }
-    return s;
   }
 
   __host__ __device__ friend bool operator==(gpu_bitset const& a, gpu_bitset const& b) noexcept {
@@ -1026,7 +1010,7 @@ struct gpu_basic_vector {
   using allocator_type = Allocator;
 
   __host__ __device__ explicit gpu_basic_vector(allocator_type const&) noexcept {}
-  __host__ __device__ gpu_basic_vector() noexcept = default;
+  gpu_basic_vector() noexcept = default;
 
   __host__ __device__ explicit gpu_basic_vector(size_type const size, T init = T{},
                         Allocator const& alloc = Allocator{}) {
@@ -1679,7 +1663,7 @@ struct gpu_stop {
   }
   __host__ __device__ friend auto operator<=>(gpu_stop const&, gpu_stop const&) = default;
 
-  __host__ __device__ gpu_stop() = default;
+  gpu_stop() = default;
   gpu_location_idx_t::value_t location_ : 30;
   gpu_location_idx_t::value_t in_allowed_ : 1;
   gpu_location_idx_t::value_t out_allowed_ : 1;

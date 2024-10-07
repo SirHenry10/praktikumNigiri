@@ -363,8 +363,6 @@ __device__ void loop_routes(unsigned const k,gpu_clasz_mask_t const* allowed_cla
   }
   this_grid().sync();
   auto const global_t_id = get_global_thread_id();
-  auto const stride = blockDim.y * gridDim.x;
-  auto const start_r_id = threadIdx.y + (blockDim.y * blockIdx.x);
   auto const global_stride = get_global_stride();
   for(auto r_idx = global_t_id;
        r_idx < gtt.n_routes_; r_idx += global_stride){

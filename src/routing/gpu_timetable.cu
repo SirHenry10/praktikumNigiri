@@ -186,7 +186,6 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
     printf("nigiri gpu raptor: malloc for gpu_timetable failed\n");
     return nullptr;
   }
-  auto locations_copy = *locations;
   // route_stop_times_
   gtt->route_stop_times_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_delta, gtt->route_stop_times_, route_stop_times,
