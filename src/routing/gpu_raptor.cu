@@ -801,86 +801,85 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t const& kUnreachable,
                      short const& kMaxTravelTimeTicks,
                      unsigned int const& kIntermodalTarget,
-                     gpu_clasz_mask_t*& allowed_claszes_,
-                     std::uint16_t* & dist_to_end_,
-                     std::uint32_t* & dist_to_end_size_,
-                     gpu_day_idx_t* & base_,
-                     bool* & is_dest_,
-                     std::uint16_t* & lb_,
-                     int* & n_days_,
-                     std::uint16_t* & kUnreachable_,
-                     gpu_location_idx_t* & kIntermodalTarget_,
-                     short* & kMaxTravelTimeTicks_){
+                     gpu_clasz_mask_t*& allowed_claszes_ptr,
+                     std::uint16_t* & dist_to_end_ptr,
+                     std::uint32_t* & dist_to_end_size_ptr,
+                     gpu_day_idx_t* & base_ptr,
+                     bool* & is_dest_ptr,
+                     std::uint16_t* & lb_ptr,
+                     int* & n_days_ptr,
+                     std::uint16_t* & kUnreachable_ptr,
+                     gpu_location_idx_t* & kIntermodalTarget_ptr,
+                     short* & kMaxTravelTimeTicks_ptr){
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
 
-  allowed_claszes_ = nullptr;
-  CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t, allowed_claszes_, &allowed_claszes, 1);
-  dist_to_end_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint16_t, dist_to_end_, dist_to_dest.data(),
+  allowed_claszes_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(gpu_clasz_mask_t, allowed_claszes_ptr, &allowed_claszes, 1);
+  dist_to_end_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(std::uint16_t, dist_to_end_ptr, dist_to_dest.data(),
                       dist_to_dest.size());
-  dist_to_end_size_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint32_t, dist_to_end_size_, &dist_to_end_size, 1);
-  base_ = nullptr;
-  CUDA_COPY_TO_DEVICE(gpu_day_idx_t, base_, &base, 1);
-  is_dest_ = nullptr;
-  CUDA_COPY_TO_DEVICE(bool, is_dest_, is_dest.data(), is_dest.size());
-  lb_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint16_t, lb_, lb.data(), lb.size());
-  n_days_ = nullptr;
-  CUDA_COPY_TO_DEVICE(int, n_days_, &n_days, 1);
-  kUnreachable_ = nullptr;
-  CUDA_COPY_TO_DEVICE(std::uint16_t, kUnreachable_, &kUnreachable, 1);
-  kIntermodalTarget_ = nullptr;
-  CUDA_COPY_TO_DEVICE(gpu_location_idx_t, kIntermodalTarget_,
+  dist_to_end_size_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(std::uint32_t, dist_to_end_size_ptr, &dist_to_end_size, 1);
+  base_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(gpu_day_idx_t, base_ptr, &base, 1);
+  is_dest_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(bool, is_dest_ptr, is_dest.data(), is_dest.size());
+  lb_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(std::uint16_t, lb_ptr, lb.data(), lb.size());
+  n_days_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(int, n_days_ptr, &n_days, 1);
+  kUnreachable_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(std::uint16_t, kUnreachable_ptr, &kUnreachable, 1);
+  kIntermodalTarget_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(gpu_location_idx_t, kIntermodalTarget_ptr,
                       &kIntermodalTarget, 1);
-  kMaxTravelTimeTicks_ = nullptr;
-  CUDA_COPY_TO_DEVICE(short, kMaxTravelTimeTicks_, &kMaxTravelTimeTicks, 1);
+  kMaxTravelTimeTicks_ptr = nullptr;
+  CUDA_COPY_TO_DEVICE(short, kMaxTravelTimeTicks_ptr, &kMaxTravelTimeTicks, 1);
   return;
 fail:
-  cudaFree(allowed_claszes_);
-  cudaFree(dist_to_end_);
-  cudaFree(dist_to_end_size_);
-  cudaFree(base_);
-  cudaFree(is_dest_);
-  cudaFree(lb_);
-  cudaFree(n_days_);
-  cudaFree(kUnreachable_);
-  cudaFree(kIntermodalTarget_);
-  cudaFree(kMaxTravelTimeTicks_);
+  cudaFree(allowed_claszes_ptr);
+  cudaFree(dist_to_end_ptr);
+  cudaFree(dist_to_end_size_ptr);
+  cudaFree(base_ptr);
+  cudaFree(is_dest_ptr);
+  cudaFree(lb_ptr);
+  cudaFree(n_days_ptr);
+  cudaFree(kUnreachable_ptr);
+  cudaFree(kIntermodalTarget_ptr);
+  cudaFree(kMaxTravelTimeTicks_ptr);
   return;
 };
-void copy_to_device_destroy(
-    gpu_clasz_mask_t*& allowed_claszes_,
-    std::uint16_t* & dist_to_end_,
-    std::uint32_t* & dist_to_end_size_,
-    gpu_day_idx_t* & base_,
-    bool* & is_dest_,
-    std::uint16_t* & lb_,
-    int* & n_days_,
-    std::uint16_t* & kUnreachable_,
-    gpu_location_idx_t* & kIntermodalTarget_,
-    short* & kMaxTravelTimeTicks_){
-  cudaFree(allowed_claszes_);
-  allowed_claszes_ = nullptr;
-  cudaFree(dist_to_end_);
-  dist_to_end_ = nullptr;
-  cudaFree(dist_to_end_size_);
-  dist_to_end_size_ = nullptr;
-  cudaFree(base_);
-  base_ = nullptr;
-  cudaFree(is_dest_);
-  is_dest_ = nullptr;
-  cudaFree(lb_);
-  lb_ = nullptr;
-  cudaFree(n_days_);
-  n_days_ = nullptr;
-  cudaFree(kUnreachable_);
-  kUnreachable_ = nullptr;
-  cudaFree(kIntermodalTarget_);
-  kIntermodalTarget_ = nullptr;
-  cudaFree(kMaxTravelTimeTicks_);
-  kMaxTravelTimeTicks_ = nullptr;
+void copy_to_device_destroy(gpu_clasz_mask_t*& allowed_claszes,
+                            std::uint16_t* & dist_to_end,
+                            std::uint32_t* & dist_to_end_size,
+                            gpu_day_idx_t* & base,
+                            bool* & is_dest,
+                            std::uint16_t* & lb,
+                            int* & n_days,
+                            std::uint16_t* & kUnreachable,
+                            gpu_location_idx_t* & kIntermodalTarget,
+                            short* & kMaxTravelTimeTicks){
+  cudaFree(allowed_claszes);
+  allowed_claszes = nullptr;
+  cudaFree(dist_to_end);
+  dist_to_end = nullptr;
+  cudaFree(dist_to_end_size);
+  dist_to_end_size = nullptr;
+  cudaFree(base);
+  base = nullptr;
+  cudaFree(is_dest);
+  is_dest = nullptr;
+  cudaFree(lb);
+  lb = nullptr;
+  cudaFree(n_days);
+  n_days = nullptr;
+  cudaFree(kUnreachable);
+  kUnreachable = nullptr;
+  cudaFree(kIntermodalTarget);
+  kIntermodalTarget = nullptr;
+  cudaFree(kMaxTravelTimeTicks);
+  kMaxTravelTimeTicks = nullptr;
   auto const last_error = cudaGetLastError();
   if (last_error != cudaSuccess) {
     printf("CUDA error: %s at " STR(last_error) " %s:%d\n",
