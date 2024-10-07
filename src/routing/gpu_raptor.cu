@@ -826,8 +826,6 @@ void copy_to_devices(gpu_clasz_mask_t const& allowed_claszes,
                      std::uint16_t* & kUnreachable_,
                      gpu_location_idx_t* & kIntermodalTarget_,
                      short* & kMaxTravelTimeTicks_){
-  //printf(" ");//DO NOT DELETE, SUPPRESSES Assertion failed: __acrt_first_block == header
-  //Wahrscheinlich von übergeben Parametern das die nicht direkt richtig sind
   cudaError_t code;
   auto dist_to_end_size = dist_to_dest.size();
 

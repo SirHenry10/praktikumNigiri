@@ -66,8 +66,6 @@ __host__ __device__ static auto get_smaller(auto a, auto b) { return a < b ? a :
 template<gpu_direction SearchDir>
 __host__ __device__ static bool is_better_or_eq(auto a, auto b) { return SearchDir==gpu_direction::kForward ? a <= b : a >= b; }
 
-//TODO: frage nochmal wann wird oben und wann unten genutz 2. hab gefixt das diese kein template haben
-//TODO: nochmal überlegen ob get_best und etc.. immer nach SearchDir kucken sollte oder nur bei gpu_delta_t???
 template<gpu_direction SearchDir>
 __host__ __device__ static auto get_best(auto a, auto b) { return is_better<SearchDir>(a, b) ? a : b; }
 
@@ -79,7 +77,7 @@ __host__ __device__ static auto get_best(auto x, auto... y) {
 
 __host__ __device__ inline int as_int(gpu_location_idx_t d) { return static_cast<int>(d.v_); }
 __host__ __device__ inline int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
-//TODO: base funktioniert nur auf device!!
+
 __device__ inline gpu_sys_days base(gpu_day_idx_t* base,gpu_interval<gpu_sys_days> const* date_range_ptr) {
   return gpu_internal_interval_days(date_range_ptr).from_ + as_int(*base) * gpu_days{1};
 }
@@ -122,7 +120,6 @@ struct gpu_raptor {
   static constexpr auto const kUnreachable =
       std::numeric_limits<std::uint16_t>::max();
 
-
   gpu_raptor(gpu_timetable const* gtt,
              mem& mem,
          std::vector<uint8_t>& is_dest,
@@ -136,31 +133,17 @@ struct gpu_raptor {
         best_(mem_.device_.n_locations_, kInvalid),
         round_times_(mem_.device_.column_count_round_times_ * mem_.device_.row_count_round_times_, kInvalid),
         station_mark_((mem_.device_.n_locations_ / 32) + 1, 0),
-        added_start_(false)
+        added_start_(false),
+        cpu_base_{base}
         {
-    auto start_bevor_copy = std::chrono::high_resolution_clock::now();
-
-
-    auto start_reset_a = std::chrono::high_resolution_clock::now();
-    mem_.reset_arrivals_async();
-    auto end_reset_a = std::chrono::high_resolution_clock::now();
-    auto reset_a_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reset_a - start_reset_a).count();
-    std::cout << "reset_a Time: " << reset_a_duration << " microseconds\n";
-
     auto const kIntermodalTarget  =
         gpu_to_idx(get_gpu_special_station(gpu_special_station::kEnd));
-    cpu_base_ = base;
-
-    auto end_bevor_copy = std::chrono::high_resolution_clock::now();
-    auto end_bevor_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_bevor_copy - start_bevor_copy).count();
-    std::cout << "end_bevor Time: " << end_bevor_duration << " microseconds\n";
-    auto start_copy = std::chrono::high_resolution_clock::now();
     copy_to_devices(allowed_claszes,
                     dist_to_dest,
                     base,
                     is_dest,
                     lb,
-                    n_days,//error,
+                    n_days,
                     kUnreachable,
                     kMaxTravelTimeTicks,
                     kIntermodalTarget,
@@ -174,9 +157,6 @@ struct gpu_raptor {
                     kUnreachable_,
                     kIntermodalTarget_,
                     kMaxTravelTimeTicks_);
-    auto end_copy = std::chrono::high_resolution_clock::now();
-    auto copy_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_copy - start_copy).count();
-    std::cout << "copy Time: " << copy_duration << " microseconds\n";
   }
   ~gpu_raptor(){
       copy_to_device_destroy(allowed_claszes_,
@@ -223,8 +203,6 @@ struct gpu_raptor {
              uint8_t const& max_transfers,
              gpu_unixtime_t const& worst_time_at_dest,
              gpu_profile_idx_t const& prf_idx){
-    //start_time muss rüber das bei trace,max_transfers muss nicht malloced werden, worst_time_at_Dest muss rüber kopiert werden, prf_idx muss kopiert werden
-
     auto start_add_new = std::chrono::high_resolution_clock::now();
     if (added_start_){
       add_start_gpu(best_,round_times_,station_mark_,mem_);
@@ -295,7 +273,6 @@ struct gpu_raptor {
       tmp.fp_update_prevented_by_lower_bound_ += mem_.host_.stats_[i].fp_update_prevented_by_lower_bound_;
       tmp.route_update_prevented_by_lower_bound_ += mem_.host_.stats_[i].route_update_prevented_by_lower_bound_;
     }
-
     stats_ = tmp;
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
   }
