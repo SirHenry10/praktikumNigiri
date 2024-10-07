@@ -1700,6 +1700,7 @@ struct gpu_it_range {
   BeginIt begin_;
   EndIt end_;
 };
+
 __host__ __device__  inline gpu_delta event_mam(gpu_route_idx_t const r,
                                         gpu_transport_idx_t t,
                                         gpu_stop_idx_t const stop_idx,
