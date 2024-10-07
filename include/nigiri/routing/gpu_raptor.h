@@ -78,7 +78,7 @@ __host__ __device__ static auto get_best(auto x, auto... y) {
 __host__ __device__ inline int as_int(gpu_location_idx_t d) { return static_cast<int>(d.v_); }
 __host__ __device__ inline int as_int(gpu_day_idx_t d)  { return static_cast<int>(d.v_); }
 
-__device__ inline gpu_sys_days base(gpu_day_idx_t* base,gpu_interval<gpu_sys_days> const* date_range_ptr) {
+__device__ inline gpu_sys_days base_of(gpu_day_idx_t* base,gpu_interval<gpu_sys_days> const* date_range_ptr) {
   return gpu_internal_interval_days(date_range_ptr).from_ + as_int(*base) * gpu_days{1};
 }
 __host__ inline gpu_sys_days cpu_base(gpu_timetable const* gtt, gpu_day_idx_t base) {

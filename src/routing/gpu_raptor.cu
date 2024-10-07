@@ -53,9 +53,9 @@ __device__ void swap_b_reset(unsigned int* store_a, unsigned int* store_b, int c
 }
 
 template <gpu_direction SearchDir>
-__device__ bool update_arrival(gpu_delta_t* base_,
+__device__ bool update_arrival(gpu_delta_t* base,
                                const unsigned int l_idx, gpu_delta_t const val){
-  gpu_delta_t* const arr_address = &base_[l_idx];
+  gpu_delta_t* const arr_address = &base[l_idx];
   auto* base_address = (int*)((size_t)arr_address & ~2);  // Verwende `int*` für vorzeichenbehaftete Werte
   int old_value, new_value;
 
@@ -92,16 +92,18 @@ __device__ bool update_arrival(gpu_delta_t* base_,
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void update_time_at_dest(unsigned const k, gpu_delta_t const t, gpu_delta_t * time_at_dest_){
+__device__ void update_time_at_dest(unsigned const k, gpu_delta_t const t, gpu_delta_t * time_at_dest){
   for (auto i = k; i < gpu_kMaxTransfers+1; ++i) {
-    update_arrival<SearchDir>(time_at_dest_,i,t);
+    update_arrival<SearchDir>(time_at_dest,i,t);
   }
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void convert_station_to_route_marks(unsigned int* station_marks, unsigned int* route_marks,
+__device__ void convert_station_to_route_marks(unsigned int* station_marks,
+                                               unsigned int* route_marks,
                                                int* any_station_marked,
-                                               gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes_,
+                                               gpu_vecvec<gpu_location_idx_t ,
+                                               gpu_route_idx_t> const* location_routes,
                                                std::uint32_t const n_locations) {
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
@@ -111,7 +113,7 @@ __device__ void convert_station_to_route_marks(unsigned int* station_marks, unsi
       if (!*any_station_marked) {
         atomicOr(reinterpret_cast<int*>(any_station_marked),1);
       }
-      for (auto r : (*location_routes_)[gpu_location_idx_t{idx}]) {
+      for (auto r : (*location_routes)[gpu_location_idx_t{idx}]) {
 
         mark(route_marks, gpu_to_idx(r));
       }
@@ -123,16 +125,16 @@ template <gpu_direction SearchDir, bool Rt>
 __device__ gpu_delta_t time_at_stop(gpu_route_idx_t const r, gpu_transport const t,
                                     gpu_stop_idx_t const stop_idx,
                                     gpu_event_type const ev_type,
-                                    gpu_day_idx_t base_,
+                                    gpu_day_idx_t base,
                                     gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
                                     gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                     gpu_delta const* route_stop_times){
   auto const n_transports = static_cast<unsigned>((*route_transport_ranges)[r].size());
-  auto const route_stop_begin = static_cast<unsigned>( (*route_stop_time_ranges)[r].from_ + n_transports *
-                                                                              (stop_idx * 2 - (ev_type==gpu_event_type::kArr ? 1 : 0)));
-  return gpu_clamp((as_int(t.day_) - as_int(base_)) * 1440
+  auto const route_stop_begin = static_cast<unsigned>((*route_stop_time_ranges)[r].from_ + n_transports *
+                                                      (stop_idx * 2 - (ev_type==gpu_event_type::kArr ? 1 : 0)));
+  return gpu_clamp((as_int(t.day_) - as_int(base)) * 1440
                    + route_stop_times[route_stop_begin +
-                                             (gpu_to_idx(t.t_idx_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());
+                   (gpu_to_idx(t.t_idx_) - gpu_to_idx((*route_transport_ranges)[r].from_))].count());
 }
 
 template <typename It, typename End, typename Key, typename Cmp>
@@ -155,7 +157,8 @@ __device__ bool is_transport_active(gpu_transport_idx_t const t,
   if (day >= (*bitfields)[(*transport_traffic_days)[t]].size()) {
     return false;
   }
-  auto const block = (*bitfields)[(*transport_traffic_days)[t]].blocks_[day / (*bitfields)[(*transport_traffic_days)[t]].bits_per_block];
+  auto const block = (*bitfields)[(*transport_traffic_days)[t]].blocks_
+                         [day / (*bitfields)[(*transport_traffic_days)[t]].bits_per_block];
   auto const bit = (day % (*bitfields)[(*transport_traffic_days)[t]].bits_per_block);
   return (block & (std::uint64_t{1U} << bit)) != 0U;
 }
@@ -177,23 +180,25 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
                                                 gpu_day_idx_t const day_at_stop,
                                                 gpu_minutes_after_midnight_t const mam_at_stop,
                                                 gpu_location_idx_t const l,
-                                                gpu_raptor_stats* stats_,
-                                                uint16_t* lb_,
-                                                gpu_delta_t* time_at_dest_,
+                                                gpu_raptor_stats* stats,
+                                                uint16_t* lb,
+                                                gpu_delta_t* time_at_dest,
                                                 gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                                                 gpu_vector_map<gpu_route_idx_t,gpu_interval<uint32_t >> const* route_stop_time_ranges,
-                                                int n_days_, gpu_day_idx_t* base_,
+                                                int n_days_, gpu_day_idx_t* base,
                                                 gpu_delta const* route_stop_times,
                                                 gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
                                                 gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
-  ++stats_[get_global_thread_id()%32].n_earliest_trip_calls_;
+  ++stats[get_global_thread_id()%32].n_earliest_trip_calls_;
 
   auto const n_days_to_iterate = get_smaller(
       gpu_kMaxTravelTime.count() / 1440 + 1,
-      (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop) : as_int(day_at_stop) + 1);
+      (SearchDir == gpu_direction::kForward) ? n_days_ - as_int(day_at_stop)
+                                             : as_int(day_at_stop) + 1);
 
   auto const event_times = gpu_event_times_at_stop(
-      r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, route_stop_time_ranges,route_transport_ranges, route_stop_times);
+      r, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr,
+      route_stop_time_ranges,route_transport_ranges, route_stop_times);
 
 
   auto const seek_first_day = [&]() {
@@ -224,15 +229,16 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
       continue;
     }
 
-    auto const day = (SearchDir == gpu_direction::kForward) ? day_at_stop + i : day_at_stop - i;
+    auto const day = (SearchDir == gpu_direction::kForward) ?
+                                          day_at_stop + i : day_at_stop - i;
     for (auto it = begin(ev_time_range); it != end(ev_time_range); ++it) {
       auto const t_offset =
           static_cast<std::size_t>(&*it - event_times.data());
       auto const ev = *it;
       auto const ev_mam = ev.mam_;
 
-      if (is_better_or_eq<SearchDir>(time_at_dest_[k],
-                          to_gpu_delta(day, ev_mam, base_) + dir<SearchDir>(lb_[gpu_to_idx(l)]))) {
+      if (is_better_or_eq<SearchDir>(time_at_dest[k],
+                          to_gpu_delta(day, ev_mam, base) + dir<SearchDir>(lb[gpu_to_idx(l)]))) {
         //hier geht cpu rein
         return {gpu_transport_idx_t::invalid(), gpu_day_idx_t::invalid()};
       }
@@ -256,22 +262,18 @@ __device__ gpu_transport get_earliest_transport(unsigned const k,
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
-                  gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq,
-                  gpu_raptor_stats* stats_,
-                  uint32_t* prev_station_mark_, gpu_delta_t* best_,
-                  gpu_delta_t* round_times_, uint32_t column_count_round_times_,
-                  gpu_delta_t* tmp_,
-                  uint16_t* lb_,
-                  gpu_delta_t* time_at_dest_,
-                  uint32_t* station_mark_,
-                  unsigned short kUnreachable,
-                  int* any_station_marked_,
-                  gpu_day_idx_t* base_,
+                             gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq,
+                             gpu_raptor_stats* stats, uint32_t* prev_station_mark,
+                             gpu_delta_t* best, gpu_delta_t* round_times,
+                             uint32_t column_count_round_times, gpu_delta_t* tmp,
+                             uint16_t* lb, gpu_delta_t* time_at_dest,
+                             uint32_t* station_mark, unsigned short kUnreachable,
+                             int* any_station_marked, gpu_day_idx_t* base,
                              gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
-                  gpu_vector_map<gpu_route_idx_t,gpu_interval<uint32_t>> const* route_stop_time_ranges,
-                  int n_days_, gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
-                  gpu_delta const* route_stop_times,
-                  gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
+                             gpu_vector_map<gpu_route_idx_t,gpu_interval<uint32_t>> const* route_stop_time_ranges,
+                             int n_days, gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
+                             gpu_delta const* route_stop_times,
+                             gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days) {
   auto const stop_seq = (*route_location_seq)[r];
   // diese Variable ist das Problem beim Parallelisieren
   auto et = gpu_transport{};
@@ -285,7 +287,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
 
     // wenn transportmittel an dem Tag nicht fährt &
     // wenn station nicht markiert ist, wird diese übersprungen → springt zur nächsten station
-    if (!et.is_valid() && !marked(prev_station_mark_, l_idx)) {
+    if (!et.is_valid() && !marked(prev_station_mark, l_idx)) {
       continue;
     }
     auto current_best = kInvalidGpuDelta<SearchDir>;
@@ -293,27 +295,28 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
 
     if (et.is_valid() && ((SearchDir == gpu_direction::kForward) ? stp.out_allowed() : stp.in_allowed())) {
       // wann transportmittel an dieser station ankommt
-      auto const by_transport = time_at_stop<SearchDir, Rt>(
-          r, et, stop_idx, (SearchDir == gpu_direction::kForward) ? gpu_event_type::kArr : gpu_event_type::kDep, *base_, route_stop_time_ranges, route_transport_ranges, route_stop_times);
+      auto const by_transport = time_at_stop<SearchDir, Rt>(r, et, stop_idx,
+          (SearchDir == gpu_direction::kForward) ? gpu_event_type::kArr : gpu_event_type::kDep,
+          *base, route_stop_time_ranges, route_transport_ranges, route_stop_times);
       // beste Zeit für diese station bekommen
-      current_best = get_best<SearchDir>(round_times_[(k - 1)*column_count_round_times_ + l_idx],
-                              tmp_[l_idx], best_[l_idx]);
+      current_best = get_best<SearchDir>(round_times[(k - 1)*column_count_round_times + l_idx],
+                              tmp[l_idx], best[l_idx]);
       assert(by_transport != cuda::std::numeric_limits<gpu_delta_t>::min() &&
              by_transport != cuda::std::numeric_limits<gpu_delta_t>::max());
       // wenn Ankunftszeit dieses Transportmittels besser ist als beste Ankunftszeit für station
       // & vor frühster Ankunftszeit am Ziel liegt
       if (is_better<SearchDir>(by_transport, current_best) &&
-          is_better<SearchDir>(by_transport, time_at_dest_[k]) &&
-          lb_[l_idx] != kUnreachable &&
-          is_better<SearchDir>(by_transport + dir<SearchDir>(lb_[l_idx]), time_at_dest_[k])) {
+          is_better<SearchDir>(by_transport, time_at_dest[k]) &&
+          lb[l_idx] != kUnreachable &&
+          is_better<SearchDir>(by_transport + dir<SearchDir>(lb[l_idx]), time_at_dest[k])) {
         // dann wird frühste Ankunftszeit an dieser Station aktualisiert
         // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
-        auto updated = update_arrival<SearchDir>(tmp_,l_idx,get_best<SearchDir>(by_transport, tmp_[l_idx]));
+        auto updated = update_arrival<SearchDir>(tmp,l_idx,get_best<SearchDir>(by_transport, tmp[l_idx]));
         if (updated){
-          ++stats_[get_global_thread_id()%32].n_earliest_arrival_updated_by_route_;
-          mark(station_mark_, l_idx);
+          ++stats[get_global_thread_id()%32].n_earliest_arrival_updated_by_route_;
+          mark(station_mark, l_idx);
           current_best = by_transport;
-          atomicOr(any_station_marked_,1);
+          atomicOr(any_station_marked,1);
         }
       }
     }
@@ -323,7 +326,7 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     // oder die Station nicht markiert war
 
     if (is_last || !((SearchDir == gpu_direction::kForward) ? stp.in_allowed() : stp.out_allowed()) ||
-        !marked(prev_station_mark_, l_idx)) {
+        !marked(prev_station_mark, l_idx)) {
       //dann wird diese übersprungen
       continue;
     }
@@ -331,43 +334,44 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
     // wenn der lowerBound von der Station nicht erreichbar ist,
     // werden die darauffolgenden Stationen auch nicht erreichbar sein
 
-    if (lb_[l_idx] == kUnreachable) {
+    if (lb[l_idx] == kUnreachable) {
       // dann wird Durchgehen dieser Route abgebrochen
       break;
     }
 
     // wenn Transportmittel an dem Tag fährt, dann ist das hier Ankunftszeit am Stop
-    auto const et_time_at_stop =
-        et.is_valid()
-            ? time_at_stop<SearchDir, Rt>(r, et, stop_idx,
-                           (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr,
-                           *base_, route_stop_time_ranges, route_transport_ranges, route_stop_times)
+    auto const et_time_at_stop = et.is_valid() ?
+               time_at_stop<SearchDir, Rt>(r, et, stop_idx,
+               (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr,
+               *base, route_stop_time_ranges, route_transport_ranges, route_stop_times)
             : kInvalidGpuDelta<SearchDir>;
     // vorherige Ankunftszeit an der Station
-    auto const prev_round_time = round_times_[(k-1) * column_count_round_times_ + l_idx];
+    auto const prev_round_time = round_times[(k-1) * column_count_round_times + l_idx];
 
     assert(prev_round_time != kInvalidGpuDelta<SearchDir>);
     // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
 
     if (is_better_or_eq<SearchDir>(prev_round_time, et_time_at_stop)) {
 
-      auto const [day, mam] = gpu_split_day_mam(*base_, prev_round_time);
+      auto const [day, mam] =
+          gpu_split_day_mam(*base, prev_round_time);
       // Hier muss leader election stattfinden
       // dann wird neues Transportmittel, das am frühsten von station abfährt
 
-      auto const new_et = get_earliest_transport<SearchDir, Rt>(k, r, stop_idx, day, mam,
-                                                 stp.gpu_location_idx(), stats_, lb_, time_at_dest_,route_transport_ranges,
-                                                                route_stop_time_ranges, n_days_, base_, route_stop_times, bitfields, transport_traffic_days);
+      auto const new_et = get_earliest_transport<SearchDir, Rt>(k, r, stop_idx,
+                          day, mam, stp.gpu_location_idx(), stats, lb, time_at_dest,
+                          route_transport_ranges, route_stop_time_ranges, n_days,
+                          base, route_stop_times, bitfields, transport_traffic_days);
       current_best =
-          get_best<SearchDir>(current_best, best_[l_idx], tmp_[l_idx]);
+          get_best<SearchDir>(current_best, best[l_idx], tmp[l_idx]);
       // wenn neues Transportmittel an diesem Tag fährt und
       // bisherige beste Ankunftszeit Invalid ist ODER Ankunftszeit an Station besser als Ankunftszeit von neuem Transportmittel
       if (new_et.is_valid() &&
           (current_best == kInvalidGpuDelta<SearchDir> ||
            is_better_or_eq<SearchDir>(
                time_at_stop<SearchDir, Rt>(r, new_et, stop_idx,
-                            (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr, *base_, route_stop_time_ranges, route_transport_ranges, route_stop_times),
-               et_time_at_stop))) {
+                            (SearchDir == gpu_direction::kForward) ? gpu_event_type::kDep : gpu_event_type::kArr,
+                            *base, route_stop_time_ranges, route_transport_ranges, route_stop_times), et_time_at_stop))) {
         // dann wird neues Transportmittel genommen
         et = new_et;
       }
@@ -376,22 +380,17 @@ __device__ void update_route(unsigned const k, gpu_route_idx_t const r,
 }
 
 template <gpu_direction SearchDir, bool Rt, bool WithClaszFilter>
-__device__ void loop_routes(unsigned const k, int* any_station_marked_, uint32_t* route_mark_,
-                            gpu_clasz_mask_t const* allowed_claszes_,
-                            gpu_raptor_stats* stats_,
-                            short const* kMaxTravelTimeTicks_, uint32_t* prev_station_mark_,
-                            gpu_delta_t* best_,
-                            gpu_delta_t* round_times_, uint32_t column_count_round_times_,
-                            gpu_delta_t* tmp_,
-                            uint16_t* lb_, int n_days_,
-                            gpu_delta_t* time_at_dest_,
-                            uint32_t* station_mark_, gpu_day_idx_t* base_,
-                            unsigned short kUnreachable,
-                            gpu_delta const* route_stop_times,
+__device__ void loop_routes(unsigned const k, int* any_station_marked, uint32_t* route_mark,
+                            gpu_clasz_mask_t const* allowed_claszes, gpu_raptor_stats* stats,
+                            short const* kMaxTravelTimeTicks, uint32_t* prev_station_mark,
+                            gpu_delta_t* best, gpu_delta_t* round_times,
+                            uint32_t column_count_round_times, gpu_delta_t* tmp,
+                            uint16_t* lb, int n_days, gpu_delta_t* time_at_dest,
+                            uint32_t* station_mark, gpu_day_idx_t* base,
+                            unsigned short kUnreachable, gpu_delta const* route_stop_times,
                             gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq,
                             gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes,
-                            std::uint32_t const n_locations,
-                            std::uint32_t const n_routes,
+                            std::uint32_t const n_locations, std::uint32_t const n_routes,
                             gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
                             gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                             gpu_vector_map<gpu_bitfield_idx_t, gpu_bitfield> const* bitfields,
@@ -402,7 +401,7 @@ __device__ void loop_routes(unsigned const k, int* any_station_marked_, uint32_t
                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                             gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz){
   if(get_global_thread_id() == 0){
-    atomicAnd(any_station_marked_,0);
+    atomicAnd(any_station_marked,0);
   }
   this_grid().sync();
   auto const global_t_id = get_global_thread_id();
@@ -412,59 +411,64 @@ __device__ void loop_routes(unsigned const k, int* any_station_marked_, uint32_t
   for(auto r_idx = global_t_id;
        r_idx < n_routes; r_idx += global_stride){
     auto const r = gpu_route_idx_t{r_idx};
-    if(!marked(route_mark_, r_idx)) {
+    if(!marked(route_mark, r_idx)) {
       continue;
     }
     if constexpr (WithClaszFilter){
-      auto const as_mask = static_cast<gpu_clasz_mask_t>(1U << static_cast<std::underlying_type_t<gpu_clasz>>((*route_clasz)[r]));
-      if(!((*allowed_claszes_ & as_mask)==as_mask)){
+      auto const as_mask = static_cast<gpu_clasz_mask_t>
+          (1U << static_cast<std::underlying_type_t<gpu_clasz>>((*route_clasz)[r]));
+      if(!((*allowed_claszes & as_mask)==as_mask)){
         continue;
       }
     }
-    ++stats_[global_t_id%32].n_routes_visited_;
-    update_route<SearchDir, Rt>(k, r, route_location_seq, stats_, prev_station_mark_, best_, round_times_,
-                                column_count_round_times_, tmp_, lb_, time_at_dest_, station_mark_, kUnreachable, any_station_marked_,
-                                base_,route_transport_ranges,route_stop_time_ranges, n_days_, bitfields, route_stop_times, transport_traffic_days);
+    ++stats[global_t_id%32].n_routes_visited_;
+    update_route<SearchDir, Rt>(k, r, route_location_seq, stats, prev_station_mark,
+                                best, round_times, column_count_round_times, tmp,
+                                lb, time_at_dest, station_mark, kUnreachable,
+                                any_station_marked, base,route_transport_ranges,
+                                route_stop_time_ranges, n_days, bitfields,
+                                route_stop_times, transport_traffic_days);
   }
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16_t* dist_to_end_,
-                                 uint32_t dist_to_end_size_, gpu_delta_t* tmp_,
-                                 gpu_delta_t* best_, gpu_delta_t* time_at_dest_, unsigned short kUnreachable,
-                                 uint16_t* lb_, gpu_delta_t* round_times_, uint32_t column_count_round_times_,
-                                 uint32_t* station_mark_, uint32_t* prev_station_mark_,
+__device__ void update_transfers(unsigned const k, bool const * is_dest,
+                                 uint16_t* dist_to_end, uint32_t dist_to_end_size,
+                                 gpu_delta_t* tmp, gpu_delta_t* best, gpu_delta_t* time_at_dest,
+                                 unsigned short kUnreachable, uint16_t* lb,
+                                 gpu_delta_t* round_times, uint32_t column_count_round_times,
+                                 uint32_t* station_mark, uint32_t* prev_station_mark,
                                  std::uint32_t const n_locations,
                                  gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> const* transfer_time,
                                  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                                  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in_,
-                                 gpu_raptor_stats* stats_){
+                                 gpu_raptor_stats* stats){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto l_idx = global_t_id;
        l_idx < n_locations; l_idx += global_stride){
-    if(!marked(prev_station_mark_, l_idx)){
+    if(!marked(prev_station_mark, l_idx)){
       continue;
     }
-    auto const is_dest = is_dest_[l_idx];
-    auto const tt = (dist_to_end_size_==0 && is_dest)
+    auto const dest = is_dest[l_idx];
+    auto const tt = (dist_to_end_size==0 && dest)
         ? 0 : dir<SearchDir>((*transfer_time)[gpu_location_idx_t{l_idx}]).count();
     const auto fp_target_time =
-        static_cast<gpu_delta_t>(tmp_[l_idx] + tt);
-    if(is_better<SearchDir>(fp_target_time, best_[l_idx])
-        && is_better<SearchDir>(fp_target_time, time_at_dest_[k])){
-      if(lb_[l_idx] == kUnreachable
-          || !is_better<SearchDir>(fp_target_time + dir<SearchDir>(lb_[l_idx]), time_at_dest_[k])){
-        ++stats_[l_idx%32].fp_update_prevented_by_lower_bound_;
+        static_cast<gpu_delta_t>(tmp[l_idx] + tt);
+    if(is_better<SearchDir>(fp_target_time, best[l_idx])
+        && is_better<SearchDir>(fp_target_time, time_at_dest[k])){
+      if(lb[l_idx] == kUnreachable
+          || !is_better<SearchDir>(fp_target_time + dir<SearchDir>(lb[l_idx]), time_at_dest[k])){
+        ++stats[l_idx%32].fp_update_prevented_by_lower_bound_;
         continue;
       }
-      bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ + l_idx, fp_target_time);
+      bool updated = update_arrival<SearchDir>(round_times, k * column_count_round_times + l_idx, fp_target_time);
       if(updated){
-        ++stats_[l_idx%32].n_earliest_arrival_updated_by_footpath_;
-        best_[l_idx] = fp_target_time;
-        mark(station_mark_, l_idx);
-        if(is_dest){
-          update_time_at_dest<SearchDir, Rt>(k, fp_target_time, time_at_dest_);
+        ++stats[l_idx%32].n_earliest_arrival_updated_by_footpath_;
+        best[l_idx] = fp_target_time;
+        mark(station_mark, l_idx);
+        if(dest){
+          update_time_at_dest<SearchDir, Rt>(k, fp_target_time, time_at_dest);
         }
       }
     }
@@ -472,22 +476,22 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest_, uint16
 }
 
 template <gpu_direction SearchDir, bool Rt>
-__device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_idx, unsigned short kUnreachable,
-                                 uint32_t* prev_station_mark_,
-                                 gpu_delta_t* tmp_, gpu_delta_t* best_,
-                                 uint16_t const* lb_, uint32_t* station_mark_, gpu_delta_t* time_at_dest_,
-                                 bool const* is_dest_, gpu_delta_t* round_times_,
-                                 uint32_t column_count_round_times_,
+__device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_idx,
+                                 unsigned short kUnreachable, uint32_t* prev_station_mark,
+                                 gpu_delta_t* tmp, gpu_delta_t* best, uint16_t const* lb,
+                                 uint32_t* station_mark, gpu_delta_t* time_at_dest,
+                                 bool const* is_dest, gpu_delta_t* round_times,
+                                 uint32_t column_count_round_times,
                                  std::uint32_t const n_locations,
                                  gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> const* transfer_time,
-                                gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
+                                 gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                                  gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
-                                 gpu_raptor_stats* stats_){
+                                 gpu_raptor_stats* stats){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto idx = global_t_id;
        idx < n_locations; idx += global_stride){
-    if(!marked(prev_station_mark_, idx)){
+    if(!marked(prev_station_mark, idx)){
       continue;
     }
     auto const l_idx = gpu_location_idx_t{idx};
@@ -495,28 +499,28 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
          ? gpu_footpaths_out[prf_idx][l_idx]
            : gpu_footpaths_in[prf_idx][l_idx];
     for(auto const& fp: fps){
-      ++stats_[idx%32].n_footpaths_visited_;
+      ++stats[idx%32].n_footpaths_visited_;
       auto const target = gpu_to_idx(gpu_location_idx_t{fp.target_});
       auto const fp_target_time =
-          gpu_clamp(tmp_[idx] + dir<SearchDir>(fp.duration()).count());
+          gpu_clamp(tmp[idx] + dir<SearchDir>(fp.duration()).count());
 
-      if(is_better<SearchDir>(fp_target_time, best_[target])
-          && is_better<SearchDir>(fp_target_time, time_at_dest_[k])){
-        auto const lower_bound = lb_[gpu_to_idx(gpu_location_idx_t{fp.target_})];
+      if(is_better<SearchDir>(fp_target_time, best[target])
+          && is_better<SearchDir>(fp_target_time, time_at_dest[k])){
+        auto const lower_bound = lb[gpu_to_idx(gpu_location_idx_t{fp.target_})];
         if(lower_bound == kUnreachable
-            || !is_better<SearchDir>(fp_target_time + dir<SearchDir>(lower_bound), time_at_dest_[k])){
-          ++stats_[idx%32].fp_update_prevented_by_lower_bound_;
+            || !is_better<SearchDir>(fp_target_time + dir<SearchDir>(lower_bound), time_at_dest[k])){
+          ++stats[idx%32].fp_update_prevented_by_lower_bound_;
           continue;
         }
       }
-      bool updated = update_arrival<SearchDir>(round_times_, k * column_count_round_times_ +
+      bool updated = update_arrival<SearchDir>(round_times, k * column_count_round_times +
                             gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
       if(updated){
-        ++stats_[idx%32].n_earliest_arrival_updated_by_footpath_;
-        best_[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
-        mark(station_mark_, gpu_to_idx(gpu_location_idx_t{fp.target_}));
-        if(is_dest_[gpu_to_idx(gpu_location_idx_t{fp.target_})]){
-          update_time_at_dest<SearchDir, Rt>(k, fp_target_time, time_at_dest_);
+        ++stats[idx%32].n_earliest_arrival_updated_by_footpath_;
+        best[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
+        mark(station_mark, gpu_to_idx(gpu_location_idx_t{fp.target_}));
+        if(is_dest[gpu_to_idx(gpu_location_idx_t{fp.target_})]){
+          update_time_at_dest<SearchDir, Rt>(k, fp_target_time, time_at_dest);
         }
       }
     }
@@ -526,25 +530,25 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t const n_locations,
-                                            uint16_t* dist_to_end_, uint32_t dist_to_end_size_, uint32_t* station_mark_,
-                                            uint32_t* prev_station_mark_, gpu_delta_t* time_at_dest_,
+                                            uint16_t* dist_to_end, uint32_t dist_to_end_size, uint32_t* station_mark,
+                                            uint32_t* prev_station_mark, gpu_delta_t* time_at_dest,
                                             unsigned short kUnreachable, gpu_location_idx_t* gpu_kIntermodalTarget,
-                                            gpu_delta_t* best_, gpu_delta_t* tmp_,
-                                            gpu_delta_t* round_times_, uint32_t column_count_round_times_){
-  if(dist_to_end_size_==0){
+                                            gpu_delta_t* best, gpu_delta_t* tmp,
+                                            gpu_delta_t* round_times, uint32_t column_count_round_times){
+  if(dist_to_end_size==0){
     return;
   }
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
-  for(auto idx = global_t_id;
-       idx < n_locations; idx += global_stride){
-      if((marked(prev_station_mark_, idx) || marked(station_mark_, idx)) && dist_to_end_[idx] != kUnreachable){
-        auto const end_time = gpu_clamp(get_best<SearchDir>(best_[idx], tmp_[idx]) + dir<SearchDir>(dist_to_end_[idx]));
-        bool updated = update_arrival<SearchDir>(best_,gpu_to_idx(*gpu_kIntermodalTarget),end_time);
+  for(auto idx = global_t_id; idx < n_locations; idx += global_stride){
+      if((marked(prev_station_mark, idx) || marked(station_mark, idx)) && dist_to_end[idx] != kUnreachable){
+        auto const end_time = gpu_clamp(get_best<SearchDir>(best[idx], tmp[idx]) + dir<SearchDir>(dist_to_end[idx]));
+        bool updated = update_arrival<SearchDir>(best,gpu_to_idx(*gpu_kIntermodalTarget),end_time);
         if (updated){
-            update_arrival<SearchDir>(round_times_, k * column_count_round_times_ +
-                                                        gpu_kIntermodalTarget->v_, end_time);
-            update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest_);
+            update_arrival<SearchDir>(round_times,
+                                      k * column_count_round_times + gpu_kIntermodalTarget->v_,
+                                      end_time);
+            update_time_at_dest<SearchDir, Rt>(k, end_time, time_at_dest);
         }
       }
     }
@@ -553,19 +557,19 @@ __device__ void update_intermodal_footpaths(unsigned const k, std::uint32_t cons
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
-                             gpu_day_idx_t* base_,
-                             gpu_clasz_mask_t allowed_claszes_, uint16_t* dist_to_end_,
-                             uint32_t dist_to_end_size_,
-                             bool* is_dest_, uint16_t* lb_, int n_days_,
-                             gpu_delta_t* time_at_dest_,
-                             int* any_station_marked_, uint32_t* route_mark_,
-                             uint32_t* station_mark_, gpu_delta_t* best_,
-                             unsigned short kUnreachable, uint32_t* prev_station_mark_,
-                             gpu_delta_t* round_times_, gpu_delta_t* tmp_,
-                             uint32_t row_count_round_times_,
-                             uint32_t column_count_round_times_,
+                             gpu_day_idx_t* base,
+                             gpu_clasz_mask_t allowed_claszes, uint16_t* dist_to_end,
+                             uint32_t dist_to_end_size,
+                             bool* is_dest, uint16_t* lb, int n_days,
+                             gpu_delta_t* time_at_dest,
+                             int* any_station_marked, uint32_t* route_mark,
+                             uint32_t* station_mark, gpu_delta_t* best,
+                             unsigned short kUnreachable, uint32_t* prev_station_mark,
+                             gpu_delta_t* round_times, gpu_delta_t* tmp,
+                             uint32_t row_count_round_times,
+                             uint32_t column_count_round_times,
                              gpu_location_idx_t* gpu_kIntermodalTarget,
-                             gpu_raptor_stats* stats_, short* kMaxTravelTimeTicks_,
+                             gpu_raptor_stats* stats, short* kMaxTravelTimeTicks,
                              gpu_delta const* route_stop_times,
                              gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq,
                              gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes,
@@ -577,7 +581,7 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
                              gpu_vector_map<gpu_transport_idx_t,gpu_bitfield_idx_t> const* transport_traffic_days,
                              gpu_interval<gpu_sys_days> const* date_range,
                              gpu_vector_map<gpu_location_idx_t, gpu_u8_minutes> const* transfer_time,
-                            gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
+                             gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_in,
                              gpu_vecvec<gpu_location_idx_t, nigiri::gpu_footpath> const* gpu_footpaths_out,
                              gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz){
   // update_time_at_dest für alle locations
@@ -585,11 +589,11 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   auto const global_stride = get_global_stride();
   //TODO sicher, dass man über n_locations iterieren muss? -> aufpassen, dass round_times nicht out of range zugegriffen wird
   for(auto idx = global_t_id; idx < n_locations; idx += global_stride){
-    auto test =round_times_[(k) * column_count_round_times_ +idx];
-    auto test2 = best_[idx];
-    best_[global_t_id] =get_best<SearchDir>(test, test2);
-    if(is_dest_[idx]){
-      update_time_at_dest<SearchDir, Rt>(k, best_[global_t_id], time_at_dest_);
+    auto test =round_times[(k) * column_count_round_times +idx];
+    auto test2 = best[idx];
+    best[global_t_id] =get_best<SearchDir>(test, test2);
+    if(is_dest[idx]){
+      update_time_at_dest<SearchDir, Rt>(k, best[global_t_id], time_at_dest);
     }
   }
 
@@ -597,111 +601,101 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
 
   // für jede location & für jede location_route state_.route_mark_
   if(get_global_thread_id()==0){
-    atomicAnd(any_station_marked_,0);
+    atomicAnd(any_station_marked,0);
   }
   this_grid().sync();
-  convert_station_to_route_marks<SearchDir, Rt>(station_mark_, route_mark_,
-                                 any_station_marked_, location_routes, n_locations);
+  convert_station_to_route_marks<SearchDir, Rt>(station_mark, route_mark, any_station_marked,
+                                                location_routes, n_locations);
 
   this_grid().sync();
 
-  if(!*any_station_marked_){
+  if(!*any_station_marked){
     if (get_global_thread_id() == 0) printf("GPU break k:%d",k);
     return;
   }
 
-  swap_b_reset(prev_station_mark_,station_mark_,(n_locations/32)+1);
+  swap_b_reset(prev_station_mark,station_mark,(n_locations/32)+1);
 
   this_grid().sync();
-  if(get_global_thread_id() ==0) printf("GPU K: %d, any_marked %d",k,*any_station_marked_);
-  (allowed_claszes_ == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked_, route_mark_, &allowed_claszes_,
-                                                             stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
-                                                             round_times_, column_count_round_times_, tmp_, lb_, n_days_,
-                                                             time_at_dest_, station_mark_, base_, kUnreachable,
-                                                                 route_stop_times,
-                                                                 route_location_seq,
-                                                                 location_routes,
-                                                                 n_locations,
-                                                                 n_routes,
-                                                                 route_stop_time_ranges,
-                                                                 route_transport_ranges,
-                                                                 bitfields,
-                                                                 transport_traffic_days,
-                                                                 date_range,
-                                                                 transfer_time,
-                                                                 gpu_footpaths_in,
-                                                                 gpu_footpaths_out,
-                                                                 route_clasz)
-                           : loop_routes<SearchDir, Rt, true>(k, any_station_marked_, route_mark_, &allowed_claszes_,
-                                                             stats_, kMaxTravelTimeTicks_, prev_station_mark_, best_,
-                                                             round_times_, column_count_round_times_, tmp_, lb_, n_days_,
-                                                             time_at_dest_, station_mark_, base_, kUnreachable,
-                                                                route_stop_times,
-                                                                route_location_seq,
-                                                                location_routes,
-                                                                n_locations,
-                                                                n_routes,
-                                                                route_stop_time_ranges,
-                                                                route_transport_ranges,
-                                                                bitfields,
-                                                                transport_traffic_days,
-                                                                date_range,
-                                                                transfer_time,
-                                                                gpu_footpaths_in,
-                                                                gpu_footpaths_out,
-                                                                route_clasz);
+  if(get_global_thread_id() ==0) printf("GPU K: %d, any_marked %d",k,*any_station_marked);
+  (allowed_claszes == 0xffff)? loop_routes<SearchDir, Rt, false>(k, any_station_marked, route_mark,
+                                                                 &allowed_claszes, stats,
+                                                                 kMaxTravelTimeTicks, prev_station_mark,
+                                                                 best, round_times,
+                                                                 column_count_round_times,
+                                                                 tmp, lb, n_days, time_at_dest,
+                                                                 station_mark, base, kUnreachable,
+                                                                 route_stop_times, route_location_seq,
+                                                                 location_routes, n_locations,
+                                                                 n_routes, route_stop_time_ranges,
+                                                                 route_transport_ranges, bitfields,
+                                                                 transport_traffic_days, date_range,
+                                                                 transfer_time, gpu_footpaths_in,
+                                                                 gpu_footpaths_out, route_clasz)
+                           : loop_routes<SearchDir, Rt, true>(k, any_station_marked, route_mark,
+                                                              &allowed_claszes, stats,
+                                                              kMaxTravelTimeTicks, prev_station_mark,
+                                                              best, round_times,
+                                                              column_count_round_times,
+                                                              tmp, lb, n_days, time_at_dest,
+                                                              station_mark, base, kUnreachable,
+                                                              route_stop_times, route_location_seq,
+                                                              location_routes, n_locations,
+                                                              n_routes, route_stop_time_ranges,
+                                                              route_transport_ranges, bitfields,
+                                                              transport_traffic_days, date_range,
+                                                              transfer_time, gpu_footpaths_in,
+                                                              gpu_footpaths_out, route_clasz);
   this_grid().sync();
 
-  if(!*any_station_marked_){
+  if(!*any_station_marked){
     if (get_global_thread_id() == 0) printf("GPU break2 k:%d",k);
     return;
   }
 
-  reset_store(route_mark_,(n_routes/32)+1);
+  reset_store(route_mark,(n_routes/32)+1);
 
-  swap_b_reset(prev_station_mark_,station_mark_,(n_locations/32)+1);
+  swap_b_reset(prev_station_mark,station_mark,(n_locations/32)+1);
 
   this_grid().sync();
 
   // update_transfers
-  update_transfers<SearchDir, Rt>(k, is_dest_, dist_to_end_, dist_to_end_size_,
-                   tmp_, best_, time_at_dest_, kUnreachable, lb_, round_times_,
-                                  column_count_round_times_, station_mark_, prev_station_mark_,
-                   n_locations,
-                                  transfer_time,
-                                  gpu_footpaths_in,
-                                  gpu_footpaths_out, stats_);
+  update_transfers<SearchDir, Rt>(k, is_dest, dist_to_end, dist_to_end_size,
+                                  tmp, best, time_at_dest, kUnreachable, lb,
+                                  round_times, column_count_round_times,
+                                  station_mark, prev_station_mark, n_locations,
+                                  transfer_time, gpu_footpaths_in,
+                                  gpu_footpaths_out, stats);
   this_grid().sync();
 
 
 
   // update_footpaths
-  update_footpaths<SearchDir, Rt>(k, prf_idx, kUnreachable, prev_station_mark_,
-                   tmp_, best_, lb_, station_mark_, time_at_dest_,
-                   is_dest_, round_times_, column_count_round_times_,
-                   n_locations,
-                                  transfer_time,
-                                  gpu_footpaths_in,
-                                  gpu_footpaths_out, stats_);
+  update_footpaths<SearchDir, Rt>(k, prf_idx, kUnreachable, prev_station_mark,
+                                  tmp, best, lb, station_mark, time_at_dest,
+                                  is_dest, round_times, column_count_round_times,
+                                  n_locations, transfer_time, gpu_footpaths_in,
+                                  gpu_footpaths_out, stats);
   this_grid().sync();
 
   // update_intermodal_footpaths
-  update_intermodal_footpaths<SearchDir, Rt>(k, n_locations, dist_to_end_, dist_to_end_size_, station_mark_,
-                             prev_station_mark_, time_at_dest_, kUnreachable,
-                             gpu_kIntermodalTarget, best_, tmp_, round_times_, column_count_round_times_);
+  update_intermodal_footpaths<SearchDir, Rt>(k, n_locations, dist_to_end, dist_to_end_size, station_mark,
+                                             prev_station_mark, time_at_dest, kUnreachable,
+                                             gpu_kIntermodalTarget, best, tmp, round_times, column_count_round_times);
 
 }
 
 template <gpu_direction SearchDir, bool Rt>
 __device__ void init_arrivals(gpu_unixtime_t const worst_time_at_dest,
-                              gpu_day_idx_t* base_, gpu_delta_t* time_at_dest,
+                              gpu_day_idx_t* base,
+                              gpu_delta_t* time_at_dest,
                               gpu_delta const* route_stop_times,
                               gpu_vector_map<gpu_route_idx_t,gpu_interval<gpu_transport_idx_t >> const* route_transport_ranges,
                               gpu_interval<gpu_sys_days> const* date_range){
   auto const global_t_id = get_global_thread_id();
   auto const global_stride = get_global_stride();
   for(auto idx = global_t_id; idx <gpu_kMaxTransfers+1; idx += global_stride){
-    time_at_dest[idx] = get_best<SearchDir>(unix_to_gpu_delta(base(base_,date_range), worst_time_at_dest), time_at_dest[idx]);
+    time_at_dest[idx] = get_best<SearchDir>(unix_to_gpu_delta(base_of(base,date_range), worst_time_at_dest), time_at_dest[idx]);
   }
 
 }
@@ -751,8 +745,8 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
   auto const end_k =
       get_smaller(max_transfers, gpu_kMaxTransfers) + 1U;
   // 1. Initialisierung
-  init_arrivals<SearchDir, Rt>(*worst_time_at_dest, base,
-                time_at_dest, route_stop_times,route_transport_ranges,date_range);
+  init_arrivals<SearchDir, Rt>(*worst_time_at_dest, base, time_at_dest,
+                               route_stop_times,route_transport_ranges,date_range);
 
   this_grid().sync();
   //++stats[get_global_thread_id()>>5].n_routes_visited_; TODO: so ist out of range
@@ -766,27 +760,18 @@ __global__ void gpu_raptor_kernel(gpu_unixtime_t* start_time,
       break;
     }
     raptor_round<SearchDir, Rt>(k, *prf_idx, base, *allowed_claszes,
-                 dist_to_end, *dist_to_end_size, is_dest, lb, *n_days,
-                 time_at_dest, any_station_marked, route_mark,
-                 station_mark, best,
-                 *kUnreachable, prev_station_mark,
-                 round_times, tmp,
-                                column_count_round_times,
-                 column_count_round_times,
-                 kIntermodalTarget, stats, kMaxTravelTimeTicks,route_stop_times,
-                 route_location_seq,
-                                location_routes,
-                                n_locations,
-                                n_routes,
-                                route_stop_time_ranges,
-                                route_transport_ranges,
-                                bitfields,
-                                transport_traffic_days,
-                                date_range,
-                                transfer_time,
-                                gpu_footpaths_in,
-                                gpu_footpaths_out,
-                                route_clasz);
+                                dist_to_end, *dist_to_end_size, is_dest, lb,
+                                *n_days, time_at_dest, any_station_marked,
+                                route_mark, station_mark, best, *kUnreachable,
+                                prev_station_mark, round_times, tmp,
+                                row_count_round_times, column_count_round_times,
+                                kIntermodalTarget, stats, kMaxTravelTimeTicks,
+                                route_stop_times, route_location_seq,
+                                location_routes, n_locations, n_routes,
+                                route_stop_time_ranges, route_transport_ranges,
+                                bitfields, transport_traffic_days, date_range,
+                                transfer_time, gpu_footpaths_in,
+                                gpu_footpaths_out, route_clasz);
     this_grid().sync();
   }
   this_grid().sync();
