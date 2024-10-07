@@ -155,6 +155,7 @@ void device_memory::reset_async(cudaStream_t s) {
 void device_memory::next_start_time_async(cudaStream_t s) {
   std::vector<gpu_delta_t> invalid_n_locations(n_locations_, invalid_);
   cudaMemcpyAsync(tmp_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
+  //TODO: kucken ob unterschied macht wenn best und station hier nicht resetet werden, da diese eh richtig resetet werden...
   cudaMemcpyAsync(best_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   cudaMemsetAsync(station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
   cudaMemsetAsync(prev_station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);

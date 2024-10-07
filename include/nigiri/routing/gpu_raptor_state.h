@@ -105,20 +105,13 @@ struct device_memory {
   void reset_arrivals_async(cudaStream_t s);
   void destroy();
 
-  // vielleicht getter Methoden
-  /*
-  void resize(unsigned n_locations,
-              unsigned n_routes);
-  */
-
   void reset_async(cudaStream_t s);
 
   gpu_delta_t* tmp_{};
   gpu_delta_t* best_{};
-  gpu_delta_t* round_times_{}; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  gpu_delta_t* round_times_{};
   gpu_delta_t* time_at_dest_{};
   gpu_delta_t invalid_{};
-  //uint32_t da wir 32 Threads haben die jeweils ihre route die marks setzen
   uint32_t* station_mark_{};
   uint32_t* prev_station_mark_{};
   uint32_t* route_mark_{};
@@ -147,22 +140,5 @@ struct mem {
   host_memory host_;
   device_memory device_;
   device_context context_;
-};
-
-
-struct storage_raptor_state {
-  storage_raptor_state() = default;
-  storage_raptor_state(storage_raptor_state const&) = delete;
-  storage_raptor_state& operator=(storage_raptor_state const&) = delete;
-  storage_raptor_state(storage_raptor_state&&) = default;
-  storage_raptor_state& operator=(storage_raptor_state&&) = default;
-  ~storage_raptor_state() = default;
-
-  std::vector<gpu_delta_t> tmp_;
-  std::vector<gpu_delta_t> best_;
-  std::vector<uint32_t> station_mark_;
-  std::vector<uint32_t> prev_station_mark_;
-  std::vector<uint32_t> route_mark_;
-  std::vector<uint32_t> rt_transport_mark_;
 };
 
