@@ -400,10 +400,6 @@ struct gpu_bitset {
     return copy;
   }
 
-  __host__ __device__ friend std::ostream& operator<<(std::ostream& out, gpu_bitset const& b) {
-    return out << b.to_string();
-  }
-
   cuda::std::array<block_t, num_blocks> blocks_{};
 };
 
