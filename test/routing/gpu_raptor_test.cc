@@ -166,57 +166,15 @@ TEST(routing, gpu_raptor_germany) {
   loader::finalize(tt);
   std::cout << "Fahrplan finalisiert." << std::endl;
   auto gtt = translate_tt_in_gtt(tt);
+
   {
-  std::cout << "Starte Raptor-Suche..." << std::endl;
-  //Flensburg Holzkrugweg de:01001:27334::1 -> Oberstdorf, Campingplatz de:09780:9256:0:1
-  //Köln: de:05315:11201;Leipzig, Stuttgarter Allee  de:14713:13132::03;
-  auto start_cpu = std::chrono::high_resolution_clock::now();
-//nach frankfurt: de:06412:10:5:35 , Darmstadt Nordbahnhof: de:06411:4720 // mit 25 September 2024 2 Uhr not working GPU!!!
-  auto const results_cpu = raptor_search(tt, nullptr, "de:01001:27334::1", "de:06412:10:5:35",
-                                         sys_days{September / 25 / 2024} + 16h,
-                                         nigiri::direction::kBackward);
-  auto end_cpu = std::chrono::high_resolution_clock::now();
-  auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
-  std::stringstream ss1;
-  ss1 << "\n";
-  for (auto const& x :  results_cpu) {
-    x.print(std::cout, tt);
-    ss1 << "\n\n";
-  }
-  std::cout << ss1.str();
-
-  auto start_gpu = std::chrono::high_resolution_clock::now();
-  std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
-  auto const results_gpu = raptor_search(tt, nullptr ,gtt, "de:01001:27334::1", "de:06412:10:5:35",
-                                         sys_days{September / 25 / 2024} + 16h,
-                                         nigiri::direction::kBackward);
-  auto end_gpu = std::chrono::high_resolution_clock::now();
-  auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
-
-  std::cout << "Raptor-Suche abgeschlossen." << std::endl;
-
-  std::stringstream ss2;
-  ss2 << "\n";
-  for (auto const& x :  results_gpu) {
-    x.print(std::cout, tt);
-    ss2 << "\n\n";
-  }
-  std::cout << ss2.str();
-  // Output the benchmarking results
-  std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
-  std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
-  printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
-  EXPECT_EQ(ss1.str(), ss2.str());
-  }
-  {
+    // Frankfurt Hauptwache - de:06412:1:21:3 -> Darmstadt Nordbf - de:06411:4720
     std::cout << "Starte Raptor-Suche..." << std::endl;
-    //Flensburg Holzkrugweg de:01001:27334::1 -> Oberstdorf, Campingplatz de:09780:9256:0:1
-
     auto start_cpu = std::chrono::high_resolution_clock::now();
-    //nach frankfurt: de:06412:10:5:35 , Darmstadt Nordbahnhof: de:06411:4720 // mit 25 September 2024 2 Uhr not working GPU!!!
-    auto const results_cpu = raptor_search(tt, nullptr, "de:06412:10:5:35", "de:06411:4720",
-                                           sys_days{September / 25 / 2024} + 16h,
-                                           nigiri::direction::kBackward);
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:06412:1:21:3", "de:06411:4720",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -229,9 +187,10 @@ TEST(routing, gpu_raptor_germany) {
 
     auto start_gpu = std::chrono::high_resolution_clock::now();
     std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
-    auto const results_gpu = raptor_search(tt, nullptr ,gtt, "de:06412:10:5:35", "de:06411:4720",
-                                           sys_days{September / 25 / 2024} + 16h,
-                                           nigiri::direction::kBackward);
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:06412:1:21:3", "de:06411:4720",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
@@ -245,18 +204,20 @@ TEST(routing, gpu_raptor_germany) {
     }
     std::cout << ss2.str();
     // Output the benchmarking results
+    std::cout << "Frankfurt Hauptwache -> Darmstadt Nordbf";
     std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
     std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
     printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
     EXPECT_EQ(ss1.str(), ss2.str());
   }
   {
+    // München Hbf - de:09162:100_G -> S+U Berlin Hbf - de:11000:900003200
     std::cout << "Starte Raptor-Suche..." << std::endl;
-    //S+U Berlin Hauptbahnhof","Bahnsteig Gleis 1+2 nördliche Treppe zum 1. Untergeschoss
-
     auto start_cpu = std::chrono::high_resolution_clock::now();
-    auto const results_cpu = raptor_search(tt, nullptr, "000300258044", "de:05315:11201",
-                                           sys_days{September / 25 / 2024} + 8h);
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:09162:100_G", "de:11000:900003200",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -269,8 +230,10 @@ TEST(routing, gpu_raptor_germany) {
 
     auto start_gpu = std::chrono::high_resolution_clock::now();
     std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
-    auto const results_gpu = raptor_search(tt, nullptr ,gtt, "000300258044", "de:05315:11201",
-                                           sys_days{September / 25 / 2024} + 8h);
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:09162:100_G", "de:11000:900003200",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
@@ -284,19 +247,64 @@ TEST(routing, gpu_raptor_germany) {
     }
     std::cout << ss2.str();
     // Output the benchmarking results
+    std::cout << "München Hbf -> Berlin Hbf";
     std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
     std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
     printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
     EXPECT_EQ(ss1.str(), ss2.str());
   }
   {
+    // Köln Neumarkt - de:05315:11111:4:16 -> Köln Ehrenfeld Bf - de:05315:14201
     std::cout << "Starte Raptor-Suche..." << std::endl;
+    auto start_cpu = std::chrono::high_resolution_clock::now();
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:05315:11111:4:16", "de:05315:14201",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+    std::stringstream ss1;
+    ss1 << "\n";
+    for (auto const& x :  results_cpu) {
+      x.print(std::cout, tt);
+      ss1 << "\n\n";
+    }
+    std::cout << ss1.str();
+
+    auto start_gpu = std::chrono::high_resolution_clock::now();
+    std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:05315:11111:4:16", "de:05315:14201",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+    auto end_gpu = std::chrono::high_resolution_clock::now();
+    auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+
+    std::cout << "Raptor-Suche abgeschlossen." << std::endl;
+
+    std::stringstream ss2;
+    ss2 << "\n";
+    for (auto const& x :  results_gpu) {
+      x.print(std::cout, tt);
+      ss2 << "\n\n";
+    }
+    std::cout << ss2.str();
+    // Output the benchmarking results
+    std::cout << "Köln Neumarkt -> Köln Ehrenfeld";
+    std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+    std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+    printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
+    EXPECT_EQ(ss1.str(), ss2.str());
+  }
+  {
     // Heidelberg Rohrbach de:08221:1203 -> Recklinhausen Hbf de:05562:3581
-
+    std::cout << "Starte Raptor-Suche..." << std::endl;
     auto start_cpu = std::chrono::high_resolution_clock::now();
 
-    auto const results_cpu = raptor_search(tt, nullptr, "de:08221:1203", "de:05562:3581",
-                                           sys_days{September / 25 / 2024} + 12h);
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:08221:1203", "de:05562:3581",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -309,8 +317,10 @@ TEST(routing, gpu_raptor_germany) {
 
     auto start_gpu = std::chrono::high_resolution_clock::now();
     std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
-    auto const results_gpu = raptor_search(tt, nullptr ,gtt, "de:08221:1203", "de:05562:3581",
-                                           sys_days{September / 25 / 2024} + 12h);
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:08221:1203", "de:05562:3581",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
@@ -324,6 +334,281 @@ TEST(routing, gpu_raptor_germany) {
     }
     std::cout << ss2.str();
     // Output the benchmarking results
+    std::cout << "HD Rohrbach -> Recklinghausen Hbf";
+    std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+    std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+    printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
+    EXPECT_EQ(ss1.str(), ss2.str());
+  }
+  {
+    // Schaafheim - de:06432:22576:1:1 -> Reinheim - de:06432:24562:1:1
+    std::cout << "Starte Raptor-Suche..." << std::endl;
+    auto start_cpu = std::chrono::high_resolution_clock::now();
+
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:06432:22576:1:1", "de:06432:24562:1:1",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+    std::stringstream ss1;
+    ss1 << "\n";
+    for (auto const& x :  results_cpu) {
+      x.print(std::cout, tt);
+      ss1 << "\n\n";
+    }
+    std::cout << ss1.str();
+
+    auto start_gpu = std::chrono::high_resolution_clock::now();
+    std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:06432:22576:1:1", "de:06432:24562:1:1",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+    auto end_gpu = std::chrono::high_resolution_clock::now();
+    auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+
+    std::cout << "Raptor-Suche abgeschlossen." << std::endl;
+
+    std::stringstream ss2;
+    ss2 << "\n";
+    for (auto const& x :  results_gpu) {
+      x.print(std::cout, tt);
+      ss2 << "\n\n";
+    }
+    std::cout << ss2.str();
+    // Output the benchmarking results
+    std::cout << "Schaafheim -> Reinheim";
+    std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+    std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+    printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
+    EXPECT_EQ(ss1.str(), ss2.str());
+  }
+  {
+    // Dresden Hbf - de:14612:36 -> Hamburg Hbf - de:02000:10002
+    std::cout << "Starte Raptor-Suche..." << std::endl;
+    auto start_cpu = std::chrono::high_resolution_clock::now();
+
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:14612:36", "de:02000:10002",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+    std::stringstream ss1;
+    ss1 << "\n";
+    for (auto const& x :  results_cpu) {
+      x.print(std::cout, tt);
+      ss1 << "\n\n";
+    }
+    std::cout << ss1.str();
+
+    auto start_gpu = std::chrono::high_resolution_clock::now();
+    std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:14612:36", "de:02000:10002",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_gpu = std::chrono::high_resolution_clock::now();
+    auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+
+    std::cout << "Raptor-Suche abgeschlossen." << std::endl;
+
+    std::stringstream ss2;
+    ss2 << "\n";
+    for (auto const& x :  results_gpu) {
+      x.print(std::cout, tt);
+      ss2 << "\n\n";
+    }
+    std::cout << ss2.str();
+    // Output the benchmarking results
+    std::cout << "Dresden Hbf -> Hamburg Hbf";
+    std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+    std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+    printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
+    EXPECT_EQ(ss1.str(), ss2.str());
+  }
+  {
+    // Ludwigshafen Mitte - de:07314:2019 -> Mannheim Wasserturm de:08222:2475:2:5
+    std::cout << "Starte Raptor-Suche..." << std::endl;
+    auto start_cpu = std::chrono::high_resolution_clock::now();
+
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:07314:2019", "de:08222:2475:2:5",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+    std::stringstream ss1;
+    ss1 << "\n";
+    for (auto const& x :  results_cpu) {
+      x.print(std::cout, tt);
+      ss1 << "\n\n";
+    }
+    std::cout << ss1.str();
+
+    auto start_gpu = std::chrono::high_resolution_clock::now();
+    std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:07314:2019", "de:08222:2475:2:5",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_gpu = std::chrono::high_resolution_clock::now();
+    auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+
+    std::cout << "Raptor-Suche abgeschlossen." << std::endl;
+
+    std::stringstream ss2;
+    ss2 << "\n";
+    for (auto const& x :  results_gpu) {
+      x.print(std::cout, tt);
+      ss2 << "\n\n";
+    }
+    std::cout << ss2.str();
+    // Output the benchmarking results
+    std::cout << "LU Mitte -> Mannheim Wasserturm";
+    std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+    std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+    printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
+    EXPECT_EQ(ss1.str(), ss2.str());
+  }
+  {
+    // Böblingen Südbf - de:08115:6742 -> Zuffenhausen Rathaus - de:08111:108:80
+    std::cout << "Starte Raptor-Suche..." << std::endl;
+    auto start_cpu = std::chrono::high_resolution_clock::now();
+
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:08115:6742", "de:08111:108:80",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+    std::stringstream ss1;
+    ss1 << "\n";
+    for (auto const& x :  results_cpu) {
+      x.print(std::cout, tt);
+      ss1 << "\n\n";
+    }
+    std::cout << ss1.str();
+
+    auto start_gpu = std::chrono::high_resolution_clock::now();
+    std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:08115:6742", "de:08111:108:80",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_gpu = std::chrono::high_resolution_clock::now();
+    auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+
+    std::cout << "Raptor-Suche abgeschlossen." << std::endl;
+
+    std::stringstream ss2;
+    ss2 << "\n";
+    for (auto const& x :  results_gpu) {
+      x.print(std::cout, tt);
+      ss2 << "\n\n";
+    }
+    std::cout << ss2.str();
+    // Output the benchmarking results
+    std::cout << "Böblingen -> Zuffenhausen";
+    std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+    std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+    printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
+    EXPECT_EQ(ss1.str(), ss2.str());
+  }
+  {
+    // Lübeck Drägerwerk - de:01003:57748::1 -> Lennestadt - de:05966:10238_G
+    std::cout << "Starte Raptor-Suche..." << std::endl;
+    auto start_cpu = std::chrono::high_resolution_clock::now();
+
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:01003:57748::1", "de:05966:10238_G",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+    std::stringstream ss1;
+    ss1 << "\n";
+    for (auto const& x :  results_cpu) {
+      x.print(std::cout, tt);
+      ss1 << "\n\n";
+    }
+    std::cout << ss1.str();
+
+    auto start_gpu = std::chrono::high_resolution_clock::now();
+    std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:01003:57748::1", "de:05966:10238_G",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_gpu = std::chrono::high_resolution_clock::now();
+    auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+
+    std::cout << "Raptor-Suche abgeschlossen." << std::endl;
+
+    std::stringstream ss2;
+    ss2 << "\n";
+    for (auto const& x :  results_gpu) {
+      x.print(std::cout, tt);
+      ss2 << "\n\n";
+    }
+    std::cout << ss2.str();
+    // Output the benchmarking results
+    std::cout << "Lübeck -> Lennestadt";
+    std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
+    std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
+    printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
+    EXPECT_EQ(ss1.str(), ss2.str());
+  }
+  {
+    // Stettenhofen - de:09772:4204:0:A -> Feucht Ost - de:09574:7210
+    std::cout << "Starte Raptor-Suche..." << std::endl;
+    auto start_cpu = std::chrono::high_resolution_clock::now();
+
+    auto const results_cpu = raptor_search(tt, nullptr,
+                                           "de:09772:4204:0:A", "de:09574:7210",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+    std::stringstream ss1;
+    ss1 << "\n";
+    for (auto const& x :  results_cpu) {
+      x.print(std::cout, tt);
+      ss1 << "\n\n";
+    }
+    std::cout << ss1.str();
+
+    auto start_gpu = std::chrono::high_resolution_clock::now();
+    std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
+    auto const results_gpu = raptor_search(tt, nullptr ,gtt,
+                                           "de:09772:4204:0:A", "de:09574:7210",
+                                           interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                           nigiri::direction::kBackward);
+    auto end_gpu = std::chrono::high_resolution_clock::now();
+    auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+
+    std::cout << "Raptor-Suche abgeschlossen." << std::endl;
+
+    std::stringstream ss2;
+    ss2 << "\n";
+    for (auto const& x :  results_gpu) {
+      x.print(std::cout, tt);
+      ss2 << "\n\n";
+    }
+    std::cout << ss2.str();
+    // Output the benchmarking results
+    std::cout << "Stettenhofen -> Feucht";
     std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
     std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
     printf("GPU_size: %d, CPU_size: %d",results_gpu.size(),results_cpu.size());
