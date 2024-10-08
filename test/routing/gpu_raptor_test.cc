@@ -157,7 +157,7 @@ TEST(routing, gpu_raptor_germany) {
   timetable tt;
   std::cout << "Lade Fahrplan..." << std::endl;
   tt.date_range_ = {date::sys_days{2024_y / September / 25},
-                    date::sys_days{2024_y / September / 26}}; //test_files_germany only available until December 14
+                    date::sys_days{2024_y / September / 25}}; //test_files_germany only available until December 14
   loader::register_special_stations(tt);
   loader::gtfs::load_timetable({}, source_idx_t{0}, german_dir_zip, tt);
   std::cout << "Fahrplan geladen." << std::endl;
