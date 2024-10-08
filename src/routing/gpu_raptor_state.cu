@@ -58,23 +58,23 @@ void device_context::destroy() {
 host_memory::host_memory(uint32_t n_locations,
                          uint32_t n_routes,
                          uint32_t row_count_round_times,
-                         uint32_t column_count_round_times
-                         ):row_count_round_times_{row_count_round_times},
+                         uint32_t column_count_round_times,
+                         gpu_delta_t kInvalid):row_count_round_times_{row_count_round_times},
                              column_count_round_times_{column_count_round_times},
-                             round_times_(row_count_round_times*column_count_round_times),
+                             round_times_(row_count_round_times*column_count_round_times,kInvalid),
                              stats_(32),
-                             tmp_(n_locations),
-                             best_(n_locations),
-                             station_mark_(n_locations),
-                             prev_station_mark_(n_locations),
-                             route_mark_(n_routes){}
+                             tmp_(n_locations,kInvalid),
+                             best_(n_locations,kInvalid),
+                             station_mark_((n_locations / 32) + 1,0),
+                             prev_station_mark_((n_locations / 32) + 1),
+                             route_mark_((n_locations / 32) + 1),kInvalid_{kInvalid},synced{true}{}
 
 // Zuweisung von Speicherplatz an Attribute, die in devices verwendet werden
 device_memory::device_memory(uint32_t n_locations,
                              uint32_t n_routes,
                              uint32_t row_count_round_times,
                              uint32_t column_count_round_times,
-                             gpu_delta_t invalid)
+                             gpu_delta_t kInvalid)
     : n_locations_{n_locations},
       n_routes_{n_routes},
       row_count_round_times_{row_count_round_times},
@@ -107,7 +107,7 @@ device_memory::device_memory(uint32_t n_locations,
   stats_ = nullptr;
   cudaMalloc(&stats_,32*sizeof(gpu_raptor_stats));
   cuda_check();
-  invalid_ = invalid;
+  kInvalid_ = kInvalid;
   cudaDeviceSynchronize();
   this->reset_async(nullptr);
 }
@@ -136,12 +136,12 @@ void device_memory::destroy() {
 }
 
 void device_memory::reset_async(cudaStream_t s) {
-  std::vector<gpu_delta_t> invalid_time_at_dest((gpu_kMaxTransfers+1), invalid_);
+  std::vector<gpu_delta_t> invalid_time_at_dest((gpu_kMaxTransfers+1), kInvalid_);
   cudaMemcpyAsync(time_at_dest_, invalid_time_at_dest.data(), (gpu_kMaxTransfers+1) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
-  std::vector<gpu_delta_t> invalid_n_locations(n_locations_, invalid_);
+  std::vector<gpu_delta_t> invalid_n_locations(n_locations_, kInvalid_);
   cudaMemcpyAsync(tmp_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   cudaMemcpyAsync(best_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
-  std::vector<gpu_delta_t> invalid_round_times(column_count_round_times_*row_count_round_times_, invalid_);
+  std::vector<gpu_delta_t> invalid_round_times(column_count_round_times_*row_count_round_times_, kInvalid_);
   cudaMemcpyAsync(round_times_,invalid_round_times.data(),column_count_round_times_*row_count_round_times_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   cudaMemsetAsync(station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
   cudaMemsetAsync(prev_station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
@@ -153,31 +153,30 @@ void device_memory::reset_async(cudaStream_t s) {
   }
 }
 void device_memory::next_start_time_async(cudaStream_t s) {
-  std::vector<gpu_delta_t> invalid_n_locations(n_locations_, invalid_);
+  std::vector<gpu_delta_t> invalid_n_locations(n_locations_, kInvalid_);
   cudaMemcpyAsync(tmp_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
-  //TODO: kucken ob unterschied macht wenn best und station hier nicht resetet werden, da diese eh richtig resetet werden...
   cudaMemcpyAsync(best_,invalid_n_locations.data(), n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
   cudaMemsetAsync(station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
   cudaMemsetAsync(prev_station_mark_, 0000, ((n_locations_/32)+1)*sizeof(uint32_t), s);
   cudaMemsetAsync(route_mark_, 0000, ((n_routes_/32)+1)*sizeof(uint32_t), s);
 }
 void device_memory::reset_arrivals_async(cudaStream_t s) {
-  std::vector<gpu_delta_t> invalid_time_at_dest((gpu_kMaxTransfers+1), invalid_);
+  std::vector<gpu_delta_t> invalid_time_at_dest((gpu_kMaxTransfers+1), kInvalid_);
 
   size_t size = (gpu_kMaxTransfers + 1) * sizeof(gpu_delta_t);
   cudaMemcpyAsync(time_at_dest_, invalid_time_at_dest.data(), (gpu_kMaxTransfers+1) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
 
-  std::vector<gpu_delta_t> invalid_round_times(column_count_round_times_*row_count_round_times_, invalid_);
+  std::vector<gpu_delta_t> invalid_round_times(column_count_round_times_*row_count_round_times_, kInvalid_);
   cudaMemcpyAsync(round_times_,invalid_round_times.data(),column_count_round_times_*row_count_round_times_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
 }
 mem::mem(uint32_t n_locations,
          uint32_t n_routes,
          uint32_t row_count_round_times_,
          uint32_t column_count_round_times_,
-         gpu_delta_t invalid,
+         gpu_delta_t kInvalid,
          device_id const device_id)
-    : host_{n_locations,n_routes, row_count_round_times_, column_count_round_times_},
-      device_{n_locations, n_routes, row_count_round_times_, column_count_round_times_, invalid},
+    : host_{n_locations,n_routes, row_count_round_times_, column_count_round_times_,kInvalid},
+      device_{n_locations, n_routes, row_count_round_times_, column_count_round_times_, kInvalid},
       context_{device_id} {}
 
 mem::~mem() {
@@ -189,7 +188,51 @@ void mem::reset_arrivals_async(){
   device_.reset_arrivals_async(context_.proc_stream_);
   cuda_sync_stream(context_.proc_stream_);
 }
+
 void mem::next_start_time_async(){
   device_.next_start_time_async(context_.proc_stream_);
   cuda_sync_stream(context_.proc_stream_);
+}
+
+void mem::copy_host_to_device() {
+  cudaMemcpy(device_.best_, host_.best_.data(), host_.best_.size() * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(device_.round_times_, host_.round_times_.data(), host_.round_times_.size() * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
+  cudaMemcpy(device_.station_mark_, host_.station_mark_.data(), host_.station_mark_.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
+  host_.synced = true;
+  cuda_check();
+}
+
+void mem::fetch_arrivals_async(){
+  auto s = context_.transfer_stream_;
+  cudaMemcpyAsync(
+      host_.round_times_.data(), device_.round_times_,
+      sizeof(gpu_delta_t)*host_.row_count_round_times_*host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      host_.stats_.data(), device_.stats_,
+      sizeof(gpu_raptor_stats)*32, cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      host_.tmp_.data(), device_.tmp_,
+      sizeof(gpu_delta_t)*device_.n_locations_, cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      host_.best_.data(), device_.best_,
+      sizeof(gpu_delta_t)*device_.n_locations_, cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      host_.station_mark_.data(), device_.station_mark_,
+      sizeof(uint32_t)*((device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      host_.prev_station_mark_.data(), device_.prev_station_mark_,
+      sizeof(uint32_t)*((device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
+  cudaMemcpyAsync(
+      host_.route_mark_.data(), device_.route_mark_,
+      sizeof(uint32_t)*((device_.n_routes_/32)+1), cudaMemcpyDeviceToHost, s);
+  cuda_check();
+}
+
+void mem::copy_device_to_host() {
+  cuda_check();
+  cuda_sync_stream(context_.proc_stream_);
+  fetch_arrivals_async();
+  cuda_check();
+  cuda_sync_stream(context_.transfer_stream_);
+  cuda_check();
 }

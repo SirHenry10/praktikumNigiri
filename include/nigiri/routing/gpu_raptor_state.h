@@ -73,7 +73,7 @@ struct host_memory {
   host_memory(host_memory const&&) = delete;
   host_memory operator=(host_memory const&) = delete;
   host_memory operator=(host_memory const&&) = delete;
-  explicit host_memory(uint32_t row_count_round_times, uint32_t column_count_round_times,uint32_t n_locations,uint32_t n_routes);
+  explicit host_memory(uint32_t row_count_round_times, uint32_t column_count_round_times,uint32_t n_locations,uint32_t n_routes,gpu_delta_t kInvalid);
 
   ~host_memory() = default;
 
@@ -87,6 +87,8 @@ struct host_memory {
   std::vector<uint32_t> route_mark_;
   uint32_t row_count_round_times_;
   uint32_t column_count_round_times_;
+  gpu_delta_t kInvalid_;
+  bool synced;
 };
 
 
@@ -97,7 +99,7 @@ struct device_memory {
   device_memory(device_memory const&&) = delete;
   device_memory operator=(device_memory const&) = delete;
   device_memory operator=(device_memory const&&) = delete;
-  device_memory(uint32_t n_locations, uint32_t n_routes, uint32_t row_count_round_times_, uint32_t column_count_round_times_,gpu_delta_t invalid);
+  device_memory(uint32_t n_locations, uint32_t n_routes, uint32_t row_count_round_times_, uint32_t column_count_round_times_,gpu_delta_t kInvalid);
 
   ~device_memory() = default;
 
@@ -111,7 +113,7 @@ struct device_memory {
   gpu_delta_t* best_{};
   gpu_delta_t* round_times_{};
   gpu_delta_t* time_at_dest_{};
-  gpu_delta_t invalid_{};
+  gpu_delta_t kInvalid_{};
   uint32_t* station_mark_{};
   uint32_t* prev_station_mark_{};
   uint32_t* route_mark_{};
@@ -130,11 +132,14 @@ struct mem {
   mem operator=(mem const&) = delete;
   mem operator=(mem const&&) = delete;
 
-  mem(uint32_t n_locations, uint32_t n_routes, uint32_t row_count_round_times_, uint32_t column_count_round_times_,gpu_delta_t invalid,
+  mem(uint32_t n_locations, uint32_t n_routes, uint32_t row_count_round_times_, uint32_t column_count_round_times_,gpu_delta_t kInvalid,
       device_id device_id);
 
   void reset_arrivals_async();
   void next_start_time_async();
+  void copy_host_to_device();
+  void copy_device_to_host();
+  void fetch_arrivals_async();
   ~mem();
 
   host_memory host_;

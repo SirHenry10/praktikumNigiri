@@ -515,14 +515,6 @@ __host__ __device__ T gpu_clamp(T value, T low, T high) {
 #ifdef NIGIRI_CUDA
 template <typename T>
 __host__ __device__ inline gpu_delta_t gpu_clamp(T t) {
-#if defined(NIGIRI_TRACING)
-  if (t < std::numeric_limits<gpu_delta_t>::min()) {
-    trace_upd("CLAMP {} TO {}\n", t, std::numeric_limits<gpu_delta_t>::min());
-  }
-  if (t > std::numeric_limits<delta_t>::max()) {
-    trace_upd("CLAMP {} TO {}\n", t, std::numeric_limits<gpu_delta_t>::max());
-  }
-#endif
   return static_cast<gpu_delta_t>(
       gpu_clamp(t, static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::min()),
                  static_cast<int>(cuda::std::numeric_limits<gpu_delta_t>::max())));
@@ -550,14 +542,6 @@ __host__ __device__ inline cuda::std::pair<gpu_day_idx_t, gpu_minutes_after_midn
 
 template <typename T>
 inline gpu_delta_t gpu_clamp(T t) {
-#if defined(NIGIRI_TRACING)
-  if (t < std::numeric_limits<gpu_delta_t>::min()) {
-    trace_upd("CLAMP {} TO {}\n", t, std::numeric_limits<gpu_delta_t>::min());
-  }
-  if (t > std::numeric_limits<delta_t>::max()) {
-    trace_upd("CLAMP {} TO {}\n", t, std::numeric_limits<gpu_delta_t>::max());
-  }
-#endif
   return static_cast<gpu_delta_t>(
       gpu_clamp(t, static_cast<int>(std::numeric_limits<gpu_delta_t>::min()),
                  static_cast<int>(std::numeric_limits<gpu_delta_t>::max())));

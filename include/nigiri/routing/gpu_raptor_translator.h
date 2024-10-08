@@ -10,16 +10,12 @@
 #include "nigiri/rt/rt_timetable.h"
 #include "clasz_mask.h"
 #include "nigiri/timetable.h"
-#include "gpu_types.h"
-
-#include <cinttypes>
+#include "nigiri/routing/raptor/debug.h"
 #include "nigiri/common/delta_t.h"
 #include "nigiri/routing/gpu_raptor.h"
 #include "nigiri/routing/gpu_types.h"
 #include "nigiri/routing/raptor/raptor.h"
 #include "nigiri/rt/frun.h"
-#include "nigiri/rt/rt_timetable.h"
-#include "nigiri/timetable.h"
 
 using namespace date;
 using namespace nigiri;
@@ -124,6 +120,7 @@ struct gpu_raptor_translator {
 
   void add_start(nigiri::location_idx_t const l,
                  nigiri::unixtime_t const t) {
+    trace_upd("adding start {}: {}\n", location{tt_, l}, t);
     auto start_add = std::chrono::high_resolution_clock::now();
 
     auto gpu_l = *reinterpret_cast<const gpu_location_idx_t*>(&l);

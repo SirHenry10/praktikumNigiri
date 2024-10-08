@@ -126,7 +126,6 @@ TEST(routing, gpu_types) {
   EXPECT_EQ(gpu_direction_static_kBackward, gpu_direction::kBackward);
   EXPECT_EQ(gpu_direction_kForward, gpu_direction::kForward);
   EXPECT_EQ(gpu_direction_kBackward, gpu_direction::kBackward);
-  //TODO: mehr typen noch test...
   auto gpu_date_ranges = reinterpret_cast<nigiri::gpu_interval<gpu_sys_days>*>(&tt.date_range_);
   auto val0 = gpu_date_ranges->from_;
   auto val1 = tt.date_range_.from_;
@@ -257,7 +256,7 @@ TEST(routing, gpu_raptor_germany) {
 
     auto start_cpu = std::chrono::high_resolution_clock::now();
     auto const results_cpu = raptor_search(tt, nullptr, "000300258044", "de:05315:11201",
-                                           sys_days{September / 25 / 2024} + 20h);
+                                           sys_days{September / 25 / 2024} + 8h);
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -271,7 +270,7 @@ TEST(routing, gpu_raptor_germany) {
     auto start_gpu = std::chrono::high_resolution_clock::now();
     std::cout << "Starte GPU-Raptor-Suche..." << std::endl;
     auto const results_gpu = raptor_search(tt, nullptr ,gtt, "000300258044", "de:05315:11201",
-                                           sys_days{September / 25 / 2024} + 20h);
+                                           sys_days{September / 25 / 2024} + 8h);
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 

@@ -733,11 +733,7 @@ void copy_to_device_destroy(gpu_clasz_mask_t*& allowed_claszes,
   kIntermodalTarget = nullptr;
   cudaFree(kMaxTravelTimeTicks);
   kMaxTravelTimeTicks = nullptr;
-  auto const last_error = cudaGetLastError();
-  if (last_error != cudaSuccess) {
-    printf("CUDA error: %s at " STR(last_error) " %s:%d\n",
-           cudaGetErrorString(last_error), __FILE__, __LINE__);
-  }
+  cuda_check();
 };
 
 void launch_kernel(void** args,
@@ -766,44 +762,6 @@ void launch_kernel(void** args,
   cuda_check();
 }
 
-inline void fetch_arrivals_async(mem& mem, cudaStream_t s) {
-  cudaMemcpyAsync(
-      mem.host_.round_times_.data(), mem.device_.round_times_,
-      sizeof(gpu_delta_t)*mem.host_.row_count_round_times_*mem.host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
-  cudaMemcpyAsync(
-      mem.host_.stats_.data(), mem.device_.stats_,
-      sizeof(gpu_raptor_stats)*32, cudaMemcpyDeviceToHost, s);
-  cudaMemcpyAsync(
-      mem.host_.tmp_.data(), mem.device_.tmp_,
-      sizeof(gpu_delta_t)*mem.device_.n_locations_, cudaMemcpyDeviceToHost, s);
-  cudaMemcpyAsync(
-      mem.host_.best_.data(), mem.device_.best_,
-      sizeof(gpu_delta_t)*mem.device_.n_locations_, cudaMemcpyDeviceToHost, s);
-  cudaMemcpyAsync(
-      mem.host_.station_mark_.data(), mem.device_.station_mark_,
-      sizeof(uint32_t)*((mem.device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
-  cudaMemcpyAsync(
-      mem.host_.prev_station_mark_.data(), mem.device_.prev_station_mark_,
-      sizeof(uint32_t)*((mem.device_.n_locations_/32)+1), cudaMemcpyDeviceToHost, s);
-  cudaMemcpyAsync(
-      mem.host_.route_mark_.data(), mem.device_.route_mark_,
-      sizeof(uint32_t)*((mem.device_.n_routes_/32)+1), cudaMemcpyDeviceToHost, s);
-  cuda_check();
-}
-void copy_back(mem& mem){
-  cuda_check();
-  cuda_sync_stream(mem.context_.proc_stream_);
-  fetch_arrivals_async(mem,mem.context_.transfer_stream_);
-  cuda_check();
-  cuda_sync_stream(mem.context_.transfer_stream_);
-  cuda_check();
-}
-
-void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& round_times,std::vector<uint32_t>& station_mark,mem& mem){
-  cudaMemcpy(mem.device_.best_, best.data(), mem.device_.n_locations_ * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem.device_.round_times_, round_times.data(), round_times.size() * sizeof(gpu_delta_t), cudaMemcpyHostToDevice);
-  cudaMemcpy(mem.device_.station_mark_, station_mark.data(), station_mark.size() * sizeof(uint32_t), cudaMemcpyHostToDevice);
-}
 
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,

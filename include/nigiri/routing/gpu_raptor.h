@@ -47,9 +47,6 @@ void launch_kernel(void** args,
                           cudaStream_t s,
                           gpu_direction search_dir,
                           bool rt);
-void copy_back(mem& mem);
-
-void add_start_gpu(std::vector<gpu_delta_t>& best, std::vector<gpu_delta_t>& round_times,std::vector<uint32_t>& station_mark,mem& mem);
 
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
@@ -130,10 +127,6 @@ struct gpu_raptor {
              int const& n_days)
       : gtt_{gtt},
         mem_{mem},
-        best_(mem_.device_.n_locations_, kInvalid),
-        round_times_(mem_.device_.column_count_round_times_ * mem_.device_.row_count_round_times_, kInvalid),
-        station_mark_((mem_.device_.n_locations_ / 32) + 1, 0),
-        added_start_(false),
         cpu_base_{base}
         {
     auto const kIntermodalTarget  =
@@ -175,38 +168,32 @@ struct gpu_raptor {
   }
 
   void reset_arrivals() {
-    utl::fill(round_times_,kInvalid);
-    added_start_ = true;
+    utl::fill(mem_.host_.round_times_,kInvalid);
     mem_.reset_arrivals_async();
   }
 
   void next_start_time() {
-    utl::fill(best_, kInvalid);
-    utl::fill(station_mark_, 0);
-    added_start_ = true;
+    utl::fill(mem_.host_.best_, kInvalid);
+    utl::fill(mem_.host_.station_mark_, 0);
     mem_.next_start_time_async();
   }
 
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
-    trace_upd("adding start {}: {}\n", location{gtt_, l}, t);
-    best_[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
-    round_times_[0U * mem_.device_.column_count_round_times_ + gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
+    mem_.host_.best_[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
+    mem_.host_.round_times_[0U * mem_.device_.column_count_round_times_ + gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
     unsigned int const store_idx = (gpu_to_idx(l) >> 5);  // divide by 32
     unsigned int const mask = 1 << (gpu_to_idx(l) % 32);
-    station_mark_[store_idx] |= mask;
-    added_start_ = true;
+    mem_.host_.station_mark_[store_idx] |= mask;
+    mem_.host_.synced = false;
   }
 
-
-  // hier wird Kernel aufgerufen
   void execute(gpu_unixtime_t const& start_time,
              uint8_t const& max_transfers,
              gpu_unixtime_t const& worst_time_at_dest,
              gpu_profile_idx_t const& prf_idx){
     auto start_add_new = std::chrono::high_resolution_clock::now();
-    if (added_start_){
-      add_start_gpu(best_,round_times_,station_mark_,mem_);
-      added_start_ = false;
+    if (!mem_.host_.synced){
+      mem_.copy_host_to_device();
     }
     auto end_add_new = std::chrono::high_resolution_clock::now();
     auto add_new_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_add_new - start_add_new).count();
@@ -237,8 +224,7 @@ struct gpu_raptor {
                            (void*)&(mem_.device_),
                            (void*)gtt_};
     launch_kernel(kernel_args, mem_.context_, mem_.context_.proc_stream_,SearchDir,Rt);
-    copy_back(mem_);
-    //copy stats from host to raptor attribute
+    mem_.copy_device_to_host();
     gpu_raptor_stats tmp{};
     for (int i = 0; i<32; ++i) {
       tmp.n_routing_time_ += mem_.host_.stats_[i].n_routing_time_;
@@ -267,8 +253,4 @@ struct gpu_raptor {
   std::uint16_t* kUnreachable_{nullptr};
   gpu_location_idx_t* kIntermodalTarget_{nullptr};
   short* kMaxTravelTimeTicks_{nullptr};
-  std::vector<gpu_delta_t> best_;
-  std::vector<gpu_delta_t> round_times_;
-  std::vector<uint32_t> station_mark_;
-  bool added_start_;
 };
