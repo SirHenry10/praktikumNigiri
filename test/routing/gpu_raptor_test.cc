@@ -1085,18 +1085,17 @@ std::vector<std::basic_string_view<char>> get_locations(const timetable& tt) {
 
   return locations;
 }
-double calculate_average(const std::vector<long long>& times) {
-  if (times.empty()) return 0.0;
 
-  double total = 0.0;
-  for (const auto& time : times) {
-    total += static_cast<double>(time);
+double calculate_average(const std::vector<long long>& times) {
+  if (times.empty()){
+    return 0.0;
   }
-  return total / times.size();
+  long long total = std::accumulate(times.begin(), times.end(), 0LL);
+  return static_cast<double>(total) / times.size();
 }
-long long calculate_99th_percentile(std::vector<long long>& times) {
+long long calculate_percentile(std::vector<long long>& times,double number) {
   std::sort(times.begin(), times.end());
-  size_t idx = static_cast<size_t>(0.99 * times.size());
+  size_t idx = static_cast<size_t>(number * times.size());
   return times[idx];
 }
 
@@ -1155,11 +1154,15 @@ TEST(routing, gpu_benchmark) {
 
     // Ergebnisse vergleichen
     std::stringstream ss_cpu, ss_gpu;
+    ss_cpu << "\n";
+    ss_gpu << "\n";
     for (auto const& x : results_cpu) {
       x.print(ss_cpu, tt);
+      ss_cpu << "\n\n";
     }
     for (auto const& x : results_gpu) {
       x.print(ss_gpu, tt);
+      ss_gpu << "\n\n";
     }
 
     // Verwenden von EXPECT_EQ mit zusätzlicher Ausgabe der Start- und Endstation
@@ -1177,14 +1180,22 @@ TEST(routing, gpu_benchmark) {
   // Berechnungen am Ende
   double avg_cpu_time = calculate_average(cpu_times);
   double avg_gpu_time = calculate_average(gpu_times);
-  long long cpu_99th = calculate_99th_percentile(cpu_times);
-  long long gpu_99th = calculate_99th_percentile(gpu_times);
+  long long cpu_99th = calculate_percentile(cpu_times,0.99);
+  long long gpu_99th = calculate_percentile(gpu_times,0.99);
+  long long cpu_90th = calculate_percentile(cpu_times,0.90);
+  long long gpu_90th = calculate_percentile(gpu_times,0.90);
+  long long cpu_50th = calculate_percentile(cpu_times,0.50);
+  long long gpu_50th = calculate_percentile(gpu_times,0.50);
 
   // Benchmark-Ergebnisse ausgeben
   std::cout << "Average CPU Time: " << avg_cpu_time << " microseconds\n";
   std::cout << "Average GPU Time: " << avg_gpu_time << " microseconds\n";
   std::cout << "99th Percentile CPU Time: " << cpu_99th << " microseconds\n";
   std::cout << "99th Percentile GPU Time: " << gpu_99th << " microseconds\n";
+  std::cout << "90th Percentile CPU Time: " << cpu_90th << " microseconds\n";
+  std::cout << "90th Percentile GPU Time: " << gpu_90th << " microseconds\n";
+  std::cout << "50th Percentile CPU Time: " << cpu_50th << " microseconds\n";
+  std::cout << "50th Percentile GPU Time: " << gpu_50th << " microseconds\n";
   std::cout << "Matched Queries: " << matched_queries << "/" << num_queries << "\n";
 
 }
