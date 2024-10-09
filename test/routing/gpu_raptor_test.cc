@@ -1,4 +1,5 @@
 #pragma once
+#include <random>
 #include "gtest/gtest.h"
 
 #include "nigiri/loader/gtfs/files.h"
@@ -1073,4 +1074,117 @@ TEST(routing, gtfs_gpu_raptor) {
   std::cout << "CPU Time: " << cpu_duration << " microseconds\n";
   std::cout << "GPU Time: " << gpu_duration << " microseconds\n";
   destroy_gpu_timetable(gtt);
+}
+std::vector<std::basic_string_view<char>> get_locations(const timetable& tt) {
+  std::vector<std::basic_string_view<char>> locations;
+  locations.reserve(tt.n_locations());
+
+  for (int i = 0; i < tt.n_locations(); ++i) {
+    locations.push_back(tt.locations_.get(location_idx_t{i}).id_);
+  }
+
+  return locations;
+}
+double calculate_average(const std::vector<long long>& times) {
+  if (times.empty()) return 0.0;
+
+  double total = 0.0;
+  for (const auto& time : times) {
+    total += static_cast<double>(time);
+  }
+  return total / times.size();
+}
+long long calculate_99th_percentile(std::vector<long long>& times) {
+  std::sort(times.begin(), times.end());
+  size_t idx = static_cast<size_t>(0.99 * times.size());
+  return times[idx];
+}
+
+std::pair<std::basic_string_view<char>, std::basic_string_view<char>> get_random_location_pair(const std::vector<std::basic_string_view<char>>& locations, std::mt19937& gen) {
+  std::uniform_int_distribution<> dis(0, locations.size() - 1);
+
+  std::basic_string_view<char> start_station = locations[dis(gen)];
+  std::basic_string_view<char> end_station = locations[dis(gen)];
+
+  return {start_station, end_station};
+}
+
+TEST(routing, gpu_benchmark) {
+  timetable tt;
+  std::cout << "Lade Fahrplan..." << std::endl;
+  tt.date_range_ = {date::sys_days{2024_y / September / 25},
+                    date::sys_days{2024_y / September / 26}}; //test_files_germany only available until December 14
+  loader::register_special_stations(tt);
+  loader::gtfs::load_timetable({}, source_idx_t{0}, german_dir_zip, tt);
+  std::cout << "Fahrplan geladen." << std::endl;
+
+  std::cout << "Finalisiere Fahrplan..." << std::endl;
+  loader::finalize(tt);
+  std::cout << "Fahrplan finalisiert." << std::endl;
+  auto gtt = translate_tt_in_gtt(tt);
+  constexpr int num_queries = 200;
+  std::vector<long long> cpu_times;
+  std::vector<long long> gpu_times;
+  int matched_queries = 0;
+
+  std::random_device rd;
+  unsigned int seed = rd();
+  std::cout << "Verwendeter Seed: " << seed << std::endl;
+
+  std::mt19937 gen(seed);
+  auto locations = get_locations(tt);
+
+  for (int i = 0; i < num_queries; ++i) {
+    auto [start, end] = get_random_location_pair(locations,gen);
+
+    // CPU-Suche
+    auto start_cpu = std::chrono::high_resolution_clock::now();
+    auto const results_cpu = raptor_search(tt, nullptr, start, end,  interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                                             unixtime_t{sys_days{2024_y / September / 25}} + 13_hours}, nigiri::direction::kBackward);
+    auto end_cpu = std::chrono::high_resolution_clock::now();
+    auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
+    cpu_times.push_back(cpu_duration);
+
+    // GPU-Suche
+    auto start_gpu = std::chrono::high_resolution_clock::now();
+    auto const results_gpu = raptor_search(tt, nullptr, gtt, start, end, interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
+                                                                                  unixtime_t{sys_days{2024_y / September / 25}} + 13_hours}, nigiri::direction::kBackward);
+    auto end_gpu = std::chrono::high_resolution_clock::now();
+    auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
+    gpu_times.push_back(gpu_duration);
+
+    // Ergebnisse vergleichen
+    std::stringstream ss_cpu, ss_gpu;
+    for (auto const& x : results_cpu) {
+      x.print(ss_cpu, tt);
+    }
+    for (auto const& x : results_gpu) {
+      x.print(ss_gpu, tt);
+    }
+
+    // Verwenden von EXPECT_EQ mit zusätzlicher Ausgabe der Start- und Endstation
+    EXPECT_EQ(ss_cpu.str(), ss_gpu.str())
+        << "Results differ for query " << i + 1 << ": " << start << " -> " << end;
+
+    if (ss_cpu.str() == ss_gpu.str()) {
+      matched_queries++;
+    }
+    if ((i + 1) % 10 == 0) {
+      std::cout << "Bearbeitet: " << (i + 1) << " von " << num_queries << " Querys " << std::endl;
+    }
+  }
+
+  // Berechnungen am Ende
+  double avg_cpu_time = calculate_average(cpu_times);
+  double avg_gpu_time = calculate_average(gpu_times);
+  long long cpu_99th = calculate_99th_percentile(cpu_times);
+  long long gpu_99th = calculate_99th_percentile(gpu_times);
+
+  // Benchmark-Ergebnisse ausgeben
+  std::cout << "Average CPU Time: " << avg_cpu_time << " microseconds\n";
+  std::cout << "Average GPU Time: " << avg_gpu_time << " microseconds\n";
+  std::cout << "99th Percentile CPU Time: " << cpu_99th << " microseconds\n";
+  std::cout << "99th Percentile GPU Time: " << gpu_99th << " microseconds\n";
+  std::cout << "Matched Queries: " << matched_queries << "/" << num_queries << "\n";
+
 }
