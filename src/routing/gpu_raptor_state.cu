@@ -8,22 +8,20 @@
 
 std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
-  //TODO: funktioniert nicht wie bei julian
   int32_t block_dim_x = 32;  // must always be 32!
-  int32_t block_dim_y = 8;  // range [1, ..., 32]
+  int32_t block_dim_y = 4;  // range [1, ..., 32]
   int32_t block_size = block_dim_x * block_dim_y;
 
   auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
 
-  //TODO: Changed for GTX 1080 herausfinden wie allgemein halten
-  int32_t max_blocks_per_sm = 1;
+  int32_t max_blocks_per_sm = 4;
   int32_t num_blocks = mp_count * max_blocks_per_sm;
 
-  int32_t num_sms = prop.multiProcessorCount;  // 20 SMs bei GTX 1080
+  int32_t num_sms = prop.multiProcessorCount;
   int32_t total_blocks = num_sms * max_blocks_per_sm;
 
   dim3 threads_per_block(block_dim_x, block_dim_y, 1);
-  dim3 grid(total_blocks, 1, 1);  // Grid auf 40 Blöcke setzen
+  dim3 grid(total_blocks, 1, 1);
   return {threads_per_block, grid};
 }
 
@@ -54,7 +52,6 @@ void device_context::destroy() {
   cuda_check();
 }
 
-// Attribute, die von Host benötigt werden
 host_memory::host_memory(uint32_t n_locations,
                          uint32_t n_routes,
                          uint32_t row_count_round_times,
@@ -69,7 +66,6 @@ host_memory::host_memory(uint32_t n_locations,
                              prev_station_mark_((n_locations / 32) + 1),
                              route_mark_((n_locations / 32) + 1),kInvalid_{kInvalid},synced{true}{}
 
-// Zuweisung von Speicherplatz an Attribute, die in devices verwendet werden
 device_memory::device_memory(uint32_t n_locations,
                              uint32_t n_routes,
                              uint32_t row_count_round_times,
@@ -163,7 +159,6 @@ void device_memory::next_start_time_async(cudaStream_t s) {
 void device_memory::reset_arrivals_async(cudaStream_t s) {
   std::vector<gpu_delta_t> invalid_time_at_dest((gpu_kMaxTransfers+1), kInvalid_);
 
-  size_t size = (gpu_kMaxTransfers + 1) * sizeof(gpu_delta_t);
   cudaMemcpyAsync(time_at_dest_, invalid_time_at_dest.data(), (gpu_kMaxTransfers+1) * sizeof(gpu_delta_t), cudaMemcpyHostToDevice, s);
 
   std::vector<gpu_delta_t> invalid_round_times(column_count_round_times_*row_count_round_times_, kInvalid_);

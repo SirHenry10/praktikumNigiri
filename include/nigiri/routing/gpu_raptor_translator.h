@@ -134,7 +134,6 @@ struct gpu_raptor_translator {
     auto add_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_add - start_add).count();
   }
 
-  // hier wird Kernel aufgerufen
   void execute(
       unixtime_t const start_time,
       uint8_t const max_transfers,
@@ -143,7 +142,6 @@ struct gpu_raptor_translator {
       nigiri::pareto_set<journey>& results) {
     auto start_execute = std::chrono::high_resolution_clock::now();
     get_gpu_roundtimes(start_time,max_transfers,worst_time_at_dest,prf_idx);
-    // Konstruktion der Ergebnis-Journey
     auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
     auto start_journey = std::chrono::high_resolution_clock::now();
     for (auto i = 0U; i != tt_.n_locations(); ++i) {

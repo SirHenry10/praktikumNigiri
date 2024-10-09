@@ -23,13 +23,12 @@
 
 template <typename KeyType, typename ValueType>
 void copy_gpu_vecvec_to_device(const gpu_vecvec<KeyType, ValueType>* h_vecvec,gpu_vecvec<KeyType, ValueType>*& d_vecvec, size_t& device_bytes, cudaError_t& code) {
-  // Device-Speicher für `gpu_vecvec` zuweisen
+
   d_vecvec = nullptr;
   gpu_vector<ValueType>* d_data = nullptr;
   gpu_vector<gpu_base_t<KeyType>>* d_bucket_starts = nullptr;
   CUDA_CALL(cudaMalloc(&d_vecvec, sizeof(gpu_vecvec<KeyType, ValueType>)));
 
-  // Device-Speicher für `bucket_starts_` und `data_` zuweisen
   CUDA_CALL(cudaMalloc(&d_bucket_starts, h_vecvec->bucket_starts_.size() * sizeof(gpu_base_t<KeyType>)));
   CUDA_CALL(cudaMemcpy(d_bucket_starts, h_vecvec->bucket_starts_.data(),
                         h_vecvec->bucket_starts_.size() * sizeof(gpu_base_t<KeyType>), cudaMemcpyHostToDevice));
@@ -38,7 +37,6 @@ void copy_gpu_vecvec_to_device(const gpu_vecvec<KeyType, ValueType>* h_vecvec,gp
   CUDA_CALL(cudaMemcpy(d_data, h_vecvec->data_.data(),
                         h_vecvec->data_.size() * sizeof(ValueType), cudaMemcpyHostToDevice));
 
-  // Die Kopie der Vektorzeiger auf die GPU-Struktur setzen
   CUDA_CALL(cudaMemcpy(&(d_vecvec->bucket_starts_), &d_bucket_starts, sizeof(gpu_vector<gpu_base_t<KeyType>>), cudaMemcpyHostToDevice));
   CUDA_CALL(cudaMemcpy(&(d_vecvec->data_), &d_data, sizeof(gpu_vector<ValueType>), cudaMemcpyHostToDevice));
 
@@ -66,14 +64,11 @@ void copy_gpu_vector_map_to_device(const gpu_vector_map<KeyType, ValueType>* h_m
                                    gpu_vector_map<KeyType, ValueType>*& d_map,
                                    size_t& device_bytes, cudaError_t& code) {
 
-  // Device-Speicher für gpu_vector_map zuweisen
   d_map = nullptr;
   gpu_vector<ValueType>* d_data = nullptr;
   CUDA_CALL(cudaMalloc(&d_map, sizeof(gpu_vector_map<KeyType, ValueType>)));
-  // Device-Speicher für die Daten innerhalb von gpu_vector_map zuweisen
   CUDA_CALL(cudaMalloc(&d_data, h_map->size() * sizeof(ValueType)));
   CUDA_CALL(cudaMemcpy(d_data, h_map->data(), h_map->size() * sizeof(ValueType), cudaMemcpyHostToDevice));
-  // Die Kopie des Datenzeigers auf die GPU-Struktur setzen
   CUDA_CALL(cudaMemcpy(&(d_map->el_), &d_data, sizeof(gpu_vector<ValueType>), cudaMemcpyHostToDevice));
   CUDA_CALL(cudaMemcpy(&(d_map->used_size_), &h_map->used_size_, sizeof(h_map->used_size_), cudaMemcpyHostToDevice));
   CUDA_CALL(cudaMemcpy(&(d_map->allocated_size_), &h_map->allocated_size_, sizeof(h_map->allocated_size_), cudaMemcpyHostToDevice));
@@ -89,16 +84,11 @@ fail:
     return;
 }
 void copy_gpu_locations_to_device(const gpu_locations* h_locations, gpu_locations& d_locations, size_t& device_bytes, cudaError_t& code) {
-  // Allocate memory for the `gpu_locations` structure on the GPU
-  //TODO: unsicher ob die device_bytes stimmen
+
   d_locations = gpu_locations{nullptr, nullptr, nullptr};
 
-  // Copy each nested structure individually
-  // 1. Copy `transfer_time_`
   copy_gpu_vector_map_to_device(h_locations->transfer_time_, d_locations.transfer_time_, device_bytes, code);
-  // 2. Copy `gpu_footpaths_in_`
   copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_in_, d_locations.gpu_footpaths_in_, device_bytes, code);
-  // 3. Copy `gpu_footpaths_out_`
   copy_gpu_vecvec_to_device(h_locations->gpu_footpaths_out_, d_locations.gpu_footpaths_out_, device_bytes, code);
 
   device_bytes += sizeof(gpu_locations);
@@ -110,7 +100,6 @@ void free_gpu_vecvec(gpu_vecvec<KeyType, ValueType>* d_vecvec) {
   if (!d_vecvec) return;
 
   cudaError_t code;
-  // Free each nested data structure
   gpu_base_t<KeyType>* d_bucket_starts = nullptr;
   ValueType* d_data = nullptr;
 
@@ -159,7 +148,6 @@ void free_gpu_vector_map(gpu_vector_map<KeyType, ValueType>* d_map) {
 }
 
 void free_gpu_locations(gpu_locations& d_locations) {
-  // Free each nested structure
   if (d_locations.transfer_time_) free_gpu_vector_map(d_locations.transfer_time_);
   if (d_locations.gpu_footpaths_in_) free_gpu_vecvec(d_locations.gpu_footpaths_in_);
   if (d_locations.gpu_footpaths_out_) free_gpu_vecvec(d_locations.gpu_footpaths_out_);
@@ -185,35 +173,22 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   if (gtt == nullptr) {
     return nullptr;
   }
-  // route_stop_times_
   gtt->route_stop_times_ = nullptr;
   CUDA_COPY_TO_DEVICE(gpu_delta, gtt->route_stop_times_, route_stop_times,
                       n_route_stop_times);
-  //route_location_seq
    copy_gpu_vecvec_to_device(route_location_seq,gtt->route_location_seq_,device_bytes,code);
 
-
-  //location_routes_
-  copy_gpu_vecvec_to_device(location_routes,gtt->location_routes_, device_bytes, code);
-  //n_locations_
+   copy_gpu_vecvec_to_device(location_routes,gtt->location_routes_, device_bytes, code);
   gtt->n_locations_ = n_locations;
-  //n_routes_
   gtt->n_routes_ = n_routes;
-  //route_stop_time_ranges_
   copy_gpu_vector_map_to_device(route_stop_time_ranges,gtt->route_stop_time_ranges_,device_bytes,code);
-  //route_transport_ranges_
   copy_gpu_vector_map_to_device(route_transport_ranges,gtt->route_transport_ranges_,device_bytes,code);
-  //bitfields_
   copy_gpu_vector_map_to_device(bitfields,gtt->bitfields_,device_bytes,code);
-  //transport_traffic_days_
   copy_gpu_vector_map_to_device(transport_traffic_days,gtt->transport_traffic_days_,device_bytes,code);
-  //date_range_
   gtt->date_range_ = nullptr;
   using gpu_date_range = gpu_interval<gpu_sys_days>;
   CUDA_COPY_TO_DEVICE(gpu_date_range , gtt->date_range_, date_range,1);
-  //locations_
   copy_gpu_locations_to_device(locations,gtt->locations_,device_bytes,code);
-  //route_clasz_
   copy_gpu_vector_map_to_device(route_clasz,gtt->route_clasz_,device_bytes,code);
 
   cudaDeviceSynchronize();
@@ -225,8 +200,6 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   gtt->cpu_date_range_ = date_range;
 
   device_bytes += sizeof(gpu_interval<gpu_sys_days> const*);
-  //TODO: muss ich auch auf device_bytes drauf rechnen cpu_date_range_???
-  //TODO: für was werden device bytse genutzt?
   return gtt;
 
 
@@ -235,13 +208,10 @@ fail:
   return nullptr;
 }
 void destroy_gpu_timetable(gpu_timetable*& gtt) {
-  if (!gtt) return;  // If the pointer is null, there is nothing to free.
+  if (!gtt) return;
 
   cudaError_t code;
 
-  // 1. Free each nested structure in `gpu_timetable`
-
-  // Free route_stop_times_ (assuming it's a pointer to GPU memory)
   if (gtt->route_stop_times_) {
     code = cudaFree(gtt->route_stop_times_);
     if (code != cudaSuccess) {
@@ -250,42 +220,35 @@ void destroy_gpu_timetable(gpu_timetable*& gtt) {
     gtt->route_stop_times_ = nullptr;
   }
 
-  // Free route_location_seq_ (complex nested structure)
   if (gtt->route_location_seq_) {
     free_gpu_vecvec(gtt->route_location_seq_);
     gtt->route_location_seq_ = nullptr;
   }
 
-  // Free location_routes_ (complex nested structure)
   if (gtt->location_routes_) {
     free_gpu_vecvec(gtt->location_routes_);
     gtt->location_routes_ = nullptr;
   }
-  // Free route_stop_time_ranges_ (complex nested structure)
   if (gtt->route_stop_time_ranges_) {
     free_gpu_vector_map(gtt->route_stop_time_ranges_);
     gtt->route_stop_time_ranges_ = nullptr;
   }
 
-  // Free route_transport_ranges_ (complex nested structure)
   if (gtt->route_transport_ranges_) {
     free_gpu_vector_map(gtt->route_transport_ranges_);
     gtt->route_transport_ranges_ = nullptr;
   }
 
-  // Free bitfields_ (complex nested structure)
   if (gtt->bitfields_) {
     free_gpu_vector_map(gtt->bitfields_);
     gtt->bitfields_ = nullptr;
   }
 
-  // Free transport_traffic_days_ (complex nested structure)
   if (gtt->transport_traffic_days_) {
     free_gpu_vector_map(gtt->transport_traffic_days_);
     gtt->transport_traffic_days_ = nullptr;
   }
 
-  // Free date_range_ (single pointer)
   if (gtt->date_range_) {
     code = cudaFree(gtt->date_range_);
     if (code != cudaSuccess) {
@@ -294,17 +257,13 @@ void destroy_gpu_timetable(gpu_timetable*& gtt) {
     gtt->date_range_ = nullptr;
   }
 
-  // Free locations_ (complex nested structure)
-
   free_gpu_locations(gtt->locations_);
 
-  // Free route_clasz_ (complex nested structure)
   if (gtt->route_clasz_) {
     free_gpu_vector_map(gtt->route_clasz_);
     gtt->route_clasz_ = nullptr;
   }
 
-  // 2. Finally, free the `gpu_timetable` structure itself
   free(gtt);
   gtt = nullptr;
   cudaDeviceSynchronize();

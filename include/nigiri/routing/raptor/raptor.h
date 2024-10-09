@@ -106,7 +106,6 @@ struct raptor {
                pareto_set<journey>& results) {
     auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
 
-    // 1.Phase: Initialisierung
     auto const d_worst_at_dest = unix_to_delta(base(), worst_time_at_dest);
     for (auto& time_at_dest : time_at_dest_) {
       time_at_dest = get_best(d_worst_at_dest, time_at_dest);
@@ -114,11 +113,8 @@ struct raptor {
 
     trace_print_init_state();
 
-    // 2.Phase: Update Routes
     for (auto k = 1U; k != end_k; ++k) {
 
-      // diese for-Schleife kann mit der darauf folgenden zusammengefügt werden,
-      // da sie beide über n_locations iterieren → dann parallelisieren
       for (auto i = 0U; i != n_locations_; ++i) {
         state_.best_[i] = get_best(state_.round_times_[k][i], state_.best_[i]);
         if (is_dest_[i]) {
@@ -126,10 +122,8 @@ struct raptor {
         }
       }
 
-      // markieren der stationen → mit letzter zusammenfügen?
       auto any_marked = false;
       for (auto i = 0U; i != n_locations_; ++i) {
-        // wie convert_station_to_route_marks bei Julian
         if (state_.station_mark_[i]) {
           for (auto const& r : tt_.location_routes_[location_idx_t{i}]) {
             any_marked = true;
@@ -153,7 +147,6 @@ struct raptor {
       std::swap(state_.prev_station_mark_, state_.station_mark_);
       utl::fill(state_.station_mark_, false);
 
-      //weiteres Markieren
       any_marked = (allowed_claszes_ == all_clasz_allowed())
                        ? loop_routes<false>(k)
                        : loop_routes<true>(k);
@@ -173,17 +166,15 @@ struct raptor {
       std::swap(state_.prev_station_mark_, state_.station_mark_);
       utl::fill(state_.station_mark_, false);
 
-      //SYNC
-      update_transfers(k); // loop in update_transfers parallelisieren
-      //SYNC
+      update_transfers(k);
+
       update_footpaths(k, prf_idx);
-      //SYNC
+
       update_intermodal_footpaths(k);
 
       trace_print_state_after_round();
     }
 
-    // Konstruktion der Ergebnis-Journey
     for (auto i = 0U; i != n_locations_; ++i) {
       auto const is_dest = is_dest_[i];
       if (!is_dest) {
@@ -224,7 +215,6 @@ private:
   template <bool WithClaszFilter>
   bool loop_routes(unsigned const k) {
     auto any_marked = false;
-    // Hier geht es durch alle Routen wie in update_routes_dev von Julian
     for (auto r_idx = 0U; r_idx != n_routes_; ++r_idx) {
       auto const r = route_idx_t{r_idx};
       if (state_.route_mark_[r_idx]) {
@@ -266,7 +256,7 @@ private:
   }
 
   void update_transfers(unsigned const k) {
-    for (auto i = 0U; i != n_locations_; ++i) { // diese Schleife parallelisieren
+    for (auto i = 0U; i != n_locations_; ++i) {
       if (!state_.prev_station_mark_[i]) {
         continue;
       }
@@ -439,10 +429,8 @@ private:
 
   bool update_route(unsigned const k, route_idx_t const r) {
     auto const stop_seq = tt_.route_location_seq_[r];
-    bool any_marked = false; // aktualisieren hiervon kein problem beim Parallelisieren -> wenn es einmal true ist bleibt es auch true
-    // diese Variable ist das Problem beim Parallelisieren
+    bool any_marked = false;
     auto et = transport{};
-    // hier gehen wir durch alle Stops der Route r → das wollen wir in update_smaller/bigger machen
     for (auto i = 0U; i != stop_seq.size(); ++i) {
       auto const stop_idx =
           static_cast<stop_idx_t>(kFwd ? i : stop_seq.size() - i - 1U);
@@ -450,8 +438,6 @@ private:
       auto const l_idx = cista::to_idx(stp.location_idx());
       auto const is_last = i == stop_seq.size() - 1U;
 
-      // wenn transportmittel an dem Tag nicht fährt &
-      // wenn station nicht markiert ist, wird diese übersprungen → springt zur nächsten station
       if (!et.is_valid() && !state_.prev_station_mark_[l_idx]) {
         trace("┊ │k={}  stop_idx={} {}: not marked, no et - skip\n", k,
               stop_idx, location{tt_, location_idx_t{l_idx}});
@@ -467,16 +453,13 @@ private:
 
 
       auto current_best = kInvalid;
-      //wenn station ausgehende/eingehende Transportmittel hat & transportmittel an dem Tag fährt
       if (et.is_valid() && (kFwd ? stp.out_allowed() : stp.in_allowed())) {
-        // wann transportmittel an dieser station ankommt
         auto const by_transport = time_at_stop(
             r, et, stop_idx, kFwd ? event_type::kArr : event_type::kDep);
-        // beste Zeit für diese station bekommen
         current_best = get_best(state_.round_times_[k - 1][l_idx],
                                 state_.tmp_[l_idx], state_.best_[l_idx]);
-        // wenn Ankunftszeit dieses Transportmittels besser ist als beste Ankunftszeit für station
-        // & vor frühster Ankunftszeit am Ziel liegt
+        assert(by_transport != std::numeric_limits<delta_t>::min() &&
+               by_transport != std::numeric_limits<delta_t>::max());
 
         if (is_better(by_transport, current_best) &&
             is_better(by_transport, time_at_dest_[k]) &&
@@ -489,11 +472,6 @@ private:
               by_transport, current_best,
               !is_better(by_transport, current_best) ? "NOT" : "",
               location{tt_, stp.location_idx()});
-          // dann wird frühste Ankunftszeit an dieser Station aktualisiert
-          // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
-          // round 1 route 6948 -> 19 mal geupdated bei stop 4 bis 22 (gpu 192 mal bei stop 7, 10, 12, 15, 16, 17, wobei bei jedem stop 32 mal geupdatet wird)
-          //runde 1 route 6944 -> 2 mal updaten (gpu 0 mal)
-          // runde 1 route 7388 0 mal auf cpu (32 mal auf gpu)
           ++stats_.n_earliest_arrival_updated_by_route_;
           state_.tmp_[l_idx] = get_best(by_transport, state_.tmp_[l_idx]);
           state_.station_mark_[l_idx] = true;
@@ -533,48 +511,35 @@ private:
             k, !et.is_valid(), stp.in_allowed(), stp.out_allowed(),
             (kFwd ? stp.out_allowed() : stp.in_allowed()));
       }
-      // wenn es die letzte Station in der Route ist
-      // oder es keine ausgehenden/eingehenden transportmittel gibt
-      // oder die Station nicht markiert war
       if (is_last || !(kFwd ? stp.in_allowed() : stp.out_allowed()) ||
           !state_.prev_station_mark_[l_idx]) {
-        //dann wird diese übersprungen
         continue;
       }
 
-      // wenn der lowerBound von der Station nicht erreichbar ist,
-      // werden die darauffolgenden Stationen auch nicht erreichbar sein
       if (lb_[l_idx] == kUnreachable) {
-        // dann wird Durchgehen dieser Route abgebrochen
         break;
       }
 
-      // wenn Transportmittel an dem Tag fährt, dann ist das hier Ankunftszeit am Stop
       auto const et_time_at_stop =
           et.is_valid()
               ? time_at_stop(r, et, stop_idx,
                              kFwd ? event_type::kDep : event_type::kArr)
               : kInvalid;
-      // vorherige Ankunftszeit an der Station
       auto const prev_round_time = state_.round_times_[k - 1][l_idx];
-      // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
+      assert(prev_round_time != kInvalid);
       if (is_better_or_eq(prev_round_time, et_time_at_stop)) {
         auto const [day, mam] = split(prev_round_time);
-        // Hier muss leader election stattfinden
-        // dann wird neues Transportmittel, das am frühsten von station abfährt
         auto const new_et = get_earliest_transport(k, r, stop_idx, day, mam,
                                                    stp.location_idx());
         current_best =
             get_best(current_best, state_.best_[l_idx], state_.tmp_[l_idx]);
-        // wenn neues Transportmittel an diesem Tag fährt und
-        // bisherige beste Ankunftszeit Invalid ist ODER Ankunftszeit an Station besser als Ankunftszeit von neuem Transportmittel
+
         if (new_et.is_valid() &&
             (current_best == kInvalid ||
              is_better_or_eq(
                  time_at_stop(r, new_et, stop_idx,
                               kFwd ? event_type::kDep : event_type::kArr),
                  et_time_at_stop))) {
-          // dann wird neues Transportmittel genommen
           et = new_et;
         } else if (new_et.is_valid()) {
           trace("┊ │k={}    update et: no update time_at_stop={}\n", k,

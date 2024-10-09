@@ -181,7 +181,7 @@ struct gpu_raptor {
   void add_start(gpu_location_idx_t const l, gpu_unixtime_t const t) {
     mem_.host_.best_[gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
     mem_.host_.round_times_[0U * mem_.device_.column_count_round_times_ + gpu_to_idx(l)] = unix_to_gpu_delta(cpu_base(gtt_, cpu_base_), t);
-    unsigned int const store_idx = (gpu_to_idx(l) >> 5);  // divide by 32
+    unsigned int const store_idx = (gpu_to_idx(l) >> 5);
     unsigned int const mask = 1 << (gpu_to_idx(l) % 32);
     mem_.host_.station_mark_[store_idx] |= mask;
     mem_.host_.synced = false;

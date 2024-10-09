@@ -78,7 +78,7 @@ struct host_memory {
   ~host_memory() = default;
 
 
-  std::vector<gpu_delta_t> round_times_; // round_times ist flat_matrix -> mit entries_ auf alle Elemente zugreifen
+  std::vector<gpu_delta_t> round_times_;
   std::vector<gpu_raptor_stats> stats_;
   std::vector<gpu_delta_t> tmp_;
   std::vector<gpu_delta_t> best_;

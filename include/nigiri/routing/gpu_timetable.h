@@ -32,8 +32,8 @@ extern "C"{
 
   struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
                                              std::uint32_t n_route_stop_times,
-                                             gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq, // Route -> list_of_stops
-                                             gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes, // location -> Route
+                                             gpu_vecvec<gpu_route_idx_t,gpu_value_type> const* route_location_seq,
+                                             gpu_vecvec<gpu_location_idx_t , gpu_route_idx_t> const* location_routes,
                                              std::uint32_t const n_locations,
                                              std::uint32_t const n_routes,
                                              gpu_vector_map<gpu_route_idx_t,gpu_interval<std::uint32_t>> const* route_stop_time_ranges,
