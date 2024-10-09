@@ -224,18 +224,7 @@ struct gpu_raptor {
                            (void*)gtt_};
     launch_kernel(kernel_args, mem_.context_, mem_.context_.proc_stream_,SearchDir,Rt);
     mem_.copy_device_to_host();
-    gpu_raptor_stats tmp{};
-    for (int i = 0; i<32; ++i) {
-      tmp.n_routing_time_ += mem_.host_.stats_[i].n_routing_time_;
-      tmp.n_footpaths_visited_ += mem_.host_.stats_[i].n_footpaths_visited_;
-      tmp.n_routes_visited_ += mem_.host_.stats_[i].n_routes_visited_;
-      tmp.n_earliest_trip_calls_ += mem_.host_.stats_[i].n_earliest_trip_calls_;
-      tmp.n_earliest_arrival_updated_by_route_ += mem_.host_.stats_[i].n_earliest_arrival_updated_by_route_;
-      tmp.n_earliest_arrival_updated_by_footpath_ += mem_.host_.stats_[i].n_earliest_arrival_updated_by_footpath_;
-      tmp.fp_update_prevented_by_lower_bound_ += mem_.host_.stats_[i].fp_update_prevented_by_lower_bound_;
-      tmp.route_update_prevented_by_lower_bound_ += mem_.host_.stats_[i].route_update_prevented_by_lower_bound_;
-    }
-    stats_ = tmp;
+    stats_ = mem_.host_.stats_[0];
     destroy_copy_to_gpu_args(start_time_ptr,worst_time_at_dest_ptr,prf_idx_ptr);
   }
   gpu_timetable const* gtt_{nullptr};

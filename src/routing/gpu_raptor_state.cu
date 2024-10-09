@@ -59,7 +59,7 @@ host_memory::host_memory(uint32_t n_locations,
                          gpu_delta_t kInvalid):row_count_round_times_{row_count_round_times},
                              column_count_round_times_{column_count_round_times},
                              round_times_(row_count_round_times*column_count_round_times,kInvalid),
-                             stats_(32),
+                             stats_(1),
                              tmp_(n_locations,kInvalid),
                              best_(n_locations,kInvalid),
                              station_mark_((n_locations / 32) + 1,0),
@@ -101,7 +101,7 @@ device_memory::device_memory(uint32_t n_locations,
   cudaMalloc(&any_station_marked_, sizeof(int));
   cuda_check();
   stats_ = nullptr;
-  cudaMalloc(&stats_,32*sizeof(gpu_raptor_stats));
+  cudaMalloc(&stats_,sizeof(gpu_raptor_stats));
   cuda_check();
   kInvalid_ = kInvalid;
   cudaDeviceSynchronize();
@@ -144,9 +144,7 @@ void device_memory::reset_async(cudaStream_t s) {
   cudaMemsetAsync(route_mark_, 0000, ((n_routes_/32)+1)*sizeof(uint32_t), s);
   cudaMemsetAsync(any_station_marked_, 0000, sizeof(int), s);
   gpu_raptor_stats init_value = {};
-  for (int i = 0; i < 32; ++i) {
-    cudaMemcpyAsync(&stats_[i], &init_value, sizeof(gpu_raptor_stats), cudaMemcpyHostToDevice, s);
-  }
+  cudaMemcpyAsync(stats_, &init_value, sizeof(gpu_raptor_stats), cudaMemcpyHostToDevice, s);
 }
 void device_memory::next_start_time_async(cudaStream_t s) {
   std::vector<gpu_delta_t> invalid_n_locations(n_locations_, kInvalid_);
@@ -204,7 +202,7 @@ void mem::fetch_arrivals_async(){
       sizeof(gpu_delta_t)*host_.row_count_round_times_*host_.column_count_round_times_, cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
       host_.stats_.data(), device_.stats_,
-      sizeof(gpu_raptor_stats)*32, cudaMemcpyDeviceToHost, s);
+      sizeof(gpu_raptor_stats), cudaMemcpyDeviceToHost, s);
   cudaMemcpyAsync(
       host_.tmp_.data(), device_.tmp_,
       sizeof(gpu_delta_t)*device_.n_locations_, cudaMemcpyDeviceToHost, s);
