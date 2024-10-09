@@ -475,8 +475,6 @@ private:
         // beste Zeit für diese station bekommen
         current_best = get_best(state_.round_times_[k - 1][l_idx],
                                 state_.tmp_[l_idx], state_.best_[l_idx]);
-        assert(by_transport != std::numeric_limits<delta_t>::min() &&
-               by_transport != std::numeric_limits<delta_t>::max());
         // wenn Ankunftszeit dieses Transportmittels besser ist als beste Ankunftszeit für station
         // & vor frühster Ankunftszeit am Ziel liegt
 
@@ -493,6 +491,9 @@ private:
               location{tt_, stp.location_idx()});
           // dann wird frühste Ankunftszeit an dieser Station aktualisiert
           // hier einziger Punkt, wo gemeinsame Variablen verändert werden → ATOMIC
+          // round 1 route 6948 -> 19 mal geupdated bei stop 4 bis 22 (gpu 192 mal bei stop 7, 10, 12, 15, 16, 17, wobei bei jedem stop 32 mal geupdatet wird)
+          //runde 1 route 6944 -> 2 mal updaten (gpu 0 mal)
+          // runde 1 route 7388 0 mal auf cpu (32 mal auf gpu)
           ++stats_.n_earliest_arrival_updated_by_route_;
           state_.tmp_[l_idx] = get_best(by_transport, state_.tmp_[l_idx]);
           state_.station_mark_[l_idx] = true;
@@ -556,7 +557,6 @@ private:
               : kInvalid;
       // vorherige Ankunftszeit an der Station
       auto const prev_round_time = state_.round_times_[k - 1][l_idx];
-      assert(prev_round_time != kInvalid);
       // wenn vorherige Ankunftszeit besser ist → dann sucht man weiter nach besserem Umstieg in ein Transportmittel
       if (is_better_or_eq(prev_round_time, et_time_at_stop)) {
         auto const [day, mam] = split(prev_round_time);

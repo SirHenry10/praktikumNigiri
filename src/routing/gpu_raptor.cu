@@ -534,7 +534,6 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
 
   this_grid().sync();
 
-  if(get_global_thread_id() ==0) printf("GPU K: %d, any_marked %d",k,*device_mem.any_station_marked_);
   (allowed_claszes == 0xffff)? loop_routes<SearchDir, Rt, false>(k, &allowed_claszes, kMaxTravelTimeTicks,
                                                                   lb, base, kUnreachable,n_days,
                                                                   gtt,device_mem)
@@ -758,7 +757,6 @@ void launch_kernel(void** args,
   cudaDeviceSynchronize();
   auto end_kernel = std::chrono::high_resolution_clock::now();
   auto kernel_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_kernel - start_kernel).count();
-  std::cout << "Kernel Time: " << kernel_duration << " microseconds\n";
   cuda_check();
 }
 

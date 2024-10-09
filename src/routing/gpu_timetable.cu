@@ -183,7 +183,6 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
   gpu_timetable* gtt =
       static_cast<gpu_timetable*>(malloc(sizeof(gpu_timetable)));
   if (gtt == nullptr) {
-    printf("nigiri gpu raptor: malloc for gpu_timetable failed\n");
     return nullptr;
   }
   // route_stop_times_
@@ -223,9 +222,6 @@ struct gpu_timetable* create_gpu_timetable(gpu_delta const* route_stop_times,
     std::cerr << "something went wrong, one attribute ist nullptr" << std::endl;
     goto fail;
   }
-
-  std::cerr << "n_routes: " << gtt->n_locations_ << std::endl;
-
   gtt->cpu_date_range_ = date_range;
 
   device_bytes += sizeof(gpu_interval<gpu_sys_days> const*);

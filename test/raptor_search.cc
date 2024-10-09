@@ -154,7 +154,6 @@ pareto_set<routing::journey> raptor_search(timetable const& tt,
                                            routing::start_time_t time,
                                            direction const search_dir,
                                            routing::clasz_mask_t const mask) {
-  std::cerr << "raptor_search" << std::endl;
   auto const src = source_idx_t{0};
   auto q = routing::query{
       .start_time_ = time,

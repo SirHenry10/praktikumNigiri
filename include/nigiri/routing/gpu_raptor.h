@@ -197,7 +197,6 @@ struct gpu_raptor {
     }
     auto end_add_new = std::chrono::high_resolution_clock::now();
     auto add_new_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_add_new - start_add_new).count();
-    std::cout << "add_new Time: " << add_new_duration << " microseconds\n";
     gpu_unixtime_t* start_time_ptr = nullptr;
     gpu_unixtime_t* worst_time_at_dest_ptr = nullptr;
     gpu_profile_idx_t* prf_idx_ptr = nullptr;

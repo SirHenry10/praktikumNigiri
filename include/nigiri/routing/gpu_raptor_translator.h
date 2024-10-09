@@ -67,7 +67,6 @@ struct gpu_raptor_translator {
     gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt_,state_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes,tt_.internal_interval_days().size().count());
     auto end_constuct = std::chrono::high_resolution_clock::now();
     auto constuct_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_constuct - start_constuct).count();
-    std::cout << "constuct Time: " << constuct_duration << " microseconds\n";
   }
 
   algo_stats_t get_stats() {
@@ -83,7 +82,6 @@ struct gpu_raptor_translator {
     }
     auto end_stats = std::chrono::high_resolution_clock::now();
     auto stats_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_stats - start_stats).count();
-    std::cout << "stats Time: " << stats_duration << " microseconds\n";
   }
 
   void reset_arrivals() {
@@ -99,7 +97,6 @@ struct gpu_raptor_translator {
     }
     auto end_reset = std::chrono::high_resolution_clock::now();
     auto reset_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reset - start_reset).count();
-    std::cout << "reset Time: " << reset_duration << " microseconds\n";
   }
 
   void next_start_time() {
@@ -115,7 +112,6 @@ struct gpu_raptor_translator {
     }
     auto end_next = std::chrono::high_resolution_clock::now();
     auto next_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_next - start_next).count();
-    std::cout << "next Time: " << next_duration << " microseconds\n";
   }
 
   void add_start(nigiri::location_idx_t const l,
@@ -136,7 +132,6 @@ struct gpu_raptor_translator {
     }
     auto end_add = std::chrono::high_resolution_clock::now();
     auto add_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_add - start_add).count();
-    std::cout << "add Time: " << add_duration << " microseconds\n";
   }
 
   // hier wird Kernel aufgerufen
@@ -177,10 +172,8 @@ struct gpu_raptor_translator {
       }
     }auto end_journey = std::chrono::high_resolution_clock::now();
     auto journey_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_journey - start_journey).count();
-    std::cout << "journey Time: " << journey_duration << " microseconds\n";
     auto end_execute = std::chrono::high_resolution_clock::now();
     auto execute_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_execute - start_execute).count();
-    std::cout << "execute Time: " << execute_duration << " microseconds\n";
   }
 
   void reconstruct(const query& q,
@@ -189,7 +182,6 @@ struct gpu_raptor_translator {
     reconstruct_journey_gpu<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
     auto end_reconstruct = std::chrono::high_resolution_clock::now();
     auto reconstruct_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reconstruct - start_reconstruct).count();
-    std::cout << "reconstruct Time: " << reconstruct_duration << " microseconds\n";
   }
 
 

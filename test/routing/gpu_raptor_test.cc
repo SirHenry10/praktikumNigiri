@@ -156,8 +156,9 @@ auto const german_dir = fs_dir{test_path_germany};
 TEST(routing, gpu_raptor_germany) {
   timetable tt;
   std::cout << "Lade Fahrplan..." << std::endl;
+  // muss hier full_period hin?
   tt.date_range_ = {date::sys_days{2024_y / September / 25},
-                    date::sys_days{2024_y / September / 25}}; //test_files_germany only available until December 14
+                    date::sys_days{2024_y / September / 26}}; //test_files_germany only available until December 14
   loader::register_special_stations(tt);
   loader::gtfs::load_timetable({}, source_idx_t{0}, german_dir_zip, tt);
   std::cout << "Fahrplan geladen." << std::endl;
@@ -174,7 +175,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:06412:1:21:3", "de:06411:4720",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -190,7 +191,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:06412:1:21:3", "de:06411:4720",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
@@ -217,7 +218,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:09162:100_G", "de:11000:900003200",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -233,7 +234,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:09162:100_G", "de:11000:900003200",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
@@ -260,7 +261,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:05315:11111:4:16", "de:05315:14201",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -276,7 +277,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:05315:11111:4:16", "de:05315:14201",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
@@ -304,7 +305,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:08221:1203", "de:05562:3581",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -320,7 +321,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:08221:1203", "de:05562:3581",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
@@ -348,7 +349,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:06432:22576:1:1", "de:06432:24562:1:1",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
     std::stringstream ss1;
@@ -364,7 +365,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:06432:22576:1:1", "de:06432:24562:1:1",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours});
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours});
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
 
@@ -392,7 +393,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:14612:36", "de:02000:10002",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
@@ -409,7 +410,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:14612:36", "de:02000:10002",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
@@ -438,7 +439,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:07314:2019", "de:08222:2475:2:5",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
@@ -455,7 +456,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:07314:2019", "de:08222:2475:2:5",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
@@ -484,7 +485,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:08115:6742", "de:08111:108:80",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
@@ -501,7 +502,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:08115:6742", "de:08111:108:80",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
@@ -530,7 +531,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:01003:57748::1", "de:05966:10238_G",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
@@ -547,7 +548,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:01003:57748::1", "de:05966:10238_G",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
@@ -576,7 +577,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_cpu = raptor_search(tt, nullptr,
                                            "de:09772:4204:0:A", "de:09574:7210",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_cpu = std::chrono::high_resolution_clock::now();
     auto cpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_cpu - start_cpu).count();
@@ -593,7 +594,7 @@ TEST(routing, gpu_raptor_germany) {
     auto const results_gpu = raptor_search(tt, nullptr ,gtt,
                                            "de:09772:4204:0:A", "de:09574:7210",
                                            interval{unixtime_t{sys_days{2024_y / September / 25}} + 11_hours,
-                                                    unixtime_t{sys_days{2024_y / September / 25}} + 13_hours},
+                                                    unixtime_t{sys_days{2024_y / September / 26}} + 11_hours},
                                            nigiri::direction::kBackward);
     auto end_gpu = std::chrono::high_resolution_clock::now();
     auto gpu_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_gpu - start_gpu).count();
