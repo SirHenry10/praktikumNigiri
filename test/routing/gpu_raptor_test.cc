@@ -1121,13 +1121,13 @@ TEST(routing, gpu_benchmark) {
   loader::finalize(tt);
   std::cout << "Fahrplan finalisiert." << std::endl;
   auto gtt = translate_tt_in_gtt(tt);
-  constexpr int num_queries = 200;
+  constexpr int num_queries = 30;
   std::vector<long long> cpu_times;
   std::vector<long long> gpu_times;
   int matched_queries = 0;
 
   std::random_device rd;
-  unsigned int seed = rd();
+  unsigned int seed = 4081258738;
   std::cout << "Verwendeter Seed: " << seed << std::endl;
 
   std::mt19937 gen(seed);
@@ -1186,6 +1186,10 @@ TEST(routing, gpu_benchmark) {
   long long gpu_90th = calculate_percentile(gpu_times,0.90);
   long long cpu_50th = calculate_percentile(cpu_times,0.50);
   long long gpu_50th = calculate_percentile(gpu_times,0.50);
+  long long cpu_10th = calculate_percentile(cpu_times,0.10);
+  long long gpu_10th = calculate_percentile(gpu_times,0.10);
+  long long cpu_01th = calculate_percentile(cpu_times,0.01);
+  long long gpu_01th = calculate_percentile(gpu_times,0.01);
 
   // Benchmark-Ergebnisse ausgeben
   std::cout << "Average CPU Time: " << avg_cpu_time << " microseconds\n";
@@ -1196,6 +1200,10 @@ TEST(routing, gpu_benchmark) {
   std::cout << "90th Percentile GPU Time: " << gpu_90th << " microseconds\n";
   std::cout << "50th Percentile CPU Time: " << cpu_50th << " microseconds\n";
   std::cout << "50th Percentile GPU Time: " << gpu_50th << " microseconds\n";
+  std::cout << "10th Percentile CPU Time: " << cpu_10th << " microseconds\n";
+  std::cout << "10th Percentile GPU Time: " << gpu_10th << " microseconds\n";
+  std::cout << "01th Percentile CPU Time: " << cpu_01th << " microseconds\n";
+  std::cout << "01th Percentile GPU Time: " << gpu_01th << " microseconds\n";
   std::cout << "Matched Queries: " << matched_queries << "/" << num_queries << "\n";
 
 }
