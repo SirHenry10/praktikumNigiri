@@ -511,7 +511,7 @@ void reconstruct_journey_gpu(timetable const& tt,
 
 #if defined(NIGIRI_TRACE_RECONSTRUCT)
   auto const best = [&](std::uint32_t const k, location_idx_t const l) {
-    return std::min(state.host.best_[to_idx(l)],
+    return std::min(state.host_.best_[to_idx(l)],
                     state.host_.round_times_[k* state.host_.column_count_round_times_ +to_idx(l)]);
   };
 #endif
@@ -549,7 +549,7 @@ void reconstruct_journey_gpu(timetable const& tt,
             delta_to_unix(base, time),
             journey::run_enter_exit{r, stop_idx, from_stop_idx}};
       } else {
-        trace_rc_transport_entry_not_possible;
+        trace_rc_transport_entry_not_possible_gpu;
       }
     }
 
@@ -709,7 +709,7 @@ void reconstruct_journey_gpu(timetable const& tt,
                       offset{eq, fp.duration(), dest_offset.type_};
                   ret = std::move(fp_intermodal_dest);
                 } else {
-                  trace_rc_fp_intermodal_dest_mismatch;
+                  trace_rc_fp_intermodal_dest_mismatch_gpu;
                 }
               }
             });
