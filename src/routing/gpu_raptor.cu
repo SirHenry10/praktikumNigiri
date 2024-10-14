@@ -365,10 +365,10 @@ __device__ void update_transfers(unsigned const k, bool const * is_dest,
         atomicAdd(&device_mem.stats_[0].fp_update_prevented_by_lower_bound_, 1);
         continue;
       }
-      bool updated = update_arrival<SearchDir>(device_mem.round_times_, k * device_mem.column_count_round_times_ + l_idx, fp_target_time);
+      bool updated = update_arrival<SearchDir>(device_mem.best_, l_idx, fp_target_time);
       if(updated){
+        update_arrival<SearchDir>(device_mem.round_times_, k * device_mem.column_count_round_times_ + l_idx, fp_target_time);
         atomicAdd(&device_mem.stats_[0].n_earliest_arrival_updated_by_footpath_, 1);
-        device_mem.best_[l_idx] = fp_target_time;
         mark(device_mem.station_mark_, l_idx);
         if(dest){
           update_time_at_dest<SearchDir, Rt>(k, fp_target_time, device_mem.time_at_dest_);
@@ -409,15 +409,15 @@ __device__ void update_footpaths(unsigned const k, gpu_profile_idx_t const prf_i
           atomicAdd(&device_mem.stats_[0].fp_update_prevented_by_lower_bound_, 1);
           continue;
         }
-      }
-      bool updated = update_arrival<SearchDir>(device_mem.round_times_, k * device_mem.column_count_round_times_ +
-                            gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
-      if(updated){
-        atomicAdd(&device_mem.stats_[0].n_earliest_arrival_updated_by_footpath_, 1);
-        device_mem.best_[gpu_to_idx(gpu_location_idx_t{fp.target_})] = fp_target_time;
-        mark(device_mem.station_mark_, gpu_to_idx(gpu_location_idx_t{fp.target_}));
-        if(is_dest[gpu_to_idx(gpu_location_idx_t{fp.target_})]){
-          update_time_at_dest<SearchDir, Rt>(k, fp_target_time, device_mem.time_at_dest_);
+        bool updated = update_arrival<SearchDir>(device_mem.best_, gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
+        if(updated){
+          atomicAdd(&device_mem.stats_[0].n_earliest_arrival_updated_by_footpath_, 1);
+          update_arrival<SearchDir>(device_mem.round_times_, k * device_mem.column_count_round_times_ +
+                                                                 gpu_to_idx(gpu_location_idx_t{fp.target_}), fp_target_time);
+          mark(device_mem.station_mark_, gpu_to_idx(gpu_location_idx_t{fp.target_}));
+          if(is_dest[gpu_to_idx(gpu_location_idx_t{fp.target_})]){
+            update_time_at_dest<SearchDir, Rt>(k, fp_target_time, device_mem.time_at_dest_);
+          }
         }
       }
     }
@@ -464,9 +464,9 @@ __device__ void raptor_round(unsigned const k, gpu_profile_idx_t const prf_idx,
   for(auto idx = global_t_id; idx < gtt.n_locations_; idx += global_stride){
     auto value_1 = device_mem.round_times_[(k) * device_mem.column_count_round_times_ +idx];
     auto value_2 = device_mem.best_[idx];
-    device_mem.best_[global_t_id] =get_best<SearchDir>(value_1, value_2);
+    device_mem.best_[idx] =get_best<SearchDir>(value_1, value_2);
     if(is_dest[idx]){
-      update_time_at_dest<SearchDir, Rt>(k, device_mem.best_[global_t_id], device_mem.time_at_dest_);
+      update_time_at_dest<SearchDir, Rt>(k, device_mem.best_[idx], device_mem.time_at_dest_);
     }
   }
 
@@ -700,11 +700,8 @@ void launch_kernel(void** args,
   } else if (search_dir == gpu_direction::kBackward && rt == false) {
     kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, false>;
   }
-  auto start_kernel = std::chrono::high_resolution_clock::now();
   cudaLaunchCooperativeKernel(kernel_func, device.grid_, device.threads_per_block_, args, 0, s);
   cudaDeviceSynchronize();
-  auto end_kernel = std::chrono::high_resolution_clock::now();
-  auto kernel_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_kernel - start_kernel).count();
   cuda_check();
 }
 

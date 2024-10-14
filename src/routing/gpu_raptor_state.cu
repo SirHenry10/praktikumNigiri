@@ -9,12 +9,12 @@
 std::pair<dim3, dim3> get_launch_paramters(
     cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
   int32_t block_dim_x = 32;  // must always be 32!
-  int32_t block_dim_y = 4;  // range [1, ..., 32]
+  int32_t block_dim_y = 8;  // range [1, ..., 32]
   int32_t block_size = block_dim_x * block_dim_y;
 
   auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
 
-  int32_t max_blocks_per_sm = 4;
+  int32_t max_blocks_per_sm = 1;
   int32_t num_blocks = mp_count * max_blocks_per_sm;
 
   int32_t num_sms = prop.multiProcessorCount;
@@ -222,8 +222,8 @@ void mem::fetch_arrivals_async(){
 }
 
 void mem::copy_device_to_host() {
-  cuda_check();
   cuda_sync_stream(context_.proc_stream_);
+  cuda_check();
   fetch_arrivals_async();
   cuda_check();
   cuda_sync_stream(context_.transfer_stream_);

@@ -191,12 +191,9 @@ struct gpu_raptor {
              uint8_t const& max_transfers,
              gpu_unixtime_t const& worst_time_at_dest,
              gpu_profile_idx_t const& prf_idx){
-    auto start_add_new = std::chrono::high_resolution_clock::now();
     if (!mem_.host_.synced){
       mem_.copy_host_to_device();
     }
-    auto end_add_new = std::chrono::high_resolution_clock::now();
-    auto add_new_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_add_new - start_add_new).count();
     gpu_unixtime_t* start_time_ptr = nullptr;
     gpu_unixtime_t* worst_time_at_dest_ptr = nullptr;
     gpu_profile_idx_t* prf_idx_ptr = nullptr;

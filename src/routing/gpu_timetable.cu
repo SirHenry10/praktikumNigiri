@@ -207,7 +207,7 @@ fail:
   destroy_gpu_timetable(gtt);
   return nullptr;
 }
-void destroy_gpu_timetable(gpu_timetable*& gtt) {
+void destroy_gpu_timetable(gpu_timetable* gtt) {
   if (!gtt) return;
 
   cudaError_t code;
@@ -265,7 +265,6 @@ void destroy_gpu_timetable(gpu_timetable*& gtt) {
   }
 
   free(gtt);
-  gtt = nullptr;
   cudaDeviceSynchronize();
   auto const last_error = cudaGetLastError();
   if (last_error != cudaSuccess) {

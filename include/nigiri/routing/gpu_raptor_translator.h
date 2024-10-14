@@ -61,16 +61,12 @@ struct gpu_raptor_translator {
         lb_{lb},
         base_{base},
         allowed_claszes_{allowed_claszes}{
-    auto start_constuct = std::chrono::high_resolution_clock::now();
     auto& gpu_base = *reinterpret_cast<gpu_day_idx_t*>(&base_);
     auto& gpu_allowed_claszes = *reinterpret_cast<gpu_clasz_mask_t*>(&allowed_claszes_);
     gpu_r_ = std::make_unique<gpu_raptor<gpu_direction_,Rt>>(gtt_,state_, is_dest_,dist_to_end_, lb_, gpu_base, gpu_allowed_claszes,tt_.internal_interval_days().size().count());
-    auto end_constuct = std::chrono::high_resolution_clock::now();
-    auto constuct_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_constuct - start_constuct).count();
   }
 
   algo_stats_t get_stats() {
-    auto start_stats = std::chrono::high_resolution_clock::now();
     if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
       return get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->get_stats();
     } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
@@ -80,12 +76,9 @@ struct gpu_raptor_translator {
     } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
       return get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->get_stats();
     }
-    auto end_stats = std::chrono::high_resolution_clock::now();
-    auto stats_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_stats - start_stats).count();
   }
 
   void reset_arrivals() {
-    auto start_reset = std::chrono::high_resolution_clock::now();
     if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
       get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->reset_arrivals();
     } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
@@ -95,12 +88,9 @@ struct gpu_raptor_translator {
     } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
       get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->reset_arrivals();
     }
-    auto end_reset = std::chrono::high_resolution_clock::now();
-    auto reset_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reset - start_reset).count();
   }
 
   void next_start_time() {
-    auto start_next = std::chrono::high_resolution_clock::now();
     if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
       get<std::unique_ptr<gpu_raptor<gpu_direction::kForward,true>>>(gpu_r_)->next_start_time();
     } else if (gpu_direction_ == gpu_direction::kForward && Rt == false) {
@@ -110,15 +100,11 @@ struct gpu_raptor_translator {
     } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
       get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->next_start_time();
     }
-    auto end_next = std::chrono::high_resolution_clock::now();
-    auto next_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_next - start_next).count();
   }
 
   void add_start(nigiri::location_idx_t const l,
                  nigiri::unixtime_t const t) {
     trace_upd("adding start {}: {}\n", location{tt_, l}, t);
-    auto start_add = std::chrono::high_resolution_clock::now();
-
     auto gpu_l = *reinterpret_cast<const gpu_location_idx_t*>(&l);
     gpu_unixtime_t gpu_t = *reinterpret_cast<gpu_unixtime_t const*>(&t);
     if (gpu_direction_ == gpu_direction::kForward && Rt == true) {
@@ -130,8 +116,6 @@ struct gpu_raptor_translator {
     } else if (gpu_direction_ == gpu_direction::kBackward && Rt == false) {
       get<std::unique_ptr<gpu_raptor<gpu_direction::kBackward,false>>>(gpu_r_)->add_start(gpu_l,gpu_t);
     }
-    auto end_add = std::chrono::high_resolution_clock::now();
-    auto add_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_add - start_add).count();
   }
 
   void execute(
@@ -140,10 +124,8 @@ struct gpu_raptor_translator {
       unixtime_t const worst_time_at_dest,
       profile_idx_t const prf_idx,
       nigiri::pareto_set<journey>& results) {
-    auto start_execute = std::chrono::high_resolution_clock::now();
     get_gpu_roundtimes(start_time,max_transfers,worst_time_at_dest,prf_idx);
     auto const end_k = std::min(max_transfers, kMaxTransfers) + 1U;
-    auto start_journey = std::chrono::high_resolution_clock::now();
     for (auto i = 0U; i != tt_.n_locations(); ++i) {
       auto const is_dest = is_dest_[i];
       if (!is_dest) {
@@ -168,21 +150,13 @@ struct gpu_raptor_translator {
           }
         }
       }
-    }auto end_journey = std::chrono::high_resolution_clock::now();
-    auto journey_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_journey - start_journey).count();
-    auto end_execute = std::chrono::high_resolution_clock::now();
-    auto execute_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_execute - start_execute).count();
+    }
   }
 
   void reconstruct(const query& q,
                    journey& j){
-    auto start_reconstruct = std::chrono::high_resolution_clock::now();
     reconstruct_journey_gpu<SearchDir>(tt_, rtt_, q, state_, j, base(), base_);
-    auto end_reconstruct = std::chrono::high_resolution_clock::now();
-    auto reconstruct_duration = std::chrono::duration_cast<std::chrono::microseconds>(end_reconstruct - start_reconstruct).count();
   }
-
-
   nigiri::timetable const& tt_;
   nigiri::rt_timetable const* rtt_{nullptr};
   algo_state_t& state_;

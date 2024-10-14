@@ -5,6 +5,9 @@
 #include <cinttypes>
 #include "gpu_types.h"
 extern "C"{
+  struct gpu_timetable;
+  void destroy_gpu_timetable(gpu_timetable* gtt);
+
   struct gpu_timetable {
     gpu_delta* route_stop_times_{nullptr};
     gpu_vecvec<gpu_route_idx_t,gpu_value_type,unsigned int> * route_location_seq_ {nullptr};
@@ -25,8 +28,9 @@ extern "C"{
       return {date_range.from_ - (gpu_days{1} + gpu_days{4}),
               date_range.to_ + gpu_days{1}};
     }
-
-
+    ~gpu_timetable() {
+      destroy_gpu_timetable(this);
+    }
 
   };
 
@@ -43,5 +47,4 @@ extern "C"{
                                              gpu_interval<gpu_sys_days> const* date_range,
                                              gpu_locations const* locations,
                                              gpu_vector_map<gpu_route_idx_t, gpu_clasz> const* route_clasz);
-  void destroy_gpu_timetable(gpu_timetable*& gtt);
   } //extern "C"
