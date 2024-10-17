@@ -89,10 +89,6 @@ TEST(routing, gpu_benchmark) {
 
   for (int i = 0; i < num_queries; ++i) {
     auto [start, end] = get_random_location_pair(locations,gen);
-    if (i>7270&&i<=7280){
-      std::cerr<< "Start: "<< start << " End: " << end << "\n";
-    }
-
 
     auto start_cpu = std::chrono::high_resolution_clock::now();
     auto const results_cpu = raptor_search(tt, nullptr,
