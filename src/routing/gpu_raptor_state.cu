@@ -1,32 +1,38 @@
 #pragma once
-
 #include "nigiri/routing/gpu_raptor_state.h"
 #include <iostream>
 
-
 #include <cuda_runtime.h>
 
-std::pair<dim3, dim3> get_launch_paramters(
-    cudaDeviceProp const& prop, int32_t const concurrency_per_device) {
-  int32_t block_dim_x = 32;  // must always be 32!
-  int32_t block_dim_y = 8;  // range [1, ..., 32]
-  int32_t block_size = block_dim_x * block_dim_y;
 
-  auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
+std::pair<dim3, dim3> inline get_launch_paramters(
+    cudaDeviceProp const& prop, int32_t const concurrency_per_device,void* kernel) {
+    int32_t block_dim_x = 32;  // must always be 32!
+    int32_t block_dim_y = 14;   // range [1, ..., 32]
+    int32_t block_size = block_dim_x * block_dim_y;
 
-  int32_t max_blocks_per_sm = 1;
-  int32_t num_blocks = mp_count * max_blocks_per_sm;
+    auto const mp_count = prop.multiProcessorCount / concurrency_per_device;
 
-  int32_t num_sms = prop.multiProcessorCount;
-  int32_t total_blocks = num_sms * max_blocks_per_sm;
+    cudaFuncAttributes attr;
+    cudaError_t error = cudaFuncGetAttributes(&attr, kernel);
 
-  dim3 threads_per_block(block_dim_x, block_dim_y, 1);
-  dim3 grid(total_blocks, 1, 1);
-  return {threads_per_block, grid};
+
+    int32_t max_blocks_per_sm = 0;
+    cudaOccupancyMaxActiveBlocksPerMultiprocessor(&max_blocks_per_sm,kernel,block_size,0);
+    if (max_blocks_per_sm == 0){
+      throw std::runtime_error("Error: max_blocks_per_sm is 0. Please check block_dim_y and lower it.\n");
+    }
+    int32_t total_blocks = mp_count * max_blocks_per_sm;
+    dim3 threads_per_block(block_dim_x, block_dim_y, 1);
+    dim3 grid(total_blocks, 1, 1);
+
+    std::cout << "max_per_sm: " << max_blocks_per_sm << std::endl;
+    std::cout << "num Register: " << attr.numRegs << std::endl;
+    return {threads_per_block, grid};
 }
 
-device_context::device_context(device_id const device_id)
-    : id_(device_id) {
+device_context::device_context(device_id const device_id,void* kernel)
+    : id_(device_id), kernel_{kernel} {
   cudaSetDevice(id_);
   cuda_check();
 
@@ -34,7 +40,7 @@ device_context::device_context(device_id const device_id)
   cuda_check();
 
   std::tie(threads_per_block_, grid_) =
-      get_launch_paramters(props_, 1);
+      get_launch_paramters(props_, 1,kernel);
 
   cudaStreamCreate(&proc_stream_);
   cuda_check();
@@ -167,10 +173,11 @@ mem::mem(uint32_t n_locations,
          uint32_t row_count_round_times_,
          uint32_t column_count_round_times_,
          gpu_delta_t kInvalid,
-         device_id const device_id)
+         device_id const device_id,
+         void* kernel)
     : host_{n_locations,n_routes, row_count_round_times_, column_count_round_times_,kInvalid},
       device_{n_locations, n_routes, row_count_round_times_, column_count_round_times_, kInvalid},
-      context_{device_id} {}
+      context_{device_id,kernel} {}
 
 mem::~mem() {
   device_.destroy();

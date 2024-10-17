@@ -48,6 +48,8 @@ void launch_kernel(void** args,
                           gpu_direction search_dir,
                           bool rt);
 
+void* get_gpu_raptor_kernel(gpu_direction search_dir,bool rt);
+
 void copy_to_gpu_args(gpu_unixtime_t const* start_time,
                       gpu_unixtime_t const* worst_time_at_dest,
                       gpu_profile_idx_t const* prf_idx,

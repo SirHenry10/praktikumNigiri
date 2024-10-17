@@ -42,16 +42,13 @@ struct gpu_raptor_stats {
 };
 using device_id = int32_t;
 
-std::pair<dim3, dim3> get_launch_parameters(cudaDeviceProp const& prop,
-                                           int32_t concurrency_per_device);
-
 struct device_context {
   device_context() = delete;
   device_context(device_context const&) = delete;
   device_context(device_context const&&) = delete;
   device_context operator=(device_context const&) = delete;
   device_context operator=(device_context const&&) = delete;
-  device_context(device_id device_id);
+  device_context(device_id device_id,void* kernel);
 
   ~device_context() = default;
 
@@ -65,6 +62,7 @@ struct device_context {
 
   cudaStream_t proc_stream_{};
   cudaStream_t transfer_stream_{};
+  void* kernel_{};
 };
 
 struct host_memory {
@@ -133,7 +131,7 @@ struct mem {
   mem operator=(mem const&&) = delete;
 
   mem(uint32_t n_locations, uint32_t n_routes, uint32_t row_count_round_times_, uint32_t column_count_round_times_,gpu_delta_t kInvalid,
-      device_id device_id);
+      device_id device_id,void* kernel);
 
   void reset_arrivals_async();
   void next_start_time_async();

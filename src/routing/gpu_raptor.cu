@@ -734,3 +734,17 @@ void destroy_copy_to_gpu_args(gpu_unixtime_t* start_time_ptr,
   prf_idx_ptr = nullptr;
   cuda_check();
 }
+
+void* get_gpu_raptor_kernel(gpu_direction search_dir,bool rt){
+  void* kernel_func = nullptr;
+  if (search_dir == gpu_direction::kForward && rt == true) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kForward, true>;
+  } else if (search_dir == gpu_direction::kForward && rt == false) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kForward, false>;
+  } else if (search_dir == gpu_direction::kBackward && rt == true) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, true>;
+  } else if (search_dir == gpu_direction::kBackward && rt == false) {
+    kernel_func = (void*)gpu_raptor_kernel<gpu_direction::kBackward, false>;
+  }
+  return kernel_func;
+}
