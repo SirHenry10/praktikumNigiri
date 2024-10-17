@@ -29,7 +29,7 @@ auto const german_dir = fs_dir{test_path_germany};
 
 std::vector<std::basic_string_view<char>> get_locations(const timetable& tt) {
   std::vector<std::basic_string_view<char>> locations;
-  locations.reserve(tt.n_locations()-9); //Die ersten neun sind keine Locations.
+  locations.reserve(tt.n_locations()-9); //Die ersten neun Werte in tt.locations sind keine Locations.
   printf("n_locations: %d",tt.n_locations());
   for (int i = 9; i < tt.n_locations(); ++i) {
     auto location_id = tt.locations_.get(location_idx_t{i}).id_;
