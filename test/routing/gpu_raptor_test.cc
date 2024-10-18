@@ -79,7 +79,7 @@ TEST(routing, gpu_benchmark) {
   int matched_queries = 0;
 
   std::random_device rd;
-  unsigned int seed = rd(); //hier kann man anstatt sichr andom mit rd() einen Seed generien lassen auch direkt einen Seed angeben
+  unsigned int seed = rd(); //hier kann man anstatt sich random mit rd() einen Seed generien lassen auch direkt einen Seed angeben
   std::cout << "Verwendeter Seed: " << seed << std::endl;
 
   std::mt19937 gen(seed);
