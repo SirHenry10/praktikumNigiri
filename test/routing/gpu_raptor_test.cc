@@ -30,7 +30,6 @@ auto const german_dir = fs_dir{test_path_germany};
 std::vector<std::basic_string_view<char>> get_locations(const timetable& tt) {
   std::vector<std::basic_string_view<char>> locations;
   locations.reserve(tt.n_locations()-9); //Die ersten neun Werte in tt.locations sind keine Locations.
-  printf("n_locations: %d",tt.n_locations());
   for (int i = 9; i < tt.n_locations(); ++i) {
     auto location_id = tt.locations_.get(location_idx_t{i}).id_;
     locations.push_back(location_id);
@@ -74,14 +73,13 @@ TEST(routing, gpu_benchmark) {
   loader::finalize(tt);
   std::cout << "Fahrplan finalisiert." << std::endl;
   auto gtt = translate_tt_in_gtt(tt);
-  printf("locations: %d, routes: %d",tt.n_locations(),tt.n_routes());
   constexpr int num_queries = 10000;
   std::vector<long long> cpu_times;
   std::vector<long long> gpu_times;
   int matched_queries = 0;
 
   std::random_device rd;
-  unsigned int seed = 2657573402;
+  unsigned int seed = rd();
   std::cout << "Verwendeter Seed: " << seed << std::endl;
 
   std::mt19937 gen(seed);

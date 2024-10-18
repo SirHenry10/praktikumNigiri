@@ -26,8 +26,6 @@ std::pair<dim3, dim3> inline get_launch_paramters(
     dim3 threads_per_block(block_dim_x, block_dim_y, 1);
     dim3 grid(total_blocks, 1, 1);
 
-    std::cout << "max_per_sm: " << max_blocks_per_sm << std::endl;
-    std::cout << "num Register: " << attr.numRegs << std::endl;
     return {threads_per_block, grid};
 }
 
